@@ -1,21 +1,19 @@
 {% extends 'base.html' %}
 {% block title %}{{ '新增企业' if 模式 == 'new' else '编辑企业' }}{% endblock %}
 
-{% macro value_of(field_name, default='') -%}
+{% macro extra_value(field_name, default='') -%}
     {%- if request.method == 'POST' -%}
         {{ request.form.get(field_name, default) }}
-    {%- elif 企业 -%}
-        {{ 企业|attr(field_name) if 企业|attr(field_name) is not none else default }}
     {%- else -%}
-        {{ default }}
+        {{ (企业扩展字段 or {}).get(field_name, default) }}
     {%- endif -%}
 {%- endmacro %}
 
-{% macro checked_of(field_name) -%}
+{% macro extra_list(field_name) -%}
     {%- if request.method == 'POST' -%}
-        {{ 'checked' if request.form.get(field_name) == 'on' else '' }}
-    {%- elif 企业 and 企业|attr(field_name) -%}
-        checked
+        {{ request.form.getlist(field_name) }}
+    {%- else -%}
+        {{ (企业扩展字段 or {}).get(field_name, []) }}
     {%- endif -%}
 {%- endmacro %}
 
@@ -27,147 +25,88 @@
 
 <form method="post" class="vstack gap-3">
     <div class="card shadow-sm">
-        <div class="card-header fw-bold">A. 入库信息</div>
+        <div class="card-header fw-bold">入库信息</div>
         <div class="card-body row g-3">
-            <div class="col-md-4">
-                <label class="form-label">企业编号</label>
-                <input class="form-control" value="{{ 企业.enterprise_code if 企业 else '自动生成（保存后可见）' }}" disabled>
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">入库状态 <span class="text-danger">*</span></label>
-                <select class="form-select" name="status" required>
-                    {% set 状态值 = request.form.get('status') if request.method == 'POST' else (企业.status if 企业 else '草稿') %}
-                    {% for s in ['草稿', '待审核', '已入库', '跟进中', '冻结'] %}
-                    <option value="{{ s }}" {% if s == 状态值 %}selected{% endif %}>{{ s }}</option>
+            <div class="col-md-3"><label class="form-label">企业编号</label><input class="form-control" value="{{ 企业.enterprise_code if 企业 else '自动生成（保存后可见）' }}" disabled></div>
+            <div class="col-md-3"><label class="form-label">入库状态</label><select class="form-select" name="status">{% set 状态值 = request.form.get('status') if request.method == 'POST' else (企业.status if 企业 else '草稿') %}{% for s in ['草稿','待审核','已入库','跟进中','冻结'] %}<option value="{{ s }}" {% if s == 状态值 %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+            <div class="col-md-3"><label class="form-label">项目负责人</label><input class="form-control" name="project_owner" value="{{ request.form.get('project_owner') if request.method == 'POST' else (企业.project_owner if 企业 else '') }}"></div>
+            <div class="col-md-3"><label class="form-label">行业分类 <span class="text-danger">*</span></label><select class="form-select" id="industryCode" name="industry_code" required><option value="">请选择行业分类</option>{% set 当前行业代码 = request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '') %}{% for item in 行业列表 %}<option value="{{ item.code }}" data-name="{{ item.name }}" {% if item.code == 当前行业代码 %}selected{% endif %}>{{ item.code }} {{ item.name }}</option>{% endfor %}</select></div>
+            <div class="col-md-4"><label class="form-label">行业名称</label><input id="industryName" class="form-control" value="{{ request.form.get('industry_category') if request.method == 'POST' else (企业.industry_category if 企业 else '') }}" readonly><input type="hidden" name="industry_category" id="industryNameHidden"></div>
+            <div class="col-md-4"><label class="form-label">省份</label><input class="form-control" name="province" value="{{ request.form.get('province') if request.method == 'POST' else (企业.province if 企业 else '') }}"></div>
+            <div class="col-md-4"><label class="form-label">城市</label><input class="form-control" name="city" value="{{ request.form.get('city') if request.method == 'POST' else (企业.city if 企业 else '') }}"></div>
+            <div class="col-md-4"><label class="form-label">区县</label><input class="form-control" name="district" value="{{ request.form.get('district') if request.method == 'POST' else (企业.district if 企业 else '') }}"></div>
+            <div class="col-md-4"><label class="form-label">细分行业</label><input class="form-control" name="sub_industry" value="{{ request.form.get('sub_industry') if request.method == 'POST' else (企业.sub_industry if 企业 else '') }}"></div>
+            <div class="col-md-4"><label class="form-label">企业类型备注</label><input class="form-control" name="company_type" value="{{ request.form.get('company_type') if request.method == 'POST' else (企业.company_type if 企业 else '') }}"></div>
+        </div>
+    </div>
+
+    {% for group in 通用字段组 %}
+    <div class="card shadow-sm">
+        <div class="card-header fw-bold">{{ group.title }}</div>
+        <div class="card-body row g-3">
+            {% for field in group.fields %}
+                {% if field.type == 'textarea' %}
+                <div class="col-md-6">
+                    <label class="form-label">{{ field.label }}{% if field.required %}<span class="text-danger">*</span>{% endif %}</label>
+                    <textarea class="form-control" rows="2" name="{{ field.key }}" {% if field.required %}required{% endif %}>{{ extra_value(field.key) }}</textarea>
+                </div>
+                {% elif field.type == 'select' %}
+                <div class="col-md-4">
+                    <label class="form-label">{{ field.label }}</label>
+                    <select class="form-select" name="{{ field.key }}">
+                        <option value="">请选择</option>
+                        {% set cur = extra_value(field.key) %}
+                        {% for opt in field.options %}
+                        <option value="{{ opt }}" {% if opt == cur %}selected{% endif %}>{{ opt }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                {% elif field.type == 'checkbox_group' %}
+                <div class="col-12">
+                    <label class="form-label d-block">{{ field.label }}</label>
+                    {% set selected_values = request.form.getlist(field.key) if request.method == 'POST' else (企业扩展字段 or {}).get(field.key, []) %}
+                    <div class="row g-2">
+                        {% for opt in field.options %}
+                        <div class="col-md-3 col-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="{{ field.key }}_{{ loop.index }}" name="{{ field.key }}" value="{{ opt }}" {% if opt in selected_values %}checked{% endif %}>
+                                <label class="form-check-label" for="{{ field.key }}_{{ loop.index }}">{{ opt }}</label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% else %}
+                <div class="col-md-4">
+                    <label class="form-label">{{ field.label }}{% if field.required %}<span class="text-danger">*</span>{% endif %}</label>
+                    <input class="form-control" type="{{ field.type if field.type in ['date','number','email','url'] else 'text' }}" name="{{ field.key }}" value="{{ extra_value(field.key) }}" {% if field.required %}required{% endif %}>
+                </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+    </div>
+    {% endfor %}
+
+    <div id="industryExtraContainer">
+        {% for industry_code, groups in 行业字段配置.items() %}
+            {% for group in groups %}
+            <div class="card shadow-sm industry-extra-group" data-industry="{{ industry_code }}" style="display:none;">
+                <div class="card-header fw-bold">{{ group.title }}</div>
+                <div class="card-body row g-3">
+                    {% for field in group.fields %}
+                    <div class="col-md-4">
+                        <label class="form-label">{{ field.label }}</label>
+                        {% if field.type == 'textarea' %}
+                        <textarea class="form-control" rows="2" name="{{ field.key }}">{{ extra_value(field.key) }}</textarea>
+                        {% else %}
+                        <input class="form-control" name="{{ field.key }}" value="{{ extra_value(field.key) }}">
+                        {% endif %}
+                    </div>
                     {% endfor %}
-                </select>
+                </div>
             </div>
-            <div class="col-md-4">
-                <label class="form-label">项目负责人</label>
-                <input class="form-control" name="project_owner" value="{{ value_of('project_owner') }}">
-            </div>
-        </div>
-    </div>
-
-    <div class="card shadow-sm">
-        <div class="card-header fw-bold">B. 企业基础信息</div>
-        <div class="card-body row g-3">
-            <div class="col-md-6">
-                <label class="form-label">企业名称 <span class="text-danger">*</span></label>
-                <input class="form-control" name="company_name" value="{{ value_of('company_name') }}" required>
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">英文名称</label>
-                <input class="form-control" name="english_name" value="{{ value_of('english_name') }}">
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">统一社会信用代码</label>
-                <input class="form-control" name="unified_social_credit_code" value="{{ value_of('unified_social_credit_code') }}">
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">成立日期</label>
-                <input type="date" class="form-control" name="founded_date" value="{{ value_of('founded_date') }}">
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">注册资本</label>
-                <input class="form-control" name="registered_capital" value="{{ value_of('registered_capital') }}">
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">省份</label>
-                <input class="form-control" name="province" value="{{ value_of('province') }}">
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">城市</label>
-                <input class="form-control" name="city" value="{{ value_of('city') }}">
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">区县</label>
-                <input class="form-control" name="district" value="{{ value_of('district') }}">
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">注册地址</label>
-                <input class="form-control" name="registered_address" value="{{ value_of('registered_address') }}">
-            </div>
-            <div class="col-md-6">
-                <label class="form-label">经营地址</label>
-                <input class="form-control" name="business_address" value="{{ value_of('business_address') }}">
-            </div>
-        </div>
-    </div>
-
-    <div class="card shadow-sm">
-        <div class="card-header fw-bold">C. 企业属性与标签</div>
-        <div class="card-body row g-3">
-            <div class="col-md-4"><div class="form-check"><input class="form-check-input" type="checkbox" name="is_manufacturer" id="is_manufacturer" {{ checked_of('is_manufacturer') }}><label class="form-check-label" for="is_manufacturer">制造商</label></div></div>
-            <div class="col-md-4"><div class="form-check"><input class="form-check-input" type="checkbox" name="is_trader" id="is_trader" {{ checked_of('is_trader') }}><label class="form-check-label" for="is_trader">贸易商</label></div></div>
-            <div class="col-md-4"><div class="form-check"><input class="form-check-input" type="checkbox" name="is_brand_owner" id="is_brand_owner" {{ checked_of('is_brand_owner') }}><label class="form-check-label" for="is_brand_owner">品牌方</label></div></div>
-            <div class="col-md-4"><div class="form-check"><input class="form-check-input" type="checkbox" name="is_oem_odm" id="is_oem_odm" {{ checked_of('is_oem_odm') }}><label class="form-check-label" for="is_oem_odm">支持 OEM/ODM</label></div></div>
-            <div class="col-md-4"><div class="form-check"><input class="form-check-input" type="checkbox" name="is_service_provider" id="is_service_provider" {{ checked_of('is_service_provider') }}><label class="form-check-label" for="is_service_provider">服务型企业</label></div></div>
-            <div class="col-md-4"><div class="form-check"><input class="form-check-input" type="checkbox" name="is_high_tech" id="is_high_tech" {{ checked_of('is_high_tech') }}><label class="form-check-label" for="is_high_tech">高新技术企业</label></div></div>
-            <div class="col-md-4"><div class="form-check"><input class="form-check-input" type="checkbox" name="is_specialized_new" id="is_specialized_new" {{ checked_of('is_specialized_new') }}><label class="form-check-label" for="is_specialized_new">专精特新</label></div></div>
-            <div class="col-md-4"><div class="form-check"><input class="form-check-input" type="checkbox" name="is_listed_or_pre_ipo" id="is_listed_or_pre_ipo" {{ checked_of('is_listed_or_pre_ipo') }}><label class="form-check-label" for="is_listed_or_pre_ipo">上市/拟上市</label></div></div>
-        </div>
-    </div>
-
-    <div class="card shadow-sm">
-        <div class="card-header fw-bold">D. 行业与主营业务</div>
-        <div class="card-body row g-3">
-            <div class="col-md-4">
-                <label class="form-label">行业分类</label>
-                <select class="form-select" name="industry_code" required>
-                    <option value="">请选择行业分类</option>
-                    {% set 当前行业代码 = value_of('industry_code') %}
-                    {% for item in 行业列表 %}
-                    <option value="{{ item.code }}" data-name="{{ item.name }}" {% if item.code == 当前行业代码 %}selected{% endif %}>{{ item.code }} {{ item.name }}</option>
-                    {% endfor %}
-                </select>
-                <input type="hidden" name="industry_category" value="{{ value_of('industry_category') }}">
-            </div>
-            <div class="col-md-4">
-                <label class="form-label">行业名称</label>
-                <input id="enterpriseIndustryName" class="form-control" value="{{ value_of('industry_category') }}" readonly>
-            </div>
-            <div class="col-md-4"><label class="form-label">细分行业</label><input class="form-control" name="sub_industry" value="{{ value_of('sub_industry') }}"></div>
-            <div class="col-12"><label class="form-label">主营产品</label><textarea class="form-control" rows="2" name="main_products">{{ value_of('main_products') }}</textarea></div>
-            <div class="col-12"><label class="form-label">主营业务</label><textarea class="form-control" rows="3" name="main_business">{{ value_of('main_business') }}</textarea></div>
-        </div>
-    </div>
-
-    <div class="card shadow-sm">
-        <div class="card-header fw-bold">E. 生产与供应能力</div>
-        <div class="card-body row g-3">
-            <div class="col-md-4"><label class="form-label">年产能</label><input class="form-control" name="annual_capacity" value="{{ value_of('annual_capacity') }}"></div>
-            <div class="col-md-4"><label class="form-label">员工人数</label><input type="number" class="form-control" name="employee_count" value="{{ value_of('employee_count') }}"></div>
-            <div class="col-md-4"><label class="form-label">厂房面积</label><input class="form-control" name="factory_area" value="{{ value_of('factory_area') }}"></div>
-            <div class="col-12"><label class="form-label">主要设备</label><textarea class="form-control" rows="2" name="main_equipment">{{ value_of('main_equipment') }}</textarea></div>
-        </div>
-    </div>
-
-    <div class="card shadow-sm">
-        <div class="card-header fw-bold">F. 外贸能力</div>
-        <div class="card-body row g-3">
-            <div class="col-md-4"><div class="form-check mt-4"><input class="form-check-input" type="checkbox" name="has_foreign_trade_experience" id="has_foreign_trade_experience" {{ checked_of('has_foreign_trade_experience') }}><label class="form-check-label" for="has_foreign_trade_experience">具备外贸经验</label></div></div>
-            <div class="col-md-4"><label class="form-label">已出口国家</label><input class="form-control" name="export_countries" value="{{ value_of('export_countries') }}"></div>
-            <div class="col-md-4"><label class="form-label">目标市场</label><input class="form-control" name="target_markets" value="{{ value_of('target_markets') }}"></div>
-            <div class="col-md-6"><label class="form-label">外贸负责人</label><input class="form-control" name="trade_owner" value="{{ request.form.get('trade_owner', 外贸负责人 if 外贸负责人 is defined else '') }}"></div>
-            <div class="col-md-6"><label class="form-label">企业类型</label><input class="form-control" name="company_type" value="{{ value_of('company_type') }}"></div>
-        </div>
-    </div>
-
-    <div class="card shadow-sm">
-        <div class="card-header fw-bold">G. 经营财务概况</div>
-        <div class="card-body row g-3">
-            <div class="col-md-6"><label class="form-label">年营收（元）</label><input type="number" step="0.01" class="form-control" name="annual_revenue" value="{{ value_of('annual_revenue') }}"></div>
-            <div class="col-md-6"><label class="form-label">外贸营收（元）</label><input type="number" step="0.01" class="form-control" name="export_revenue" value="{{ value_of('export_revenue') }}"></div>
-        </div>
-    </div>
-
-    <div class="card shadow-sm">
-        <div class="card-header fw-bold">H. 出海需求与风险备注</div>
-        <div class="card-body row g-3">
-            <div class="col-12"><label class="form-label">出海服务需求</label><textarea class="form-control" rows="3" name="service_needs">{{ value_of('service_needs') }}</textarea></div>
-            <div class="col-12"><label class="form-label">风险备注</label><textarea class="form-control" rows="3" name="risk_notes">{{ value_of('risk_notes') }}</textarea></div>
-        </div>
+            {% endfor %}
+        {% endfor %}
     </div>
 
     <div class="d-flex gap-2">
@@ -175,22 +114,28 @@
         <a href="{{ url_for('enterprise_list') }}" class="btn btn-outline-secondary">取消</a>
     </div>
 </form>
+
 <script>
 (() => {
-    const industrySelect = document.querySelector('select[name="industry_code"]');
-    const industryNameInput = document.getElementById('enterpriseIndustryName');
-    const hiddenIndustryName = document.querySelector('input[name="industry_category"]');
-    if (!industrySelect || !industryNameInput || !hiddenIndustryName) return;
+    const industrySelect = document.getElementById('industryCode');
+    const industryName = document.getElementById('industryName');
+    const hiddenName = document.getElementById('industryNameHidden');
+    const groups = document.querySelectorAll('.industry-extra-group');
+    if (!industrySelect) return;
 
-    const syncIndustryName = () => {
-        const selected = industrySelect.options[industrySelect.selectedIndex];
-        const name = selected ? (selected.dataset.name || '') : '';
-        industryNameInput.value = name;
-        hiddenIndustryName.value = name;
+    const sync = () => {
+        const option = industrySelect.options[industrySelect.selectedIndex];
+        const code = industrySelect.value;
+        const name = option ? (option.dataset.name || '') : '';
+        industryName.value = name;
+        hiddenName.value = name;
+        groups.forEach((g) => {
+            g.style.display = g.dataset.industry === code ? 'block' : 'none';
+        });
     };
 
-    industrySelect.addEventListener('change', syncIndustryName);
-    syncIndustryName();
+    industrySelect.addEventListener('change', sync);
+    sync();
 })();
 </script>
 {% endblock %}

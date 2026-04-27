@@ -24,6 +24,49 @@
     </div>
 </div>
 
+{% set extra = 企业.enterprise_extra_fields or {} %}
+<div class="card shadow-sm mb-3">
+    <div class="card-header fw-bold">通用企业信息（按字段组）</div>
+    <div class="card-body">
+        {% for group in 通用字段组 %}
+        <div class="mb-3">
+            <h6 class="fw-bold mb-2">{{ group.title }}</h6>
+            <div class="row g-2">
+                {% for field in group.fields %}
+                {% set value = extra.get(field.key) %}
+                <div class="col-md-4">
+                    <strong>{{ field.label }}：</strong>
+                    {% if value is sequence and value is not string %}
+                        {{ value|join('、') if value else '-' }}
+                    {% else %}
+                        {{ value or '-' }}
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% if 行业专项字段组 %}
+<div class="card shadow-sm mb-3">
+    <div class="card-header fw-bold">行业专项信息（{{ 企业.industry_code }}）</div>
+    <div class="card-body">
+        {% for group in 行业专项字段组 %}
+        <div class="mb-3">
+            <h6 class="fw-bold mb-2">{{ group.title }}</h6>
+            <div class="row g-2">
+                {% for field in group.fields %}
+                <div class="col-md-4"><strong>{{ field.label }}：</strong>{{ extra.get(field.key) or '-' }}</div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
 <div class="row g-3">
     <div class="col-lg-6">
         <div class="card shadow-sm h-100">
