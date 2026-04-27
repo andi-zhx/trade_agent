@@ -68,6 +68,30 @@ class Enterprise(db.Model):
     )
 
     products = db.relationship('Product', back_populates='enterprise', lazy='dynamic')
+    analysis_note = db.relationship(
+        "EnterpriseAnalysisNote",
+        back_populates="enterprise",
+        uselist=False,
+        cascade="all, delete-orphan",
+    )
+
+
+class EnterpriseAnalysisNote(db.Model):
+    """企业出海分析备注。"""
+
+    __tablename__ = "enterprise_analysis_notes"
+
+    id = db.Column(db.Integer, primary_key=True)
+    enterprise_id = db.Column(
+        db.Integer, db.ForeignKey("enterprises.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
+    )
+    note = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+    enterprise = db.relationship("Enterprise", back_populates="analysis_note")
 
 
 class Contact(db.Model):

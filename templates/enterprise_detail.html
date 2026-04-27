@@ -160,12 +160,99 @@
 
     <div class="col-12">
         <div class="card border-primary shadow-sm">
-            <div class="card-header bg-primary-subtle fw-bold">出海服务建议（规则生成）</div>
-            <ul class="list-group list-group-flush">
-                {% for item in 建议 %}
-                <li class="list-group-item">{{ loop.index }}. {{ item }}</li>
-                {% endfor %}
-            </ul>
+            <div class="card-header bg-primary-subtle fw-bold d-flex justify-content-between align-items-center">
+                <span>出海方案建议</span>
+                <div class="d-flex gap-2">
+                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled>导出 Word（预留）</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" disabled>导出 PDF（预留）</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row g-3 mb-3">
+                    <div class="col-lg-3">
+                        <div class="border rounded p-3 h-100 bg-light">
+                            <div class="text-muted small">出海成熟度分数</div>
+                            <div class="display-6 fw-bold text-primary">{{ 分析结果.成熟度分数 }}</div>
+                            <div class="small text-muted">满分 100</div>
+                        </div>
+                    </div>
+                    <div class="col-lg-9">
+                        <div class="border rounded p-3 h-100">
+                            <div class="fw-bold mb-2">企业标签</div>
+                            <div class="d-flex flex-wrap gap-2">
+                                {% for 标签 in 分析结果.标签 %}
+                                <span class="badge rounded-pill text-bg-primary">{{ 标签 }}</span>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive mb-3">
+                    <table class="table table-sm table-bordered align-middle mb-0">
+                        <thead>
+                            <tr><th>分析维度</th><th>分值</th><th>状态</th></tr>
+                        </thead>
+                        <tbody>
+                            {% for 项 in 分析结果.评分项 %}
+                            <tr>
+                                <td>{{ 项.名称 }}</td>
+                                <td>{{ 项.分值 }}</td>
+                                <td>
+                                    {% if 项.达成 %}
+                                    <span class="badge text-bg-success">已满足</span>
+                                    {% else %}
+                                    <span class="badge text-bg-warning">待完善</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="row g-3">
+                    <div class="col-lg-4">
+                        <div class="border rounded p-3 h-100">
+                            <div class="fw-bold mb-2 text-success">优势说明</div>
+                            <ul class="mb-0">
+                                {% for item in 分析结果.优势说明 %}
+                                <li>{{ item }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="border rounded p-3 h-100">
+                            <div class="fw-bold mb-2 text-danger">风险提示</div>
+                            <ul class="mb-0">
+                                {% for item in 分析结果.风险提示 %}
+                                <li>{{ item }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="border rounded p-3 h-100">
+                            <div class="fw-bold mb-2 text-primary">下一步建议</div>
+                            <ul class="mb-0">
+                                {% for item in 分析结果.下一步建议 %}
+                                <li>{{ item }}</li>
+                                {% endfor %}
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-white">
+                <form method="post" action="{{ url_for('enterprise_analysis_note_save', id=企业.id) }}">
+                    <label class="form-label fw-bold">分析备注（可手动编辑并保存）</label>
+                    <textarea class="form-control" name="analysis_note" rows="4" placeholder="请输入投资分析师备注...">{{ 分析备注.note if 分析备注 else '' }}</textarea>
+                    <div class="text-end mt-2">
+                        <button type="submit" class="btn btn-primary btn-sm">保存备注</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
 </div>

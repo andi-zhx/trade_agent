@@ -13,6 +13,7 @@ from models import (
     Demand,
     Document,
     Enterprise,
+    EnterpriseAnalysisNote,
     ForeignClient,
     MatchRecord,
     Product,
@@ -390,7 +391,8 @@ def create_app():
             for 记录 in 匹配记录
         ]
 
-        建议 = 生成出海建议(企业)
+        分析结果 = 生成出海方案分析(企业, 产品列表, 资质列表, 文件列表)
+        分析备注 = EnterpriseAnalysisNote.query.filter_by(enterprise_id=id).first()
 
         return render_template(
             "enterprise_detail.html",
@@ -402,8 +404,24 @@ def create_app():
             文件列表=文件列表,
             进展列表=进展列表,
             匹配需求列表=匹配需求列表,
-            建议=建议,
+            分析结果=分析结果,
+            分析备注=分析备注,
         )
+
+    @app.route("/enterprises/<int:id>/analysis-note", methods=["POST"])
+    def enterprise_analysis_note_save(id):
+        企业 = Enterprise.query.get_or_404(id)
+        备注内容 = request.form.get("analysis_note", "").strip() or None
+        分析备注 = EnterpriseAnalysisNote.query.filter_by(enterprise_id=id).first()
+        if 分析备注:
+            分析备注.note = 备注内容
+            分析备注.updated_at = datetime.utcnow()
+        else:
+            分析备注 = EnterpriseAnalysisNote(enterprise_id=企业.id, note=备注内容)
+            db.session.add(分析备注)
+        db.session.commit()
+        flash("出海方案分析备注已保存。", "success")
+        return redirect(url_for("enterprise_detail", id=企业.id))
 
     @app.route("/enterprises/<int:id>/edit", methods=["GET", "POST"])
     def enterprise_edit(id):
@@ -1954,19 +1972,115 @@ def 生成不覆盖文件路径(目标路径):
     return 目标路径.with_name(f"{目标路径.stem}_{时间戳}{目标路径.suffix}")
 
 
-def 生成出海建议(企业):
-    建议 = []
-    if not 企业.has_foreign_trade_experience:
-        建议.append("建议优先开展外贸合规培训，并配置英文产品资料包。")
-    if not 企业.export_countries:
-        建议.append("建议先从东南亚与中东等准入门槛较低市场切入。")
-    if 企业.is_manufacturer and 企业.main_equipment:
-        建议.append("可突出制造能力，优先匹配 OEM/ODM 类采购需求。")
-    if 企业.risk_notes:
-        建议.append("已记录风险备注，建议在项目立项前完成风控复核。")
-    if not 建议:
-        建议.append("企业基础条件较完善，可进入重点客户定向推荐池。")
-    return 建议
+def 包含关键词(文本, 关键词列表):
+    内容 = (文本 or "").upper()
+    return any(关键词 in 内容 for 关键词 in 关键词列表)
+
+
+def 生成出海方案分析(企业, 产品列表, 资质列表, 文件列表):
+    认证关键词 = ["CE", "FDA", "UL", "REACH", "ROHS", "ETL", "FCC", "ISO"]
+    宣传类型 = {"PPT", "IMG", "VIDEO"}
+    产品资料类型 = {"PROD", "SPEC"}
+    合规资料类型 = {"CERT", "AUTH", "CONTRACT"}
+
+    有外贸经验 = bool(企业.has_foreign_trade_experience or 企业.export_revenue or 企业.export_countries)
+    有目标市场认证 = any(
+        包含关键词(资质.certificate_name, 认证关键词) or 包含关键词(资质.certificate_type, 认证关键词)
+        for 资质 in 资质列表
+    ) or any(包含关键词(产品.certifications, 认证关键词) for 产品 in 产品列表)
+    有完整产品资料 = any(
+        (产品.product_name_en or "").strip() and ((产品.specification or "").strip() or (产品.function_description or "").strip())
+        for 产品 in 产品列表
+    ) and any((文件.document_type or "").upper() in 产品资料类型 for 文件 in 文件列表)
+    有清晰报价和MOQ = any(
+        (产品.moq or "").strip()
+        and any([产品.exw_price is not None, 产品.fob_price is not None, 产品.cif_price is not None, 产品.ddp_price is not None])
+        for 产品 in 产品列表
+    )
+    有稳定产能和生产周期 = bool(企业.annual_capacity) and any(
+        (产品.monthly_capacity or "").strip() and (产品.production_cycle or "").strip() for 产品 in 产品列表
+    )
+    有目标市场或已出口国家 = bool(企业.target_markets or 企业.export_countries) or any(
+        (产品.target_market or "").strip() or (产品.existing_sales_countries or "").strip() for 产品 in 产品列表
+    )
+    有合规文件和证照 = bool(资质列表) or any((文件.document_type or "").upper() in 合规资料类型 for 文件 in 文件列表)
+    有宣传资料 = any((文件.document_type or "").upper() in 宣传类型 for 文件 in 文件列表)
+
+    评分项 = [
+        {"名称": "是否有外贸经验", "分值": 15, "达成": 有外贸经验},
+        {"名称": "是否有目标市场认证", "分值": 20, "达成": 有目标市场认证},
+        {"名称": "是否有完整产品资料", "分值": 15, "达成": 有完整产品资料},
+        {"名称": "是否有清晰报价和 MOQ", "分值": 10, "达成": 有清晰报价和MOQ},
+        {"名称": "是否有稳定产能和生产周期", "分值": 15, "达成": 有稳定产能和生产周期},
+        {"名称": "是否有目标市场或已出口国家", "分值": 10, "达成": 有目标市场或已出口国家},
+        {"名称": "是否有合规文件和证照", "分值": 10, "达成": 有合规文件和证照},
+        {"名称": "是否有宣传资料/PPT/影像资料", "分值": 5, "达成": 有宣传资料},
+    ]
+    成熟度分数 = sum(项["分值"] for 项 in 评分项 if 项["达成"])
+
+    标签 = []
+    if 成熟度分数 >= 80 and 有目标市场认证 and 有清晰报价和MOQ:
+        标签.extend(["外贸成熟型", "适合重点推荐"])
+    elif 成熟度分数 >= 55:
+        标签.append("产品潜力型")
+    if not 有完整产品资料:
+        标签.append("资料待完善型")
+    if not 有目标市场认证:
+        标签.append("认证缺失型")
+    if not 有清晰报价和MOQ:
+        标签.append("价格待确认型")
+    if not 有稳定产能和生产周期:
+        标签.append("产能风险型")
+    if "适合重点推荐" not in 标签:
+        标签.append("适合先辅导再推荐")
+
+    优势说明 = []
+    风险提示 = []
+    下一步建议 = []
+
+    if 有外贸经验 and 有目标市场或已出口国家:
+        优势说明.append("具备一定外贸经验与目标市场信息，可快速进入客户匹配环节。")
+        下一步建议.append("优先推荐给已有明确采购需求的外资客户")
+    if 有完整产品资料:
+        优势说明.append("产品基础资料较完整，可支持初步评估和商机沟通。")
+    else:
+        风险提示.append("产品英文资料/规格书不完整，影响外资客户快速评估。")
+        下一步建议.append("先补充产品英文资料、规格书和报价单")
+    if 有目标市场认证:
+        优势说明.append("已具备目标市场相关认证基础，有助于缩短准入周期。")
+    else:
+        风险提示.append("缺少关键目标市场认证，存在准入障碍。")
+        下一步建议.append("先完善目标市场认证，例如 CE/FDA/UL/REACH 等")
+    if not 有稳定产能和生产周期:
+        风险提示.append("产能或生产周期信息不足，交付稳定性待确认。")
+        下一步建议.append("需要进一步核实产能、交期和供货稳定性")
+    if 成熟度分数 >= 60:
+        下一步建议.append("适合参加海外展会或线上 B2B 平台测试")
+        下一步建议.append("适合做目标市场准入与竞品价格分析")
+    if 有清晰报价和MOQ:
+        下一步建议.append("适合先进行样品测试和小批量订单撮合")
+    else:
+        风险提示.append("报价或 MOQ 信息不明确，影响商务推进效率。")
+    if not 有合规文件和证照:
+        风险提示.append("基础合规文件不充分，当前推荐风险较高。")
+        下一步建议.append("暂不建议对外推荐，需补齐基础资质或合规文件")
+
+    if not 优势说明:
+        优势说明.append("企业具备一定生产与产品基础，可通过辅导逐步进入推荐池。")
+    if not 风险提示:
+        风险提示.append("当前未发现显著短板，建议继续维护资料与交付稳定性。")
+
+    下一步建议 = list(dict.fromkeys(下一步建议))
+    标签 = list(dict.fromkeys(标签))
+
+    return {
+        "成熟度分数": 成熟度分数,
+        "评分项": 评分项,
+        "标签": 标签,
+        "优势说明": 优势说明,
+        "风险提示": 风险提示,
+        "下一步建议": 下一步建议,
+    }
 
 
 def init_db(app):
