@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 import re
@@ -56,11 +56,14 @@ def create_app():
         产品数量 = Product.query.count()
         需求数量 = Demand.query.count()
         撮合数量 = MatchRecord.query.count()
+        资质总数 = Qualification.query.count()
+        已过期证书数量 = sum(1 for 资质 in Qualification.query.all() if 计算证书状态(资质.expiry_date) == "已过期")
+        九十天内到期证书数量 = sum(1 for 资质 in Qualification.query.all() if 计算证书状态(资质.expiry_date) == "即将到期")
 
         核心模块 = [
             {"名称": "企业库管理", "说明": "维护国内企业基础信息、联系人及出海目标。", "链接": url_for("enterprise_list")},
             {"名称": "产品管理", "说明": "管理企业产品信息、品类与产品描述。", "链接": "#"},
-            {"名称": "资质证照", "说明": "维护企业相关资质证照、编号和有效期。", "链接": "#"},
+            {"名称": "资质证照", "说明": "维护企业相关资质证照、编号和有效期。", "链接": url_for("qualification_list")},
             {"名称": "外资客户需求", "说明": "记录海外客户需求与目标采购方向。", "链接": "#"},
             {"名称": "撮合进展", "说明": "跟踪撮合过程、阶段状态与跟进记录。", "链接": "#"},
             {"名称": "归档文件", "说明": "统一存放项目过程文档与归档资料。", "链接": "#"},
@@ -72,6 +75,9 @@ def create_app():
             产品数量=产品数量,
             需求数量=需求数量,
             撮合数量=撮合数量,
+            资质总数=资质总数,
+            已过期证书数量=已过期证书数量,
+            九十天内到期证书数量=九十天内到期证书数量,
             核心模块=核心模块,
         )
 
@@ -192,7 +198,10 @@ def create_app():
         企业 = Enterprise.query.get_or_404(id)
         联系人列表 = Contact.query.filter_by(enterprise_id=id).all()
         产品列表 = Product.query.filter_by(enterprise_id=id).all()
-        资质列表 = Qualification.query.filter_by(enterprise_id=id).all()
+        资质列表 = Qualification.query.filter_by(enterprise_id=id).order_by(
+            Qualification.expiry_date.is_(None), Qualification.expiry_date.asc()
+        ).all()
+        资质展示列表 = [构建证照展示项(资质) for 资质 in 资质列表]
         文件列表 = Document.query.filter_by(enterprise_id=id).all()
         进展列表 = ProjectProgress.query.filter_by(enterprise_id=id).order_by(ProjectProgress.updated_at.desc()).all()
 
@@ -204,6 +213,7 @@ def create_app():
             联系人列表=联系人列表,
             产品列表=产品列表,
             资质列表=资质列表,
+            资质展示列表=资质展示列表,
             文件列表=文件列表,
             进展列表=进展列表,
             建议=建议,
@@ -292,6 +302,114 @@ def create_app():
         flash("企业已删除", "success")
         return redirect(url_for("enterprise_list"))
 
+    @app.route("/qualifications")
+    def qualification_list():
+        证书状态 = request.args.get("status", "", type=str).strip()
+        查询 = Qualification.query.join(Enterprise, Qualification.enterprise_id == Enterprise.id).outerjoin(
+            Product, Qualification.product_id == Product.id
+        )
+
+        if 证书状态:
+            当前日期 = date.today()
+            if 证书状态 == "未填写":
+                查询 = 查询.filter(Qualification.expiry_date.is_(None))
+            elif 证书状态 == "已过期":
+                查询 = 查询.filter(Qualification.expiry_date.isnot(None), Qualification.expiry_date < 当前日期)
+
+        证照列表 = 查询.order_by(
+            Qualification.expiry_date.is_(None), Qualification.expiry_date.asc(), Qualification.id.desc()
+        ).all()
+        证照展示列表 = [构建证照展示项(资质) for 资质 in 证照列表]
+        if 证书状态 == "即将到期":
+            证照展示列表 = [项 for 项 in 证照展示列表 if 项["证书状态"] == "即将到期"]
+        elif 证书状态 == "正常":
+            证照展示列表 = [项 for 项 in 证照展示列表 if 项["证书状态"] == "正常"]
+
+        return render_template(
+            "qualifications/list.html",
+            证照展示列表=证照展示列表,
+            当前状态=证书状态,
+            状态选项=["", "未填写", "已过期", "即将到期", "正常"],
+        )
+
+    @app.route("/qualifications/new", methods=["GET", "POST"])
+    def qualification_new():
+        企业列表 = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
+        证书类型选项 = 获取证书类型选项()
+
+        if request.method == "POST":
+            enterprise_id = request.form.get("enterprise_id", type=int)
+            企业 = Enterprise.query.get(enterprise_id) if enterprise_id else None
+            if not 企业:
+                flash("请选择有效企业。", "danger")
+                return render_template(
+                    "qualifications/form.html",
+                    企业列表=企业列表,
+                    产品列表=[],
+                    证书类型选项=证书类型选项,
+                    表单=request.form,
+                )
+
+            product_id = request.form.get("product_id", type=int)
+            产品 = Product.query.filter_by(id=product_id, enterprise_id=enterprise_id).first() if product_id else None
+            if product_id and not 产品:
+                flash("请选择该企业下的有效产品。", "danger")
+                return render_template(
+                    "qualifications/form.html",
+                    企业列表=企业列表,
+                    产品列表=Product.query.filter_by(enterprise_id=enterprise_id).order_by(Product.product_name_cn.asc()).all(),
+                    证书类型选项=证书类型选项,
+                    表单=request.form,
+                )
+
+            资质 = Qualification(
+                enterprise_id=enterprise_id,
+                product_id=产品.id if 产品 else None,
+                certificate_name=request.form.get("certificate_name", "").strip(),
+                certificate_type=request.form.get("certificate_type", "").strip() or None,
+                certificate_no=request.form.get("certificate_no", "").strip() or None,
+                covered_products=request.form.get("covered_products", "").strip() or None,
+                issuing_authority=request.form.get("issuing_authority", "").strip() or None,
+                issue_date=读取日期(request.form.get("issue_date")),
+                expiry_date=读取日期(request.form.get("expiry_date")),
+                status=计算证书状态(读取日期(request.form.get("expiry_date"))),
+                affects_recommendation=读取布尔(request.form, "affects_recommendation"),
+                file_path=request.form.get("file_path", "").strip() or None,
+                notes=request.form.get("notes", "").strip() or None,
+            )
+            if not 资质.certificate_name:
+                flash("证书名称为必填项。", "danger")
+                return render_template(
+                    "qualifications/form.html",
+                    企业列表=企业列表,
+                    产品列表=Product.query.filter_by(enterprise_id=enterprise_id).order_by(Product.product_name_cn.asc()).all(),
+                    证书类型选项=证书类型选项,
+                    表单=request.form,
+                )
+
+            db.session.add(资质)
+            db.session.commit()
+            flash("资质证照新增成功。", "success")
+            return redirect(url_for("qualification_list"))
+
+        默认企业 = request.args.get("enterprise_id", type=int)
+        产品列表 = Product.query.filter_by(enterprise_id=默认企业).order_by(Product.product_name_cn.asc()).all() if 默认企业 else []
+        return render_template(
+            "qualifications/form.html",
+            企业列表=企业列表,
+            产品列表=产品列表,
+            证书类型选项=证书类型选项,
+            表单={},
+        )
+
+    @app.post("/qualifications/<int:id>/delete")
+    def qualification_delete(id):
+        资质 = Qualification.query.get_or_404(id)
+        db.session.delete(资质)
+        db.session.commit()
+        flash("证照记录已删除。", "info")
+        return redirect(url_for("qualification_list"))
+
     @app.route("/登录", methods=["GET", "POST"])
     def 登录():
         if request.method == "POST":
@@ -313,17 +431,6 @@ def create_app():
         session.pop("用户", None)
         flash("已退出登录", "info")
         return redirect(url_for("登录"))
-
-    @app.route("/enterprises")
-    def enterprise_list():
-        enterprises = Enterprise.query.order_by(Enterprise.enterprise_code.asc()).all()
-        return render_template("enterprise_list.html", enterprises=enterprises)
-
-    @app.route("/enterprises/<int:enterprise_id>")
-    def enterprise_detail(enterprise_id):
-        enterprise = Enterprise.query.get_or_404(enterprise_id)
-        products = Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.created_at.desc()).all()
-        return render_template("enterprise_detail.html", enterprise=enterprise, products=products)
 
     @app.route("/products")
     def product_list():
@@ -529,6 +636,47 @@ def 读取金额(值):
         return Decimal(值)
     except (InvalidOperation, ValueError):
         return None
+
+
+def 获取证书类型选项():
+    return [
+        "基础证照",
+        "生产资质",
+        "外贸资质",
+        "质量体系认证",
+        "产品认证",
+        "知识产权",
+        "合规文件",
+        "其他",
+    ]
+
+
+def 计算证书状态(到期日期):
+    if not 到期日期:
+        return "未填写"
+    剩余天数 = (到期日期 - date.today()).days
+    if 剩余天数 < 0:
+        return "已过期"
+    if 剩余天数 <= 90:
+        return "即将到期"
+    return "正常"
+
+
+def 构建证照展示项(资质):
+    证书状态 = 计算证书状态(资质.expiry_date)
+    剩余天数 = (资质.expiry_date - date.today()).days if 资质.expiry_date else None
+    状态样式 = {
+        "已过期": "danger",
+        "即将到期": "warning",
+        "正常": "success",
+        "未填写": "secondary",
+    }
+    return {
+        "记录": 资质,
+        "证书状态": 证书状态,
+        "剩余天数": 剩余天数,
+        "状态样式": 状态样式.get(证书状态, "secondary"),
+    }
 
 
 def 生成出海建议(企业):

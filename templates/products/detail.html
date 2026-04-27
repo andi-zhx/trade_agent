@@ -44,7 +44,7 @@
                 <p><strong>企业编号：</strong>{{ enterprise.enterprise_code }}</p>
                 <p><strong>企业名称：</strong>{{ enterprise.company_name }}</p>
                 <p><strong>英文名称：</strong>{{ enterprise.english_name or '-' }}</p>
-                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('enterprise_detail', enterprise_id=enterprise.id) }}">查看企业详情</a>
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('enterprise_detail', id=enterprise.id) }}">查看企业详情</a>
                 {% else %}<p class="text-muted">未绑定企业信息</p>{% endif %}
             </div>
         </div>

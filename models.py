@@ -166,6 +166,9 @@ class Qualification(db.Model):
     file_path = db.Column(db.String(500))
     notes = db.Column(db.Text)
 
+    enterprise = db.relationship("Enterprise", backref=db.backref("qualifications", lazy="dynamic"))
+    product = db.relationship("Product", backref=db.backref("qualifications", lazy="dynamic"))
+
 
 class ForeignClient(db.Model):
     """外资客户表。"""
