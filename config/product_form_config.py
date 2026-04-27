@@ -57,6 +57,7 @@ COMMON_PRODUCT_FIELD_GROUPS = [
             {"key": "trade_sample_cycle", "label": "样品周期", "type": "select", "options": ["3天内", "3-7天", "7-15天", "15-30天", "30天以上"]},
             {"key": "trade_mass_cycle", "label": "批量生产周期", "type": "select", "options": ["7天内", "7-15天", "15-30天", "30-60天", "60天以上"]},
             {"key": "trade_payment_methods", "label": "付款方式", "type": "checkbox_group", "options": ["T/T", "L/C", "PayPal", "信用证", "账期", "其他"]},
+            {"key": "trade_terms", "label": "贸易条款", "type": "checkbox_group", "options": ["EXW", "FOB", "CIF", "CFR", "DDP", "DAP", "FCA", "其他"]},
         ],
     },
     {
@@ -75,10 +76,8 @@ COMMON_PRODUCT_FIELD_GROUPS = [
         "fields": [
             {"key": "log_port", "label": "起运港", "type": "text"},
             {"key": "log_container_load", "label": "装箱量", "type": "text"},
-            {"key": "log_package_type", "label": "包装方式", "type": "select", "options": ["纸箱", "木箱", "托盘", "彩盒", "袋装", "桶装", "吨包", "其他"]},
-            {"key": "log_support_sea", "label": "是否支持海运", "type": "select", "options": ["是", "否", "待确认"]},
-            {"key": "log_support_air", "label": "是否支持空运", "type": "select", "options": ["是", "否", "待确认"]},
-            {"key": "log_support_express", "label": "是否支持快递", "type": "select", "options": ["是", "否", "待确认"]},
+            {"key": "log_package_type", "label": "包装方式", "type": "checkbox_group", "options": ["纸箱", "木箱", "托盘", "彩盒", "袋装", "桶装", "吨包", "其他"]},
+            {"key": "log_transport_methods", "label": "运输方式", "type": "checkbox_group", "options": ["海运", "空运", "铁路", "陆运", "快递", "多式联运"]},
         ],
     },
     {
@@ -89,6 +88,10 @@ COMMON_PRODUCT_FIELD_GROUPS = [
             {"key": "after_return_policy", "label": "退换货政策", "type": "select", "options": ["支持", "不支持", "视情况协商", "待确认"]},
             {"key": "after_spare_parts", "label": "备件供应", "type": "select", "options": ["支持", "不支持", "不适用", "待确认"]},
             {"key": "after_oversea_support", "label": "海外售后支持", "type": "select", "options": ["有", "无", "通过代理商", "远程支持", "待确认"]},
+            {"key": "support_customization", "label": "是否支持定制", "type": "select", "options": ["是", "否", "视情况", "待确认"]},
+            {"key": "fit_cross_border", "label": "是否适合跨境电商", "type": "select", "options": ["是", "否", "待判断"]},
+            {"key": "fit_engineering", "label": "是否适合工程采购", "type": "select", "options": ["是", "否", "待判断"]},
+            {"key": "fit_distributor", "label": "是否适合经销代理", "type": "select", "options": ["是", "否", "待判断"]},
         ],
     },
     {
@@ -101,6 +104,7 @@ COMMON_PRODUCT_FIELD_GROUPS = [
             {"key": "media_brochure", "label": "宣传册", "type": "select", "options": ["已提供", "未提供", "待补充"]},
             {"key": "media_english_ppt", "label": "英文PPT", "type": "select", "options": ["已提供", "未提供", "待补充"]},
             {"key": "media_case_study", "label": "案例资料", "type": "select", "options": ["已提供", "未提供", "待补充"]},
+            {"key": "other_notes", "label": "其他说明", "type": "textarea"},
         ],
     },
 ]
