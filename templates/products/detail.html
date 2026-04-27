@@ -9,49 +9,80 @@
     </div>
 </div>
 
+{% set extra = product.product_extra_fields or {} %}
+
 <div class="row g-3">
-    <div class="col-lg-8">
-        <div class="card h-100">
-            <div class="card-header">产品完整信息</div>
-            <div class="card-body">
-                <div class="row small">
-                    <div class="col-md-6 mb-2"><strong>产品编号：</strong>{{ product.product_code }}</div>
-                    <div class="col-md-6 mb-2"><strong>归档编号：</strong>{{ archive_code }}</div>
-                    <div class="col-md-6 mb-2"><strong>中文名：</strong>{{ product.product_name_cn }}</div>
-                    <div class="col-md-6 mb-2"><strong>英文名：</strong>{{ product.product_name_en or '-' }}</div>
-                    <div class="col-md-6 mb-2"><strong>行业分类：</strong>{% if product.industry_code %}{{ product.industry_code }} {{ product.industry_name or '' }}{% else %}-{% endif %}</div>
-                    <div class="col-md-6 mb-2"><strong>类别：</strong>{{ product.product_category or '-' }}</div>
-                    <div class="col-md-6 mb-2"><strong>HS编码：</strong>{{ product.hs_code or '-' }}</div>
-                    <div class="col-md-6 mb-2"><strong>型号：</strong>{{ product.model or '-' }}</div>
-                    <div class="col-md-6 mb-2"><strong>MOQ：</strong>{{ product.moq or '-' }}</div>
-                    <div class="col-md-6 mb-2"><strong>生产周期：</strong>{{ product.production_cycle or '-' }}</div>
-                    <div class="col-md-6 mb-2"><strong>目标市场：</strong>{{ product.target_market or '-' }}</div>
-                    <div class="col-md-4 mb-2"><strong>FOB：</strong>{{ product.fob_price|currency(product.currency) }}</div>
-                    <div class="col-md-4 mb-2"><strong>CIF：</strong>{{ product.cif_price|currency(product.currency) }}</div>
-                    <div class="col-md-4 mb-2"><strong>DDP：</strong>{{ product.ddp_price|currency(product.currency) }}</div>
-                    <div class="col-md-12 mb-2"><strong>认证：</strong>{{ product.certifications or '-' }}</div>
-                    <div class="col-md-12 mb-2"><strong>卖点：</strong>{{ product.product_selling_points or '-' }}</div>
-                    <div class="col-md-12 mb-2"><strong>备注：</strong>{{ product.notes or '-' }}</div>
-                </div>
-                {% if product_extra_display_groups %}
-                <hr>
-                <h6 class="fw-bold mb-2">通用/行业专项产品信息</h6>
-                {% for group in product_extra_display_groups %}
-                <div class="mb-2">
-                    <div class="fw-semibold">{{ group.title }}</div>
-                    <div class="row small">
-                        {% for field in group.fields %}
-                        <div class="col-md-6 mb-1"><strong>{{ field.label }}：</strong>{{ field.value }}</div>
-                        {% endfor %}
-                    </div>
-                </div>
-                {% endfor %}
+    <div class="col-lg-9">
+        <div class="card mb-3 border-warning">
+            <div class="card-header bg-warning-subtle">资料缺失提示</div>
+            <div class="card-body small">
+                {% if 资料缺失提示 %}
+                <ul class="mb-0 ps-3">
+                    {% for item in 资料缺失提示 %}
+                    <li>{{ item }}</li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <span class="text-success">资料齐全，可用于展示与交易判断。</span>
                 {% endif %}
+            </div>
+        </div>
+
+        <div class="card h-100">
+            <div class="card-header">产品详情分区</div>
+            <div class="card-body">
+                <div class="small">
+                    <h6 class="fw-bold">1) 所属企业摘要</h6>
+                    <p><strong>企业编号：</strong>{{ enterprise.enterprise_code if enterprise else '-' }} / <strong>企业名称：</strong>{{ enterprise.company_name if enterprise else '-' }}</p>
+                    <h6 class="fw-bold">2) 产品身份</h6>
+                    <p><strong>产品编号：</strong>{{ product.product_code }}；<strong>归档编号：</strong>{{ archive_code }}；<strong>HS编码：</strong>{{ product.hs_code or '-' }}；<strong>行业分类：</strong>{% if product.industry_code %}{{ product.industry_code }} {{ product.industry_name or '' }}{% else %}-{% endif %}</p>
+                    <h6 class="fw-bold">3) 产品说明</h6>
+                    <p><strong>名称：</strong>{{ product.product_name_cn }} / {{ product.product_name_en or '-' }}；<strong>型号：</strong>{{ product.model or '-' }}；<strong>卖点：</strong>{{ product.product_selling_points or '-' }}</p>
+                    <h6 class="fw-bold">4) 产品参数</h6>
+                    <p><strong>材质：</strong>{{ product.material or '-' }}；<strong>规格：</strong>{{ product.specification or '-' }}；<strong>尺寸：</strong>{{ product.size or '-' }}；<strong>重量：</strong>{{ product.weight or '-' }}</p>
+                    <h6 class="fw-bold">5) 价格信息</h6>
+                    <p><strong>FOB：</strong>{{ product.fob_price|currency(product.currency) }}；<strong>CIF：</strong>{{ product.cif_price|currency(product.currency) }}；<strong>DDP：</strong>{{ product.ddp_price|currency(product.currency) }}；<strong>报价日期：</strong>{{ product.quote_date or '-' }}</p>
+                    <h6 class="fw-bold">6) 交易条件</h6>
+                    <p><strong>MOQ：</strong>{{ product.moq or extra.get('trade_moq') or '-' }}；<strong>样品政策：</strong>{{ extra.get('trade_sample_policy') or '-' }}；<strong>生产周期：</strong>{{ product.production_cycle or extra.get('trade_mass_cycle') or '-' }}；<strong>支持定制：</strong>{{ extra.get('support_customization') or ('是' if product.customization_supported else '否') }}</p>
+                    <h6 class="fw-bold">7) 认证资料</h6>
+                    <p><strong>主要认证：</strong>{{ product.certifications or '-' }}；<strong>检测报告：</strong>{{ extra.get('cert_test_report') or '-' }}</p>
+                    <h6 class="fw-bold">8) 物流信息</h6>
+                    <p><strong>包装：</strong>{{ product.packaging or '-' }}；<strong>装箱量：</strong>{{ product.loading_quantity or extra.get('log_container_load') or '-' }}</p>
+                    <h6 class="fw-bold">9) 售后服务</h6>
+                    <p><strong>质保：</strong>{{ product.warranty or extra.get('after_warranty') or '-' }}；<strong>退换货：</strong>{{ extra.get('after_return_policy') or '-' }}；<strong>海外支持：</strong>{{ extra.get('after_oversea_support') or '-' }}</p>
+                    <h6 class="fw-bold">10) 展示资料</h6>
+                    <p><strong>产品图片：</strong>{{ extra.get('media_product_images') or '-' }}；<strong>产品视频：</strong>{{ extra.get('media_product_videos') or '-' }}；<strong>英文PPT：</strong>{{ extra.get('media_english_ppt') or '-' }}</p>
+                    <h6 class="fw-bold">11) 行业专项产品资料</h6>
+                    {% if product_extra_display_groups %}
+                    {% for group in product_extra_display_groups %}
+                    <p class="mb-1"><strong>{{ group.title }}：</strong>
+                        {% for field in group.fields[:4] %}
+                        {{ field.label }}={{ field.value }}{% if not loop.last %}；{% endif %}
+                        {% endfor %}
+                    </p>
+                    {% endfor %}
+                    {% else %}
+                    <p>-</p>
+                    {% endif %}
+                    <h6 class="fw-bold">12) 产品相关文件</h6>
+                    <p>共 {{ product_files|length }} 份，最近更新时间：{{ product.updated_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                </div>
             </div>
         </div>
     </div>
 
-    <div class="col-lg-4">
+    <div class="col-lg-3">
+        <div class="card mb-3">
+            <div class="card-header">快速操作</div>
+            <div class="card-body d-grid gap-2">
+                <a class="btn btn-sm btn-primary" href="{{ url_for('product_edit', product_id=product.id) }}">编辑产品</a>
+                <a class="btn btn-sm btn-outline-info" href="{{ url_for('document_upload', enterprise_id=enterprise.id, product_id=product.id) if enterprise else url_for('document_upload', product_id=product.id) }}">上传产品文件</a>
+                <a class="btn btn-sm btn-outline-success" href="{{ url_for('product_export', product_id=product.id) }}">导出产品信息</a>
+                {% if enterprise %}
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('enterprise_folder_download', id=enterprise.id) }}">打开所属企业文件夹</a>
+                {% endif %}
+            </div>
+        </div>
         <div class="card mb-3">
             <div class="card-header">所属企业信息</div>
             <div class="card-body small">

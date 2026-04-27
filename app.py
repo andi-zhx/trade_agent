@@ -1066,16 +1066,23 @@ def create_app():
         q_keyword = request.args.get("keyword", "").strip()
         q_category = request.args.get("category", "").strip()
         q_hs_code = request.args.get("hs_code", "").strip()
-        q_target_market = request.args.get("target_market", "").strip()
         q_certification = request.args.get("certification", "").strip()
         q_industry = request.args.get("industry", "").strip()
-        q_price_min = request.args.get("price_min", "").strip()
-        q_price_max = request.args.get("price_max", "").strip()
+        q_moq_range = request.args.get("moq_range", "").strip()
+        q_production_cycle = request.args.get("production_cycle", "").strip()
+        q_customization = request.args.get("customization_supported", "").strip()
+        q_fit_cross_border = request.args.get("fit_cross_border", "").strip()
+        q_fit_engineering = request.args.get("fit_engineering", "").strip()
+        q_fit_distributor = request.args.get("fit_distributor", "").strip()
+        q_status = request.args.get("status", "").strip() or "active"
 
         query = Product.query.join(Enterprise, Product.enterprise_id == Enterprise.id)
 
         if q_enterprise:
-            query = query.filter(Enterprise.company_name.ilike(f"%{q_enterprise}%"))
+            if q_enterprise.isdigit():
+                query = query.filter(Product.enterprise_id == int(q_enterprise))
+            else:
+                query = query.filter(Enterprise.company_name.ilike(f"%{q_enterprise}%"))
         if q_keyword:
             keyword_like = f"%{q_keyword}%"
             query = query.filter(
@@ -1089,35 +1096,50 @@ def create_app():
             query = query.filter(Product.product_category.ilike(f"%{q_category}%"))
         if q_hs_code:
             query = query.filter(Product.hs_code.ilike(f"%{q_hs_code}%"))
-        if q_target_market:
-            query = query.filter(Product.target_market.ilike(f"%{q_target_market}%"))
         if q_certification:
             query = query.filter(Product.certifications.ilike(f"%{q_certification}%"))
         if q_industry:
             query = query.filter(Product.industry_code == q_industry)
+        if q_status in {"active", "inactive"}:
+            query = query.filter(Product.status == q_status)
 
-        if q_price_min:
-            try:
-                price_min = Decimal(q_price_min)
-                query = query.filter(or_(Product.fob_price >= price_min, Product.cif_price >= price_min, Product.ddp_price >= price_min))
-            except InvalidOperation:
-                flash("最低价格输入格式无效，已忽略。", "warning")
-        if q_price_max:
-            try:
-                price_max = Decimal(q_price_max)
-                query = query.filter(or_(Product.fob_price <= price_max, Product.cif_price <= price_max, Product.ddp_price <= price_max))
-            except InvalidOperation:
-                flash("最高价格输入格式无效，已忽略。", "warning")
+        if q_moq_range:
+            query = query.filter(
+                or_(
+                    Product.moq.ilike(f"%{q_moq_range}%"),
+                    func.json_extract(Product.product_extra_fields, "$.trade_moq") == q_moq_range,
+                )
+            )
+        if q_production_cycle:
+            query = query.filter(
+                or_(
+                    Product.production_cycle.ilike(f"%{q_production_cycle}%"),
+                    Product.sample_cycle.ilike(f"%{q_production_cycle}%"),
+                    func.json_extract(Product.product_extra_fields, "$.trade_mass_cycle") == q_production_cycle,
+                )
+            )
+        if q_customization:
+            query = query.filter(func.json_extract(Product.product_extra_fields, "$.support_customization") == q_customization)
+        if q_fit_cross_border:
+            query = query.filter(func.json_extract(Product.product_extra_fields, "$.fit_cross_border") == q_fit_cross_border)
+        if q_fit_engineering:
+            query = query.filter(func.json_extract(Product.product_extra_fields, "$.fit_engineering") == q_fit_engineering)
+        if q_fit_distributor:
+            query = query.filter(func.json_extract(Product.product_extra_fields, "$.fit_distributor") == q_fit_distributor)
 
         products = query.order_by(Product.updated_at.desc()).all()
         enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
         categories = [r[0] for r in db.session.query(Product.product_category).filter(Product.product_category.isnot(None)).distinct().all()]
+        moq_options = ["10件以下", "10-100件", "100-500件", "500-1000件", "1000件以上", "按产品定制"]
+        production_cycle_options = ["7天内", "7-15天", "15-30天", "30-60天", "60天以上"]
         return render_template(
             "products/list.html",
             products=products,
             enterprises=enterprises,
             categories=categories,
             industries=行业下拉选项(),
+            moq_options=moq_options,
+            production_cycle_options=production_cycle_options,
             filters=request.args,
         )
 
@@ -1227,6 +1249,23 @@ def create_app():
             for 记录 in 匹配记录
         ]
         archive_code = f"{enterprise.enterprise_code}_{product.product_code}" if enterprise else product.product_code
+        product_extra = product.product_extra_fields or {}
+        产品文件类型集合 = {item.document_type for item in product_files}
+        资料缺失提示 = []
+        if "产品图片" not in 产品文件类型集合 and product_extra.get("media_product_images") != "已提供":
+            资料缺失提示.append("缺少产品图片")
+        if "产品规格书" not in 产品文件类型集合:
+            资料缺失提示.append("缺少规格书")
+        if "报价单" not in 产品文件类型集合 and not product.fob_price:
+            资料缺失提示.append("缺少报价单")
+        if "产品认证" not in 产品文件类型集合 and not certificates and not product.certifications:
+            资料缺失提示.append("缺少认证资料")
+        if "检测报告" not in 产品文件类型集合:
+            资料缺失提示.append("缺少检测报告")
+        if "包装资料" not in 产品文件类型集合 and not product.packaging:
+            资料缺失提示.append("缺少包装物流资料")
+        if "英文PPT" not in 产品文件类型集合 and not (product.product_name_en and product.product_name_en.strip()):
+            资料缺失提示.append("缺少英文资料")
         return render_template(
             "products/detail.html",
             product=product,
@@ -1235,7 +1274,44 @@ def create_app():
             product_files=product_files,
             archive_code=archive_code,
             匹配需求列表=匹配需求列表,
+            资料缺失提示=资料缺失提示,
             product_extra_display_groups=构建产品扩展信息分组(product.industry_code, product.product_extra_fields),
+        )
+
+    @app.get("/products/<int:product_id>/export")
+    def product_export(product_id):
+        product = Product.query.get_or_404(product_id)
+        enterprise = Enterprise.query.get(product.enterprise_id)
+        product_extra = product.product_extra_fields or {}
+        表头 = ["产品编号", "产品名称", "所属企业", "行业分类", "产品类别", "HS编码", "MOQ", "生产周期", "FOB价", "主要认证", "是否可样品", "是否支持定制", "是否适合跨境电商", "是否适合工程采购", "是否适合经销代理", "最近更新时间"]
+        行数据 = [[
+            product.product_code,
+            product.product_name_cn,
+            enterprise.company_name if enterprise else "-",
+            f"{product.industry_code or ''} {product.industry_name or ''}".strip() or "-",
+            product.product_category or "-",
+            product.hs_code or "-",
+            product.moq or product_extra.get("trade_moq") or "-",
+            product.production_cycle or product_extra.get("trade_mass_cycle") or "-",
+            f"{product.currency or 'USD'} {product.fob_price}" if product.fob_price is not None else "-",
+            product.certifications or "-",
+            "否" if product_extra.get("trade_sample_policy") == "不支持样品" else "是",
+            product_extra.get("support_customization") or ("是" if product.customization_supported else "否"),
+            product_extra.get("fit_cross_border") or "待判断",
+            product_extra.get("fit_engineering") or "待判断",
+            product_extra.get("fit_distributor") or "待判断",
+            product.updated_at.strftime("%Y-%m-%d %H:%M"),
+        ]]
+        缓冲区 = BytesIO()
+        文本缓冲 = [",".join([csv_safe(v) for v in 表头])]
+        文本缓冲.extend([",".join([csv_safe(v) for v in row]) for row in 行数据])
+        缓冲区.write(("\n".join(文本缓冲)).encode("utf-8-sig"))
+        缓冲区.seek(0)
+        return send_file(
+            缓冲区,
+            as_attachment=True,
+            download_name=f"{product.product_code}_{product.product_name_cn}_产品信息.csv",
+            mimetype="text/csv",
         )
 
     @app.route("/products/<int:product_id>/edit", methods=["GET", "POST"])
@@ -1338,6 +1414,19 @@ def create_app():
         db.session.delete(product)
         db.session.commit()
         flash("产品已删除。", "info")
+        return redirect(url_for("product_list"))
+
+    @app.post("/products/<int:product_id>/toggle-status")
+    def product_toggle_status(product_id):
+        product = Product.query.get_or_404(product_id)
+        action = request.form.get("action", "").strip()
+        if action not in {"disable", "enable"}:
+            flash("无效操作。", "danger")
+            return redirect(url_for("product_list"))
+        product.status = "inactive" if action == "disable" else "active"
+        记录审计日志("更新产品状态", "product", target_id=product.id, detail=f"{product.product_name_cn} -> {product.status}")
+        db.session.commit()
+        flash("产品状态已更新。", "success")
         return redirect(url_for("product_list"))
 
     @app.route("/projects")
@@ -2752,6 +2841,10 @@ def init_db(app):
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_products_industry_name ON products (industry_name)"))
         if "product_extra_fields" not in product_columns:
             db.session.execute(text("ALTER TABLE products ADD COLUMN product_extra_fields JSON"))
+        if "status" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN status VARCHAR(20) DEFAULT 'active'"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_products_status ON products (status)"))
+            db.session.execute(text("UPDATE products SET status='active' WHERE status IS NULL OR status=''"))
         db.session.commit()
 
         db.session.execute(
