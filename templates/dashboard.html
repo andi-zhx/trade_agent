@@ -1,48 +1,72 @@
 {% extends 'base.html' %}
-{% block title %}首页 Dashboard{% endblock %}
+{% block title %}首页{% endblock %}
+{% block page_title %}首页{% endblock %}
 {% block content %}
-<div class="p-4 mb-4 bg-light rounded-3 border">
-    <h1 class="h3 mb-2">首页 Dashboard</h1>
-    <p class="text-muted mb-0">企业、产品、需求、项目和证照预警总览。</p>
-</div>
-
 <div class="row g-3 mb-4">
-    <div class="col-6 col-xl-3"><div class="card h-100"><div class="card-body"><div class="text-muted">已入库企业数量</div><div class="fs-3 fw-bold">{{ 企业数量 }}</div></div></div></div>
-    <div class="col-6 col-xl-3"><div class="card h-100"><div class="card-body"><div class="text-muted">已入库产品数量</div><div class="fs-3 fw-bold">{{ 产品数量 }}</div></div></div></div>
-    <div class="col-6 col-xl-3"><div class="card h-100"><div class="card-body"><div class="text-muted">外资需求数量</div><div class="fs-3 fw-bold">{{ 需求数量 }}</div></div></div></div>
-    <div class="col-6 col-xl-3"><div class="card h-100"><div class="card-body"><div class="text-muted">撮合项目数量</div><div class="fs-3 fw-bold">{{ 撮合数量 }}</div></div></div></div>
-    <div class="col-6 col-xl-3"><div class="card h-100 border-success-subtle"><div class="card-body"><div class="text-muted">已成交项目数量</div><div class="fs-3 fw-bold text-success">{{ 已成交项目数 }}</div></div></div></div>
-    <div class="col-6 col-xl-3"><div class="card h-100 border-warning-subtle"><div class="card-body"><div class="text-muted">90天内到期证书数量</div><div class="fs-3 fw-bold text-warning-emphasis">{{ 九十天内到期证书数量 }}</div></div></div></div>
-    <div class="col-6 col-xl-3"><div class="card h-100 border-danger-subtle"><div class="card-body"><div class="text-muted">已过期证书数量</div><div class="fs-3 fw-bold text-danger">{{ 已过期证书数量 }}</div></div></div></div>
-    <div class="col-6 col-xl-3"><div class="card h-100 border-primary-subtle"><div class="card-body"><div class="text-muted">总成交金额</div><div class="fs-5 fw-bold text-primary">{{ 总成交金额|currency }}</div></div></div></div>
+    <div class="col-12 col-md-4">
+        <div class="card card-stat h-100">
+            <div class="card-body">
+                <div class="text-muted">企业数量</div>
+                <div class="fs-3 fw-bold">{{ 企业数量 }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card card-stat h-100">
+            <div class="card-body">
+                <div class="text-muted">产品数量</div>
+                <div class="fs-3 fw-bold">{{ 产品数量 }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card card-stat h-100">
+            <div class="card-body">
+                <div class="text-muted">已上传文件数量</div>
+                <div class="fs-3 fw-bold">{{ 已上传文件数量 }}</div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <div class="row g-3">
-    <div class="col-lg-6"><div class="card"><div class="card-body"><h2 class="h6">企业按行业分布</h2><canvas id="enterpriseIndustryChart" height="140"></canvas></div></div></div>
-    <div class="col-lg-6"><div class="card"><div class="card-body"><h2 class="h6">产品按行业/类别分布</h2><canvas id="productCategoryChart" height="140"></canvas></div></div></div>
-    <div class="col-lg-6"><div class="card"><div class="card-body"><h2 class="h6">项目阶段分布</h2><canvas id="projectStageChart" height="140"></canvas></div></div></div>
-    <div class="col-lg-6"><div class="card"><div class="card-body"><h2 class="h6">近30天项目新增趋势</h2><canvas id="projectTrendChart" height="140"></canvas></div></div></div>
+    <div class="col-12 col-lg-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <h2 class="h6 mb-3">最近新增企业</h2>
+                {% if 最近新增企业 %}
+                    <ul class="list-group list-group-flush">
+                        {% for 企业 in 最近新增企业 %}
+                            <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                                <a href="{{ url_for('enterprise_detail', id=企业.id) }}" class="text-decoration-none">{{ 企业.company_name }}</a>
+                                <span class="text-muted small">{{ 企业.created_at.strftime('%Y-%m-%d') if 企业.created_at else '-' }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted mb-0">暂无企业数据。</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-lg-6">
+        <div class="card h-100">
+            <div class="card-body">
+                <h2 class="h6 mb-3">最近新增产品</h2>
+                {% if 最近新增产品 %}
+                    <ul class="list-group list-group-flush">
+                        {% for 产品 in 最近新增产品 %}
+                            <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
+                                <a href="{{ url_for('product_detail', id=产品.id) }}" class="text-decoration-none">{{ 产品.product_name_cn or 产品.product_name_en or ('产品 #' ~ 产品.id) }}</a>
+                                <span class="text-muted small">{{ 产品.created_at.strftime('%Y-%m-%d') if 产品.created_at else '-' }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                {% else %}
+                    <p class="text-muted mb-0">暂无产品数据。</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-<script>
-new Chart(document.getElementById('enterpriseIndustryChart'), {
-    type: 'bar',
-    data: {labels: {{ 企业行业数据.labels|tojson }}, datasets: [{label: '企业数', data: {{ 企业行业数据.data|tojson }}, backgroundColor: '#0d6efd'}]}
-});
-new Chart(document.getElementById('productCategoryChart'), {
-    type: 'pie',
-    data: {labels: {{ 产品分类数据.labels|tojson }}, datasets: [{data: {{ 产品分类数据.data|tojson }}}]}
-});
-new Chart(document.getElementById('projectStageChart'), {
-    type: 'bar',
-    data: {labels: {{ 项目阶段数据.labels|tojson }}, datasets: [{label: '项目数', data: {{ 项目阶段数据.data|tojson }}, backgroundColor: '#20c997'}]}
-});
-new Chart(document.getElementById('projectTrendChart'), {
-    type: 'line',
-    data: {labels: {{ 最近30天新增项目.labels|tojson }}, datasets: [{label: '新增项目', data: {{ 最近30天新增项目.data|tojson }}, borderColor: '#dc3545', fill: false, tension: 0.2}]}
-});
-</script>
 {% endblock %}

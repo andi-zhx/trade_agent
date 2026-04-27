@@ -3,6 +3,69 @@ body {
     font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
+.app-shell {
+    min-height: 100vh;
+    display: flex;
+}
+
+.app-sidebar {
+    width: 220px;
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 20px 14px;
+    position: sticky;
+    top: 0;
+    height: 100vh;
+}
+
+.sidebar-brand {
+    color: #fff;
+    text-decoration: none;
+    font-weight: 700;
+    display: block;
+    margin-bottom: 16px;
+}
+
+.sidebar-nav .nav-link {
+    color: #cbd5e1;
+    border-radius: 8px;
+    margin-bottom: 4px;
+}
+
+.sidebar-nav .nav-link:hover,
+.sidebar-nav .nav-link.active {
+    color: #fff;
+    background-color: #1e293b;
+}
+
+.app-main {
+    flex: 1;
+    min-width: 0;
+}
+
+.app-header {
+    background: #fff;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 14px 24px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.system-name {
+    color: #64748b;
+    font-size: 13px;
+}
+
+.page-title {
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.app-content {
+    padding: 24px;
+}
+
 .card-stat {
     border: none;
     box-shadow: 0 2px 10px rgba(15, 23, 42, 0.06);
@@ -16,4 +79,16 @@ body {
 .module-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+}
+
+@media (max-width: 992px) {
+    .app-shell {
+        display: block;
+    }
+
+    .app-sidebar {
+        width: 100%;
+        height: auto;
+        position: relative;
+    }
 }

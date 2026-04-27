@@ -8,48 +8,49 @@
     <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
 </head>
 <body>
-<nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
-    <div class="container-fluid px-4">
-        <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">跨境经贸企业库与产品管理系统</a>
-        <div class="d-none d-lg-flex gap-2">
-            <a class="btn btn-sm btn-outline-light" href="{{ url_for('enterprise_list') }}">企业库</a>
-            <a class="btn btn-sm btn-outline-light" href="{{ url_for('product_list') }}">产品库</a>
-            <a class="btn btn-sm btn-outline-light" href="{{ url_for('global_search') }}">全局检索</a>
-            <a class="btn btn-sm btn-outline-light" href="{{ url_for('excel_tools') }}">Excel工具</a>
-            <a class="btn btn-sm btn-outline-light" href="{{ url_for('qualification_list') }}">资质证照</a>
-            <a class="btn btn-sm btn-outline-light" href="{{ url_for('foreign_client_list') }}">外资客户</a>
-            <a class="btn btn-sm btn-outline-light" href="{{ url_for('demand_list') }}">外资需求</a>
-            <a class="btn btn-sm btn-outline-light" href="{{ url_for('project_list') }}">撮合项目</a>
-            <a class="btn btn-sm btn-outline-light" href="{{ url_for('document_list') }}">文件归档</a>
-            {% if 是管理员 %}
-            <a class="btn btn-sm btn-outline-warning" href="{{ url_for('backup_tools') }}">备份管理</a>
-            {% endif %}
-        </div>
-        <div class="d-flex align-items-center text-white gap-3">
-            {% if session.get('用户') %}
-                <span>当前用户：{{ session.get('用户') }}（{{ 当前角色 }}）</span>
-                <a class="btn btn-sm btn-outline-light" href="{{ url_for('退出') }}">退出</a>
-            {% else %}
-                <a class="btn btn-sm btn-outline-light" href="{{ url_for('登录') }}">登录</a>
-            {% endif %}
-        </div>
+<div class="app-shell">
+    <aside class="app-sidebar">
+        <a class="sidebar-brand" href="{{ url_for('dashboard') }}">跨境经贸资料管理系统</a>
+        <nav class="nav flex-column sidebar-nav">
+            <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">首页</a>
+            <a class="nav-link {% if request.endpoint in ['enterprise_library', 'enterprise_list', 'enterprise_new', 'enterprise_detail', 'enterprise_edit'] %}active{% endif %}" href="{{ url_for('enterprise_library') }}">企业库</a>
+            <a class="nav-link {% if request.endpoint in ['product_library', 'product_list', 'product_new', 'product_detail', 'product_edit'] %}active{% endif %}" href="{{ url_for('product_library') }}">产品库</a>
+            <a class="nav-link {% if request.endpoint in ['backup_management', 'backup_tools'] %}active{% endif %}" href="{{ url_for('backup_management') }}">备份管理</a>
+        </nav>
+    </aside>
+
+    <div class="app-main">
+        <header class="app-header">
+            <div>
+                <div class="system-name">跨境经贸贸促会企业与产品资料管理系统</div>
+                <h1 class="page-title mb-0">{% block page_title %}{{ self.title() }}{% endblock %}</h1>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                {% if session.get('用户') %}
+                    <span class="text-muted small">当前用户：{{ session.get('用户') }}（{{ 当前角色 }}）</span>
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('退出') }}">退出</a>
+                {% else %}
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('登录') }}">登录</a>
+                {% endif %}
+            </div>
+        </header>
+
+        <main class="app-content">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            {% block content %}{% endblock %}
+        </main>
     </div>
-</nav>
-
-<main class="container my-4">
-    {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-            {% for category, message in messages %}
-                <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
-                    {{ message }}
-                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-                </div>
-            {% endfor %}
-        {% endif %}
-    {% endwith %}
-
-    {% block content %}{% endblock %}
-</main>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 {% block scripts %}{% endblock %}

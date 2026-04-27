@@ -238,44 +238,30 @@ def create_app():
     def dashboard():
         企业数量 = Enterprise.query.count()
         产品数量 = Product.query.count()
-        需求数量 = Demand.query.count()
-        撮合数量 = MatchRecord.query.count()
-        项目总数 = ProjectProgress.query.count()
-        已成交项目数 = ProjectProgress.query.filter(ProjectProgress.current_stage == "已成交").count()
-        总成交金额 = db.session.query(func.coalesce(func.sum(ProjectProgress.deal_amount), 0)).scalar() or Decimal("0")
-        已过期证书数量 = sum(1 for 资质 in Qualification.query.all() if 计算证书状态(资质.expiry_date) == "已过期")
-        九十天内到期证书数量 = sum(1 for 资质 in Qualification.query.all() if 计算证书状态(资质.expiry_date) == "即将到期")
-        企业行业数据 = 获取企业行业分布()
-        产品分类数据 = 获取产品分类分布()
-        项目阶段数据 = 获取项目阶段分布()
-        最近30天新增项目 = 获取最近30天项目趋势()
-
-        核心模块 = [
-            {"名称": "企业库管理", "说明": "维护国内企业基础信息、联系人及出海目标。", "链接": url_for("enterprise_list")},
-            {"名称": "产品管理", "说明": "管理企业产品信息、品类与产品描述。", "链接": "#"},
-            {"名称": "资质证照", "说明": "维护企业相关资质证照、编号和有效期。", "链接": url_for("qualification_list")},
-            {"名称": "外资客户需求", "说明": "记录海外客户需求与目标采购方向。", "链接": url_for("demand_list")},
-            {"名称": "撮合进展", "说明": "跟踪撮合过程、阶段状态与跟进记录。", "链接": url_for("project_list")},
-            {"名称": "归档文件", "说明": "统一存放项目过程文档与归档资料。", "链接": url_for("document_list")},
-        ]
+        已上传文件数量 = Document.query.count()
+        最近新增企业 = Enterprise.query.order_by(Enterprise.created_at.desc()).limit(5).all()
+        最近新增产品 = Product.query.order_by(Product.created_at.desc()).limit(5).all()
 
         return render_template(
             "dashboard.html",
             企业数量=企业数量,
             产品数量=产品数量,
-            需求数量=需求数量,
-            撮合数量=撮合数量,
-            项目总数=项目总数,
-            已成交项目数=已成交项目数,
-            总成交金额=总成交金额,
-            已过期证书数量=已过期证书数量,
-            九十天内到期证书数量=九十天内到期证书数量,
-            核心模块=核心模块,
-            企业行业数据=企业行业数据,
-            产品分类数据=产品分类数据,
-            项目阶段数据=项目阶段数据,
-            最近30天新增项目=最近30天新增项目,
+            已上传文件数量=已上传文件数量,
+            最近新增企业=最近新增企业,
+            最近新增产品=最近新增产品,
         )
+
+    @app.route("/companies")
+    def enterprise_library():
+        return redirect(url_for("enterprise_list"))
+
+    @app.route("/products")
+    def product_library():
+        return redirect(url_for("product_list"))
+
+    @app.route("/backups")
+    def backup_management():
+        return redirect(url_for("backup_tools"))
 
     @app.route("/search")
     def global_search():
@@ -503,24 +489,6 @@ def create_app():
         ).all()
         资质展示列表 = [构建证照展示项(资质) for 资质 in 资质列表]
         文件列表 = Document.query.filter_by(enterprise_id=id).all()
-        进展列表 = ProjectProgress.query.filter_by(enterprise_id=id).order_by(ProjectProgress.updated_at.desc()).all()
-        匹配记录 = (
-            MatchRecord.query.filter_by(enterprise_id=id)
-            .order_by(MatchRecord.match_score.desc(), MatchRecord.updated_at.desc())
-            .all()
-        )
-        匹配需求列表 = [
-            {
-                "记录": 记录,
-                "需求": Demand.query.get(记录.demand_id),
-                "产品": Product.query.get(记录.product_id) if 记录.product_id else None,
-                "客户": ForeignClient.query.get(Demand.query.get(记录.demand_id).foreign_client_id) if Demand.query.get(记录.demand_id) else None,
-            }
-            for 记录 in 匹配记录
-        ]
-
-        分析结果 = 生成出海方案分析(企业, 产品列表, 资质列表, 文件列表)
-        分析备注 = EnterpriseAnalysisNote.query.filter_by(enterprise_id=id).first()
 
         return render_template(
             "enterprise_detail.html",
@@ -530,10 +498,6 @@ def create_app():
             资质列表=资质列表,
             资质展示列表=资质展示列表,
             文件列表=文件列表,
-            进展列表=进展列表,
-            匹配需求列表=匹配需求列表,
-            分析结果=分析结果,
-            分析备注=分析备注,
         )
 
     @app.route("/enterprises/<int:id>/analysis-note", methods=["POST"])
