@@ -446,7 +446,7 @@ def create_app():
     def enterprise_library():
         return redirect(url_for("enterprise_list"))
 
-    @app.route("/products")
+    @app.route("/product-library")
     def product_library():
         return redirect(url_for("product_list"))
 
