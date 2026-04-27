@@ -8,6 +8,24 @@
 
 <div class="card shadow-sm mb-3">
     <div class="card-body">
+        <div class="row g-3 mb-3">
+            <div class="col-md-6">
+                <div class="small text-muted">当前数据库文件位置</div>
+                <div><code>{{ db_path }}</code></div>
+            </div>
+            <div class="col-md-6">
+                <div class="small text-muted">当前上传文件目录位置</div>
+                <div><code>{{ upload_path }}</code></div>
+            </div>
+            <div class="col-md-6">
+                <div class="small text-muted">最近一次数据库备份时间</div>
+                <div>{{ latest_db_backup_time.strftime('%Y-%m-%d %H:%M:%S') if latest_db_backup_time else '暂无' }}</div>
+            </div>
+            <div class="col-md-6">
+                <div class="small text-muted">最近一次文件资料备份时间</div>
+                <div>{{ latest_files_backup_time.strftime('%Y-%m-%d %H:%M:%S') if latest_files_backup_time else '暂无' }}</div>
+            </div>
+        </div>
         <div class="d-flex gap-2 flex-wrap">
             <form method="post">
                 <input type="hidden" name="action" value="backup_db">
@@ -15,23 +33,60 @@
             </form>
             <form method="post">
                 <input type="hidden" name="action" value="backup_uploads">
-                <button class="btn btn-outline-primary" type="submit">一键备份 uploads</button>
+                <button class="btn btn-outline-primary" type="submit">一键备份企业文件资料</button>
+            </form>
+            <form method="post">
+                <input type="hidden" name="action" value="backup_all">
+                <button class="btn btn-success" type="submit">一键完整备份</button>
             </form>
         </div>
     </div>
 </div>
 
-<div class="card shadow-sm">
+<div class="card shadow-sm mb-3">
     <div class="card-header">最近备份文件</div>
     <ul class="list-group list-group-flush">
         {% for file in files %}
         <li class="list-group-item d-flex justify-content-between">
-            <span>{{ file.name }}</span>
-            <span class="text-muted">保存在 backups/</span>
+            <div>
+                <div>{{ file.name }}</div>
+                <small class="text-muted">
+                    {{ '数据库备份' if file.type == 'database' else '文件资料备份' }} · {{ file.mtime.strftime('%Y-%m-%d %H:%M:%S') }}
+                </small>
+            </div>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('download_backup', backup_type=file.type, filename=file.name) }}">下载</a>
         </li>
         {% else %}
         <li class="list-group-item text-muted">暂无备份文件。</li>
         {% endfor %}
+    </ul>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-header">备份操作日志</div>
+    <ul class="list-group list-group-flush">
+        {% for item in logs %}
+        <li class="list-group-item">
+            <div class="d-flex justify-content-between flex-wrap">
+                <span>{{ item.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                <span class="text-muted">操作人：{{ item.user_name or 'system' }}</span>
+            </div>
+            <div class="small">{{ item.detail or '-' }}</div>
+        </li>
+        {% else %}
+        <li class="list-group-item text-muted">暂无备份操作日志。</li>
+        {% endfor %}
+    </ul>
+</div>
+
+<div class="alert alert-info mb-0">
+    <div class="fw-semibold mb-2">备份说明</div>
+    <ul class="mb-0">
+        <li>数据库保存企业和产品表单信息。</li>
+        <li>uploads 文件夹保存企业和产品上传资料。</li>
+        <li>系统迁移时必须同时迁移数据库和 uploads 文件夹。</li>
+        <li>删除旧备份不会删除系统当前数据，但会减少历史恢复点。</li>
+        <li>系统每天第一次启动时自动备份一次数据库；文件资料仅支持手动备份。</li>
     </ul>
 </div>
 {% endblock %}

@@ -70,11 +70,13 @@ python app.py
 
 ### 手动备份（管理员）
 访问 `/backup`（或 `/backups`）可执行：
-- 数据库备份：`backups/backup_db_YYYYMMDD_HHMMSS.sqlite`
-- 上传目录备份：`backups/backup_uploads_YYYYMMDD_HHMMSS.zip`
+- 数据库备份：`backups/database/database_backup_YYYYMMDD_HHMMSS.sqlite`
+- 企业文件资料备份：`backups/files/enterprise_files_backup_YYYYMMDD_HHMMSS.zip`
+- 一键完整备份（数据库 + 企业文件资料）
+- 每日首次启动自动备份数据库一次（文件资料仅手动备份）
 
 ### 恢复数据库
 1. 停止服务
 2. 备份当前库：`cp trade_agent.db trade_agent.db.bak`
-3. 覆盖恢复：`cp backups/backup_db_xxx.sqlite trade_agent.db`
+3. 覆盖恢复：`cp backups/database/database_backup_xxx.sqlite trade_agent.db`
 4. 重启：`python app.py`

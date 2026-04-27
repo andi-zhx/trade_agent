@@ -178,8 +178,11 @@ def create_app():
     app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{BASE_DIR / 'trade_agent.db'}"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["UPLOAD_ROOT"] = BASE_DIR / "uploads" / "企业库"
+    app.config["UPLOAD_ENTERPRISE_ROOT"] = BASE_DIR / "uploads" / "企业库"
     app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_SIZE
     app.config["BACKUP_ROOT"] = BASE_DIR / "backups"
+    app.config["DATABASE_BACKUP_ROOT"] = app.config["BACKUP_ROOT"] / "database"
+    app.config["FILES_BACKUP_ROOT"] = app.config["BACKUP_ROOT"] / "files"
 
     db.init_app(app)
 
@@ -226,30 +229,45 @@ def create_app():
         return wrapped
 
     def 构建数据库备份():
-        备份目录 = app.config["BACKUP_ROOT"]
+        备份目录 = app.config["DATABASE_BACKUP_ROOT"]
         备份目录.mkdir(parents=True, exist_ok=True)
         时间戳 = datetime.now().strftime("%Y%m%d_%H%M%S")
         源数据库 = BASE_DIR / "trade_agent.db"
-        备份路径 = 备份目录 / f"backup_db_{时间戳}.sqlite"
+        备份路径 = 备份目录 / f"database_backup_{时间戳}.sqlite"
         shutil.copy2(源数据库, 备份路径)
         return 备份路径
 
     def 构建上传目录备份():
-        备份目录 = app.config["BACKUP_ROOT"]
+        备份目录 = app.config["FILES_BACKUP_ROOT"]
         备份目录.mkdir(parents=True, exist_ok=True)
         时间戳 = datetime.now().strftime("%Y%m%d_%H%M%S")
-        备份路径 = 备份目录 / f"backup_uploads_{时间戳}.zip"
-        上传根目录 = BASE_DIR / "uploads"
+        备份路径 = 备份目录 / f"enterprise_files_backup_{时间戳}.zip"
+        上传根目录 = app.config["UPLOAD_ENTERPRISE_ROOT"]
         with ZipFile(备份路径, "w", compression=ZIP_DEFLATED) as zipf:
             if 上传根目录.exists():
                 for 文件路径 in 上传根目录.rglob("*"):
                     if 文件路径.is_file():
-                        zipf.write(文件路径, arcname=文件路径.relative_to(BASE_DIR))
+                        zipf.write(文件路径, arcname=文件路径.relative_to(上传根目录.parent))
         return 备份路径
 
     def 今日是否已有数据库备份():
-        today_prefix = f"backup_db_{datetime.now().strftime('%Y%m%d')}"
-        return any(path.name.startswith(today_prefix) for path in app.config["BACKUP_ROOT"].glob("backup_db_*.sqlite"))
+        备份目录 = app.config["DATABASE_BACKUP_ROOT"]
+        备份目录.mkdir(parents=True, exist_ok=True)
+        today_prefix = f"database_backup_{datetime.now().strftime('%Y%m%d')}"
+        return any(path.name.startswith(today_prefix) for path in 备份目录.glob("database_backup_*.sqlite"))
+
+    def 查询最新备份时间(备份类型):
+        if 备份类型 == "database":
+            备份目录 = app.config["DATABASE_BACKUP_ROOT"]
+            文件模式 = "database_backup_*.sqlite"
+        else:
+            备份目录 = app.config["FILES_BACKUP_ROOT"]
+            文件模式 = "enterprise_files_backup_*.zip"
+        备份目录.mkdir(parents=True, exist_ok=True)
+        文件列表 = sorted(备份目录.glob(文件模式), key=lambda x: x.stat().st_mtime, reverse=True)
+        if not 文件列表:
+            return None
+        return datetime.fromtimestamp(文件列表[0].stat().st_mtime)
 
     @app.template_filter("currency")
     def currency_filter(value, currency="USD"):
@@ -453,21 +471,64 @@ def create_app():
     @app.route("/backup", methods=["GET", "POST"])
     @admin_required
     def backup_tools():
-        备份目录 = app.config["BACKUP_ROOT"]
-        备份目录.mkdir(parents=True, exist_ok=True)
+        app.config["DATABASE_BACKUP_ROOT"].mkdir(parents=True, exist_ok=True)
+        app.config["FILES_BACKUP_ROOT"].mkdir(parents=True, exist_ok=True)
         if request.method == "POST":
             action = request.form.get("action", "")
             if action == "backup_db":
                 文件路径 = 构建数据库备份()
+                记录审计日志("备份", "backup", detail=f"type=database,filename={文件路径.name}")
+                db.session.commit()
                 flash(f"数据库备份成功：{文件路径.name}", "success")
             elif action == "backup_uploads":
                 文件路径 = 构建上传目录备份()
-                flash(f"上传目录备份成功：{文件路径.name}", "success")
+                记录审计日志("备份", "backup", detail=f"type=files,filename={文件路径.name}")
+                db.session.commit()
+                flash(f"企业文件资料备份成功：{文件路径.name}", "success")
+            elif action == "backup_all":
+                数据库文件 = 构建数据库备份()
+                文件资料文件 = 构建上传目录备份()
+                记录审计日志("备份", "backup", detail=f"type=database,filename={数据库文件.name}")
+                记录审计日志("备份", "backup", detail=f"type=files,filename={文件资料文件.name}")
+                db.session.commit()
+                flash(f"完整备份成功：{数据库文件.name}，{文件资料文件.name}", "success")
             else:
                 flash("未知备份动作。", "danger")
             return redirect(url_for("backup_tools"))
-        文件列表 = sorted(备份目录.glob("backup_*"), key=lambda x: x.stat().st_mtime, reverse=True)[:30]
-        return render_template("backup.html", files=文件列表)
+
+        数据库文件列表 = [
+            {"name": path.name, "type": "database", "mtime": datetime.fromtimestamp(path.stat().st_mtime)}
+            for path in app.config["DATABASE_BACKUP_ROOT"].glob("database_backup_*.sqlite")
+        ]
+        文件资料列表 = [
+            {"name": path.name, "type": "files", "mtime": datetime.fromtimestamp(path.stat().st_mtime)}
+            for path in app.config["FILES_BACKUP_ROOT"].glob("enterprise_files_backup_*.zip")
+        ]
+        文件列表 = sorted(数据库文件列表 + 文件资料列表, key=lambda x: x["mtime"], reverse=True)[:50]
+        操作日志 = (
+            AuditLog.query.filter_by(target_type="backup").order_by(AuditLog.created_at.desc()).limit(30).all()
+        )
+        return render_template(
+            "backup.html",
+            files=文件列表,
+            db_path=BASE_DIR / "trade_agent.db",
+            upload_path=app.config["UPLOAD_ENTERPRISE_ROOT"],
+            latest_db_backup_time=查询最新备份时间("database"),
+            latest_files_backup_time=查询最新备份时间("files"),
+            logs=操作日志,
+        )
+
+    @app.get("/backup/download/<string:backup_type>/<path:filename>")
+    @admin_required
+    def download_backup(backup_type, filename):
+        if backup_type == "database" and filename.startswith("database_backup_") and filename.endswith(".sqlite"):
+            目录 = app.config["DATABASE_BACKUP_ROOT"]
+        elif backup_type == "files" and filename.startswith("enterprise_files_backup_") and filename.endswith(".zip"):
+            目录 = app.config["FILES_BACKUP_ROOT"]
+        else:
+            flash("非法备份文件请求。", "danger")
+            return redirect(url_for("backup_tools"))
+        return send_from_directory(目录, filename, as_attachment=True)
 
     @app.get("/excel/export/<string:export_key>")
     def excel_export(export_key):
@@ -2874,14 +2935,25 @@ def init_db(app):
             db.session.add(User(username="user", password=generate_password_hash("user123"), role="普通用户"))
         db.session.commit()
 
-        backup_root = app.config["BACKUP_ROOT"]
+        backup_root = app.config["DATABASE_BACKUP_ROOT"]
         backup_root.mkdir(parents=True, exist_ok=True)
-        today_prefix = f"backup_db_{datetime.now().strftime('%Y%m%d')}"
-        has_today_backup = any(path.name.startswith(today_prefix) for path in backup_root.glob("backup_db_*.sqlite"))
+        today_prefix = f"database_backup_{datetime.now().strftime('%Y%m%d')}"
+        has_today_backup = any(
+            path.name.startswith(today_prefix) for path in backup_root.glob("database_backup_*.sqlite")
+        )
         if not has_today_backup:
             src = BASE_DIR / "trade_agent.db"
-            dst = backup_root / f"backup_db_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sqlite"
+            dst = backup_root / f"database_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sqlite"
             shutil.copy2(src, dst)
+            db.session.add(
+                AuditLog(
+                    action="备份",
+                    target_type="backup",
+                    user_name="system",
+                    detail=f"type=database,filename={dst.name},note=auto_first_start_of_day",
+                )
+            )
+            db.session.commit()
 
 
 app = create_app()
