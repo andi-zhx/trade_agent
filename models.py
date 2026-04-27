@@ -27,7 +27,7 @@ class Enterprise(db.Model):
     enterprise_code = db.Column(db.String(32), unique=True, nullable=False, index=True)
     company_name = db.Column(db.String(255), nullable=False, index=True)
     english_name = db.Column(db.String(255))
-    unified_social_credit_code = db.Column(db.String(64), unique=True, index=True)
+    unified_social_credit_code = db.Column(db.String(64), index=True)
     founded_date = db.Column(db.Date)
     registered_capital = db.Column(db.String(100))
     registered_address = db.Column(db.String(255))
