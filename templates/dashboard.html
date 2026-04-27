@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+
+{% block title %}首页仪表盘 - 跨境经贸企业库与产品管理系统{% endblock %}
+
+{% block content %}
+<div class="p-4 p-md-5 mb-4 bg-light rounded-3 border">
+    <h1 class="display-6 fw-bold">跨境经贸企业库与产品管理系统</h1>
+    <p class="lead mb-2">用于管理企业、产品、资质证照、外资客户需求与撮合进展，支持项目归档与服务方案分析。</p>
+    <p class="text-muted mb-0">建议流程：企业入库 → 产品梳理 → 需求匹配 → 跟踪撮合 → 归档复盘。</p>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-6 col-lg-3">
+        <div class="card card-stat h-100">
+            <div class="card-body">
+                <div class="text-muted">企业总数</div>
+                <div class="fs-2 fw-bold">{{ 企业数量 }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card card-stat h-100">
+            <div class="card-body">
+                <div class="text-muted">产品总数</div>
+                <div class="fs-2 fw-bold">{{ 产品数量 }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card card-stat h-100">
+            <div class="card-body">
+                <div class="text-muted">客户需求数</div>
+                <div class="fs-2 fw-bold">{{ 需求数量 }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-6 col-lg-3">
+        <div class="card card-stat h-100">
+            <div class="card-body">
+                <div class="text-muted">撮合进展数</div>
+                <div class="fs-2 fw-bold">{{ 撮合数量 }}</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<h2 class="h4 mb-3">核心模块入口</h2>
+<div class="row g-3">
+    {% for 模块 in 核心模块 %}
+    <div class="col-md-6 col-xl-4">
+        <div class="card h-100 module-card">
+            <div class="card-body d-flex flex-column">
+                <h3 class="h5">{{ 模块.名称 }}</h3>
+                <p class="text-muted flex-grow-1">{{ 模块.说明 }}</p>
+                <a href="{{ 模块.链接 }}" class="btn btn-outline-primary btn-sm disabled">即将开放</a>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
