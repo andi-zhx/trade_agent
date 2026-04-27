@@ -2,11 +2,16 @@ from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
 import csv
+import shutil
 from pathlib import Path
 import re
+from functools import wraps
+from zipfile import ZIP_DEFLATED, ZipFile
 
 from flask import Flask, flash, redirect, render_template, request, send_file, send_from_directory, session, url_for
 from sqlalchemy import func, or_
+from werkzeug.security import check_password_hash, generate_password_hash
+from werkzeug.utils import secure_filename
 
 from models import (
     Contact,
@@ -19,12 +24,16 @@ from models import (
     Product,
     ProjectProgress,
     Qualification,
+    AuditLog,
     User,
     db,
 )
 
 BASE_DIR = Path(__file__).resolve().parent
 PER_PAGE = 10
+ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".jpg", ".png", ".mp4"}
+BLOCKED_EXTENSIONS = {".exe", ".bat", ".js", ".sh", ".cmd", ".com", ".msi", ".ps1"}
+MAX_UPLOAD_SIZE = 100 * 1024 * 1024
 
 
 PRODUCT_FORM_SECTIONS = [
@@ -123,14 +132,107 @@ def create_app():
     app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{BASE_DIR / 'trade_agent.db'}"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
     app.config["UPLOAD_ROOT"] = BASE_DIR / "uploads" / "企业库"
+    app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_SIZE
+    app.config["BACKUP_ROOT"] = BASE_DIR / "backups"
 
     db.init_app(app)
+
+    def 当前用户():
+        用户名 = session.get("用户")
+        if not 用户名:
+            return None
+        return User.query.filter_by(username=用户名).first()
+
+    def 记录审计日志(action, target_type, target_id=None, detail=None):
+        用户 = 当前用户()
+        db.session.add(
+            AuditLog(
+                action=action,
+                target_type=target_type,
+                target_id=target_id,
+                user_name=用户.username if 用户 else "system",
+                detail=detail,
+            )
+        )
+
+    def login_required(view_func):
+        @wraps(view_func)
+        def wrapped(*args, **kwargs):
+            if not session.get("用户"):
+                flash("请先登录后再访问。", "warning")
+                return redirect(url_for("登录"))
+            return view_func(*args, **kwargs)
+
+        return wrapped
+
+    def admin_required(view_func):
+        @wraps(view_func)
+        def wrapped(*args, **kwargs):
+            用户 = 当前用户()
+            if not 用户:
+                flash("请先登录后再访问。", "warning")
+                return redirect(url_for("登录"))
+            if 用户.role != "管理员":
+                flash("仅管理员可执行此操作。", "danger")
+                return redirect(url_for("dashboard"))
+            return view_func(*args, **kwargs)
+
+        return wrapped
+
+    def 构建数据库备份():
+        备份目录 = app.config["BACKUP_ROOT"]
+        备份目录.mkdir(parents=True, exist_ok=True)
+        时间戳 = datetime.now().strftime("%Y%m%d_%H%M%S")
+        源数据库 = BASE_DIR / "trade_agent.db"
+        备份路径 = 备份目录 / f"backup_db_{时间戳}.sqlite"
+        shutil.copy2(源数据库, 备份路径)
+        return 备份路径
+
+    def 构建上传目录备份():
+        备份目录 = app.config["BACKUP_ROOT"]
+        备份目录.mkdir(parents=True, exist_ok=True)
+        时间戳 = datetime.now().strftime("%Y%m%d_%H%M%S")
+        备份路径 = 备份目录 / f"backup_uploads_{时间戳}.zip"
+        上传根目录 = BASE_DIR / "uploads"
+        with ZipFile(备份路径, "w", compression=ZIP_DEFLATED) as zipf:
+            if 上传根目录.exists():
+                for 文件路径 in 上传根目录.rglob("*"):
+                    if 文件路径.is_file():
+                        zipf.write(文件路径, arcname=文件路径.relative_to(BASE_DIR))
+        return 备份路径
+
+    def 今日是否已有数据库备份():
+        today_prefix = f"backup_db_{datetime.now().strftime('%Y%m%d')}"
+        return any(path.name.startswith(today_prefix) for path in app.config["BACKUP_ROOT"].glob("backup_db_*.sqlite"))
 
     @app.template_filter("currency")
     def currency_filter(value, currency="USD"):
         if value is None:
             return "-"
         return f"{currency} {value:,.2f}"
+
+    @app.context_processor
+    def inject_user_context():
+        return {
+            "当前用户名": session.get("用户"),
+            "当前角色": session.get("角色"),
+            "是管理员": session.get("角色") == "管理员",
+        }
+
+    @app.before_request
+    def enforce_login():
+        if request.endpoint in {"登录", "static"}:
+            return None
+        if request.endpoint and request.endpoint.startswith("static"):
+            return None
+        if not session.get("用户"):
+            return redirect(url_for("登录"))
+        return None
+
+    @app.errorhandler(413)
+    def request_entity_too_large(_error):
+        flash("上传文件过大，单文件限制为 100MB。", "danger")
+        return redirect(url_for("document_upload"))
 
     @app.route("/")
     def dashboard():
@@ -210,6 +312,25 @@ def create_app():
     def excel_tools():
         return render_template("excel_tools.html")
 
+    @app.route("/backup", methods=["GET", "POST"])
+    @admin_required
+    def backup_tools():
+        备份目录 = app.config["BACKUP_ROOT"]
+        备份目录.mkdir(parents=True, exist_ok=True)
+        if request.method == "POST":
+            action = request.form.get("action", "")
+            if action == "backup_db":
+                文件路径 = 构建数据库备份()
+                flash(f"数据库备份成功：{文件路径.name}", "success")
+            elif action == "backup_uploads":
+                文件路径 = 构建上传目录备份()
+                flash(f"上传目录备份成功：{文件路径.name}", "success")
+            else:
+                flash("未知备份动作。", "danger")
+            return redirect(url_for("backup_tools"))
+        文件列表 = sorted(备份目录.glob("backup_*"), key=lambda x: x.stat().st_mtime, reverse=True)[:30]
+        return render_template("backup.html", files=文件列表)
+
     @app.get("/excel/export/<string:export_key>")
     def excel_export(export_key):
         try:
@@ -224,6 +345,8 @@ def create_app():
             text_buffer.append(",".join([csv_safe(v) for v in row]))
         缓冲区.write(("\n".join(text_buffer)).encode("utf-8-sig"))
         缓冲区.seek(0)
+        记录审计日志("导出 Excel", "excel", detail=f"export_key={export_key}")
+        db.session.commit()
         return send_file(
             缓冲区,
             as_attachment=True,
@@ -239,6 +362,8 @@ def create_app():
                 flash("请先选择企业 Excel 文件。", "danger")
                 return redirect(url_for("import_enterprises"))
             成功条数, 失败列表 = 导入企业Excel(上传文件)
+            记录审计日志("导入 Excel", "enterprise", detail=f"success={成功条数}, failed={len(失败列表)}")
+            db.session.commit()
             return render_template("import_result.html", 标题="企业导入结果", 成功条数=成功条数, 失败列表=失败列表)
         return render_template("import_form.html", 标题="企业 Excel 导入", 提示="支持按企业编号更新或新增企业。")
 
@@ -250,6 +375,8 @@ def create_app():
                 flash("请先选择产品 Excel 文件。", "danger")
                 return redirect(url_for("import_products"))
             成功条数, 失败列表 = 导入产品Excel(上传文件)
+            记录审计日志("导入 Excel", "product", detail=f"success={成功条数}, failed={len(失败列表)}")
+            db.session.commit()
             return render_template("import_result.html", 标题="产品导入结果", 成功条数=成功条数, 失败列表=失败列表)
         return render_template("import_form.html", 标题="产品 Excel 导入", 提示="支持按产品编号更新或新增产品。")
 
@@ -359,6 +486,7 @@ def create_app():
                         position="外贸负责人",
                     )
                 )
+            记录审计日志("新增企业", "enterprise", target_id=企业.id, detail=企业.company_name)
             db.session.commit()
             flash(f"企业 {企业.company_name} 新增成功", "success")
             return redirect(url_for("enterprise_detail", id=企业.id))
@@ -487,6 +615,7 @@ def create_app():
                 flash("企业名称为必填项", "danger")
                 return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人)
 
+            记录审计日志("编辑企业", "enterprise", target_id=企业.id, detail=企业.company_name)
             db.session.commit()
             flash("企业信息更新成功", "success")
             return redirect(url_for("enterprise_detail", id=企业.id))
@@ -499,8 +628,19 @@ def create_app():
         )
 
     @app.route("/enterprises/<int:id>/delete", methods=["POST"])
+    @admin_required
     def enterprise_delete(id):
         企业 = Enterprise.query.get_or_404(id)
+        if request.form.get("confirm_delete") != "YES":
+            flash("请勾选二次确认后再删除企业。", "warning")
+            return redirect(url_for("enterprise_list"))
+        if Product.query.filter_by(enterprise_id=企业.id).count() > 0 or ProjectProgress.query.filter_by(enterprise_id=企业.id).count() > 0:
+            企业.status = "停用"
+            记录审计日志("编辑企业", "enterprise", target_id=企业.id, detail=f"{企业.company_name} 标记为停用")
+            db.session.commit()
+            flash("企业存在产品或项目进展，已自动标记为停用。", "warning")
+            return redirect(url_for("enterprise_detail", id=企业.id))
+        记录审计日志("删除企业", "enterprise", target_id=企业.id, detail=企业.company_name)
         db.session.delete(企业)
         db.session.commit()
         flash("企业已删除", "success")
@@ -616,13 +756,16 @@ def create_app():
 
     @app.route("/登录", methods=["GET", "POST"])
     def 登录():
+        if session.get("用户"):
+            return redirect(url_for("dashboard"))
         if request.method == "POST":
             用户名 = request.form.get("用户名", "").strip()
             密码 = request.form.get("密码", "").strip()
 
-            用户 = User.query.filter_by(username=用户名, password=密码).first()
-            if 用户:
+            用户 = User.query.filter_by(username=用户名).first()
+            if 用户 and check_password_hash(用户.password, 密码):
                 session["用户"] = 用户.username
+                session["角色"] = 用户.role
                 flash("登录成功", "success")
                 return redirect(url_for("dashboard"))
 
@@ -633,6 +776,7 @@ def create_app():
     @app.route("/退出")
     def 退出():
         session.pop("用户", None)
+        session.pop("角色", None)
         flash("已退出登录", "info")
         return redirect(url_for("登录"))
 
@@ -727,6 +871,8 @@ def create_app():
                     product=product,
                 )
             db.session.add(product)
+            db.session.flush()
+            记录审计日志("新增产品", "product", target_id=product.id, detail=product.product_name_cn)
             db.session.commit()
             flash(f"产品已创建，编号：{product.product_code}。", "success")
             return redirect(url_for("product_detail", product_id=product.id))
@@ -803,6 +949,7 @@ def create_app():
                     sections=PRODUCT_FORM_SECTIONS,
                     product=product,
                 )
+            记录审计日志("编辑产品", "product", target_id=product.id, detail=product.product_name_cn)
             db.session.commit()
             flash("产品信息已更新。", "success")
             return redirect(url_for("product_detail", product_id=product.id))
@@ -817,8 +964,16 @@ def create_app():
         )
 
     @app.post("/products/<int:product_id>/delete")
+    @admin_required
     def product_delete(product_id):
         product = Product.query.get_or_404(product_id)
+        if request.form.get("confirm_delete") != "YES":
+            flash("请勾选二次确认后再删除产品。", "warning")
+            return redirect(url_for("product_list"))
+        if ProjectProgress.query.filter_by(product_id=product.id).count() > 0:
+            flash("该产品存在项目进展，暂不允许直接删除。", "danger")
+            return redirect(url_for("product_detail", product_id=product.id))
+        记录审计日志("删除产品", "product", target_id=product.id, detail=product.product_name_cn)
         db.session.delete(product)
         db.session.commit()
         flash("产品已删除。", "info")
@@ -1082,6 +1237,33 @@ def create_app():
                     form_data=request.form,
                 )
 
+            扩展名 = Path(上传文件.filename).suffix.lower()
+            if 扩展名 in BLOCKED_EXTENSIONS or 扩展名 not in ALLOWED_EXTENSIONS:
+                flash("文件类型不允许上传。", "danger")
+                return render_template(
+                    "documents/upload.html",
+                    enterprises=enterprises,
+                    products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
+                    projects=projects,
+                    document_types=DOCUMENT_TYPE_OPTIONS,
+                    form_data=request.form,
+                )
+            if request.content_length and request.content_length > MAX_UPLOAD_SIZE:
+                flash("单文件大小不能超过 100MB。", "danger")
+                return render_template(
+                    "documents/upload.html",
+                    enterprises=enterprises,
+                    products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
+                    projects=projects,
+                    document_types=DOCUMENT_TYPE_OPTIONS,
+                    form_data=request.form,
+                )
+
+            安全原始文件名 = secure_filename(上传文件.filename)
+            if not 安全原始文件名:
+                flash("上传文件名无效，请重命名后重试。", "danger")
+                return redirect(url_for("document_upload"))
+
             企业目录 = app.config["UPLOAD_ROOT"] / f"{enterprise.enterprise_code}_{清洗路径片段(enterprise.company_name)}"
             if product:
                 归档目录 = 企业目录 / "05_产品资料" / f"{enterprise.enterprise_code}_{product.product_code}_{清洗路径片段(product.product_name_cn)}"
@@ -1089,7 +1271,6 @@ def create_app():
                 归档目录 = 企业目录 / 获取文件分类目录(document_type)
             归档目录.mkdir(parents=True, exist_ok=True)
 
-            扩展名 = Path(上传文件.filename).suffix.lower()
             日期文本 = datetime.now().strftime("%Y%m%d")
             标准文件名 = 构建标准文件名(
                 enterprise_code=enterprise.enterprise_code,
@@ -1112,11 +1293,13 @@ def create_app():
                 document_name=document_name,
                 version=version,
                 file_path=str(存储路径.relative_to(BASE_DIR)),
-                original_filename=上传文件.filename,
+                original_filename=安全原始文件名,
                 uploaded_by=uploaded_by,
                 notes=notes,
             )
             db.session.add(document)
+            db.session.flush()
+            记录审计日志("上传文件", "document", target_id=document.id, detail=document.document_name)
             db.session.commit()
             flash("文件上传并归档成功。", "success")
             return redirect(url_for("document_list"))
@@ -1149,6 +1332,22 @@ def create_app():
             as_attachment=True,
             download_name=document.original_filename or 文件路径.name,
         )
+
+    @app.post("/documents/<int:document_id>/delete")
+    @admin_required
+    def document_delete(document_id):
+        document = Document.query.get_or_404(document_id)
+        if request.form.get("confirm_delete") != "YES":
+            flash("请勾选二次确认后再删除文件。", "warning")
+            return redirect(url_for("document_list"))
+        文件路径 = BASE_DIR / document.file_path
+        if 文件路径.exists() and 文件路径.is_file():
+            文件路径.unlink()
+        记录审计日志("删除文件", "document", target_id=document.id, detail=document.document_name)
+        db.session.delete(document)
+        db.session.commit()
+        flash("文件已删除。", "success")
+        return redirect(url_for("document_list"))
 
     @app.route("/foreign-clients")
     def foreign_client_list():
@@ -2088,9 +2287,24 @@ def init_db(app):
 
     with app.app_context():
         db.create_all()
-        if not User.query.filter_by(username="admin").first():
-            db.session.add(User(username="admin", password="admin123"))
-            db.session.commit()
+        管理员 = User.query.filter_by(username="admin").first()
+        if not 管理员:
+            db.session.add(User(username="admin", password=generate_password_hash("admin123"), role="管理员"))
+        elif not 管理员.password.startswith("pbkdf2:") and not 管理员.password.startswith("scrypt:"):
+            管理员.password = generate_password_hash("admin123")
+            管理员.role = "管理员"
+        if not User.query.filter_by(username="user").first():
+            db.session.add(User(username="user", password=generate_password_hash("user123"), role="普通用户"))
+        db.session.commit()
+
+        backup_root = app.config["BACKUP_ROOT"]
+        backup_root.mkdir(parents=True, exist_ok=True)
+        today_prefix = f"backup_db_{datetime.now().strftime('%Y%m%d')}"
+        has_today_backup = any(path.name.startswith(today_prefix) for path in backup_root.glob("backup_db_*.sqlite"))
+        if not has_today_backup:
+            src = BASE_DIR / "trade_agent.db"
+            dst = backup_root / f"backup_db_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sqlite"
+            shutil.copy2(src, dst)
 
 
 app = create_app()

@@ -21,10 +21,13 @@
             <a class="btn btn-sm btn-outline-light" href="{{ url_for('demand_list') }}">外资需求</a>
             <a class="btn btn-sm btn-outline-light" href="{{ url_for('project_list') }}">撮合项目</a>
             <a class="btn btn-sm btn-outline-light" href="{{ url_for('document_list') }}">文件归档</a>
+            {% if 是管理员 %}
+            <a class="btn btn-sm btn-outline-warning" href="{{ url_for('backup_tools') }}">备份管理</a>
+            {% endif %}
         </div>
         <div class="d-flex align-items-center text-white gap-3">
             {% if session.get('用户') %}
-                <span>当前用户：{{ session.get('用户') }}</span>
+                <span>当前用户：{{ session.get('用户') }}（{{ 当前角色 }}）</span>
                 <a class="btn btn-sm btn-outline-light" href="{{ url_for('退出') }}">退出</a>
             {% else %}
                 <a class="btn btn-sm btn-outline-light" href="{{ url_for('登录') }}">登录</a>

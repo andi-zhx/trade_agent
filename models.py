@@ -327,6 +327,6 @@ class AuditLog(db.Model):
     user_name = db.Column(db.String(100), nullable=False, index=True)
     action = db.Column(db.String(100), nullable=False)
     target_type = db.Column(db.String(100), nullable=False)
-    target_id = db.Column(db.Integer, nullable=False)
+    target_id = db.Column(db.Integer, nullable=True)
     detail = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
