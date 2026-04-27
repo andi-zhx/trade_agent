@@ -11,6 +11,14 @@
         <form class="row g-2" method="get">
             <div class="col-md-3"><input name="enterprise" class="form-control" placeholder="企业名称" value="{{ filters.get('enterprise','') }}"></div>
             <div class="col-md-3"><input name="keyword" class="form-control" placeholder="产品关键词" value="{{ filters.get('keyword','') }}"></div>
+            <div class="col-md-2">
+                <select name="industry" class="form-select">
+                    <option value="">行业分类（全部）</option>
+                    {% for item in industries %}
+                    <option value="{{ item.code }}" {% if filters.get('industry') == item.code %}selected{% endif %}>{{ item.code }} {{ item.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
             <div class="col-md-2"><input name="category" class="form-control" placeholder="产品类别" value="{{ filters.get('category','') }}"></div>
             <div class="col-md-2"><input name="hs_code" class="form-control" placeholder="HS编码" value="{{ filters.get('hs_code','') }}"></div>
             <div class="col-md-2"><input name="target_market" class="form-control" placeholder="目标市场" value="{{ filters.get('target_market','') }}"></div>
@@ -31,7 +39,7 @@
 <table class="table table-bordered table-hover align-middle small">
     <thead class="table-light">
     <tr>
-        <th>企业编号</th><th>企业名称</th><th>产品编号</th><th>产品中文名</th><th>产品英文名</th><th>产品类别</th><th>HS编码</th><th>型号</th><th>MOQ</th><th>生产周期</th><th>FOB价格</th><th>CIF价格</th><th>DDP价格</th><th>报价有效期</th><th>目标市场</th><th>认证类型</th><th>操作</th>
+        <th>企业编号</th><th>企业名称</th><th>产品编号</th><th>产品中文名</th><th>行业分类</th><th>产品英文名</th><th>产品类别</th><th>HS编码</th><th>型号</th><th>MOQ</th><th>生产周期</th><th>FOB价格</th><th>CIF价格</th><th>DDP价格</th><th>报价有效期</th><th>目标市场</th><th>认证类型</th><th>操作</th>
     </tr>
     </thead>
     <tbody>
@@ -41,6 +49,7 @@
         <td>{{ p.enterprise.company_name if p.enterprise else '-' }}</td>
         <td>{{ p.product_code }}</td>
         <td>{{ p.product_name_cn }}</td>
+        <td>{% if p.industry_code %}{{ p.industry_code }} {{ p.industry_name or '' }}{% else %}-{% endif %}</td>
         <td>{{ p.product_name_en or '-' }}</td>
         <td>{{ p.product_category or '-' }}</td>
         <td>{{ p.hs_code or '-' }}</td>
@@ -65,7 +74,7 @@
         </td>
     </tr>
     {% else %}
-    <tr><td colspan="17" class="text-center text-muted">暂无产品数据</td></tr>
+    <tr><td colspan="18" class="text-center text-muted">暂无产品数据</td></tr>
     {% endfor %}
     </tbody>
 </table>

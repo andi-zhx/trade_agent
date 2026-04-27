@@ -30,7 +30,7 @@
                 <select class="form-select" name="industry">
                     <option value="">全部</option>
                     {% for i in 行业列表 %}
-                    <option value="{{ i }}" {% if i == 筛选.industry %}selected{% endif %}>{{ i }}</option>
+                    <option value="{{ i.code }}" {% if i.code == 筛选.industry %}selected{% endif %}>{{ i.code }} {{ i.name }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -66,7 +66,7 @@
                 <th>企业编号</th>
                 <th>企业名称</th>
                 <th>所属城市</th>
-                <th>行业大类</th>
+                <th>行业分类</th>
                 <th>主营产品</th>
                 <th>是否制造商</th>
                 <th>已出口国家</th>
@@ -83,7 +83,7 @@
                 <td>{{ 企业.enterprise_code }}</td>
                 <td>{{ 企业.company_name }}</td>
                 <td>{{ 企业.city or '-' }}</td>
-                <td>{{ 企业.industry_category or '-' }}</td>
+                <td>{% if 企业.industry_code %}{{ 企业.industry_code }} {{ 企业.industry_category or '' }}{% else %}-{% endif %}</td>
                 <td class="text-truncate" style="max-width: 180px;">{{ 企业.main_products or '-' }}</td>
                 <td>{{ '是' if 企业.is_manufacturer else '否' }}</td>
                 <td class="text-truncate" style="max-width: 160px;">{{ 企业.export_countries or '-' }}</td>

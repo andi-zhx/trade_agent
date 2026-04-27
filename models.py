@@ -124,6 +124,8 @@ class Product(db.Model):
     product_code = db.Column(db.String(32), nullable=False, index=True)
     product_name_cn = db.Column(db.String(255), nullable=False, index=True)
     product_name_en = db.Column(db.String(255))
+    industry_code = db.Column(db.String(50), index=True)
+    industry_name = db.Column(db.String(100), index=True)
     product_category = db.Column(db.String(100), index=True)
     hs_code = db.Column(db.String(32), index=True)
     model = db.Column(db.String(100))
