@@ -24,6 +24,8 @@
 </div>
 
 <form method="post" enctype="multipart/form-data" class="vstack gap-3">
+    <div id="entryAutoTips" class="vstack gap-2"></div>
+
     <div class="card shadow-sm">
         <div class="card-header fw-bold">入库信息</div>
         <div class="card-body row g-3">
@@ -368,6 +370,53 @@
         });
         syncPrimaryIndex();
     }
+
+    const autoTipsContainer = document.getElementById('entryAutoTips');
+    const getSingleValue = (fieldName) => {
+        const values = getFieldValues(fieldName);
+        return values.length ? values[0] : '';
+    };
+    const ensureRiskTag = (tagName, shouldCheck) => {
+        const target = document.querySelector(`input[name="risk_tags"][value="${tagName}"]`);
+        if (!target) return;
+        if (shouldCheck) target.checked = true;
+    };
+    const renderAutoTips = () => {
+        if (!autoTipsContainer) return;
+        const blocks = [];
+        const certificateStatus = getSingleValue('certificate_validity_status');
+        const certificateCompleteness = getSingleValue('certificate_completeness');
+        const hasDishonestRecord = getSingleValue('has_dishonest_record');
+        const hasMajorLitigation = getSingleValue('has_major_litigation');
+
+        ensureRiskTag('诉讼风险', hasMajorLitigation === '是');
+
+        if (certificateStatus === '部分临期') {
+            blocks.push('<div class="alert alert-warning py-2 mb-0">⚠️ 证书有效期状态为“部分临期”，请优先安排复核与续期计划。</div>');
+        } else if (certificateStatus === '部分过期') {
+            blocks.push('<div class="alert alert-danger py-2 mb-0">⛔ 证书有效期状态为“部分过期”，当前合规风险较高，请先完成补证再推进。</div>');
+        }
+
+        if (certificateCompleteness === '待补充') {
+            blocks.push('<div class="alert alert-warning py-2 mb-0">📄 证书是否齐全为“待补充”，资料完整度应扣分并补齐关键资质。</div>');
+            const materialCompleteness = document.querySelector('select[name="material_completeness"]');
+            if (materialCompleteness) materialCompleteness.value = '待补充';
+        }
+
+        if (hasDishonestRecord === '是') {
+            blocks.push('<div class="alert alert-warning py-2 mb-0">⚠️ 检测到“存在失信记录”，推荐等级建议谨慎评估。</div>');
+        }
+
+        autoTipsContainer.innerHTML = blocks.join('');
+    };
+
+    document.addEventListener('change', (event) => {
+        if (!event.target || !event.target.name) return;
+        if (['has_major_litigation', 'has_dishonest_record', 'certificate_validity_status', 'certificate_completeness', 'risk_tags'].includes(event.target.name)) {
+            renderAutoTips();
+        }
+    });
+    renderAutoTips();
 })();
 </script>
 {% endblock %}
