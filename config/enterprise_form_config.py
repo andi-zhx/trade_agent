@@ -103,29 +103,4 @@ COMMON_ENTERPRISE_FIELD_GROUPS = [
 ]
 
 
-def _industry_fields(*labels):
-    return [{"key": f"f{idx}", "label": label, "type": "textarea" if "经验" in label or "案例" in label else "text"} for idx, label in enumerate(labels, start=1)]
-
-
-INDUSTRY_EXTRA_FIELD_CONFIG = {
-    "I01": [{"key": "I01A", "title": "工业机械专项", "fields": _industry_fields("设备加工能力", "装配能力", "调试能力", "研发团队人数", "已交付设备案例", "海外项目经验", "售后备件能力")}],
-    "I02": [{"key": "I02A", "title": "电子电器专项", "fields": _industry_fields("硬件研发能力", "软件研发能力", "SMT产线", "老化测试线", "芯片供应链", "品牌代工经验")}],
-    "I03": [{"key": "I03A", "title": "电力能源专项", "fields": _industry_fields("高低压设备能力", "电缆制造能力", "变配电成套经验", "并网项目经验", "关键认证资质", "海外电力标准适配")}],
-    "I04": [{"key": "I04A", "title": "新能源环保专项", "fields": _industry_fields("光储系统集成能力", "节能解决方案能力", "环保处理工艺", "碳排管理能力", "新能源项目案例", "海外运维服务能力")}],
-    "I05": [{"key": "I05A", "title": "汽车摩托专项", "fields": _industry_fields("整车/零部件开发能力", "IATF16949体系", "关键零部件测试能力", "主机厂配套经验", "售后备件供应能力", "海外认证经验")}],
-    "I06": [{"key": "I06A", "title": "低空经济专项", "fields": _industry_fields("飞控系统能力", "机体结构设计能力", "任务载荷集成能力", "试飞测试能力", "适航/合规准备情况", "海外项目经验")}],
-    "I07": [{"key": "I07A", "title": "五金建材专项", "fields": _industry_fields("材料加工能力", "工程配套能力", "防火/防水标准能力", "施工交付经验", "大型项目案例", "现场服务能力")}],
-    "I08": [{"key": "I08A", "title": "化工新材料专项", "fields": _industry_fields("核心配方能力", "中试放大能力", "危险品合规能力", "MSDS与REACH准备", "稳定供货能力", "海外法规符合性")}],
-    "I09": [{"key": "I09A", "title": "纺织家纺专项", "fields": _industry_fields("织造染整能力", "面辅料开发能力", "打样反应速度", "质量检验体系", "快返单能力", "国际品牌供货经验")}],
-    "I10": [{"key": "I10A", "title": "服饰鞋帽专项", "fields": _industry_fields("版型开发能力", "柔性生产能力", "鞋包打样能力", "时尚趋势响应能力", "品牌合作经验", "可持续材料应用")}],
-    "I11": [{"key": "I11A", "title": "家居家具专项", "fields": _industry_fields("家具结构设计能力", "板木金工艺能力", "整装配套能力", "包装抗损能力", "海外仓配经验", "项目制交付经验")}],
-    "I12": [{"key": "I12A", "title": "食品农产品专项", "fields": _industry_fields("食品生产许可证", "HACCP体系", "原料来源", "冷链能力", "批次追溯能力", "商超渠道经验")}],
-    "I13": [{"key": "I13A", "title": "园艺农林专项", "fields": _industry_fields("园艺产品开发能力", "农机适配能力", "种苗培育能力", "病虫害防控能力", "出口检疫经验", "季节性供应保障")}],
-    "I14": [{"key": "I14A", "title": "畜牧水产宠物专项", "fields": _industry_fields("饲料/用品研发能力", "养殖技术服务能力", "冷链与保鲜能力", "动物营养配方能力", "宠物品牌代工经验", "跨境电商经验")}],
-    "I15": [{"key": "I15A", "title": "医疗健康专项", "fields": _industry_fields("医疗器械生产许可证", "ISO13485体系", "注册证情况", "临床验证能力", "维修校准能力", "海外法规准入经验")}],
-    "I16": [{"key": "I16A", "title": "母婴个护美妆专项", "fields": _industry_fields("配方研发能力", "功效检测能力", "安全性评估", "化妆品备案经验", "品牌代工经验", "渠道运营能力")}],
-    "I17": [{"key": "I17A", "title": "零售礼品专项", "fields": _industry_fields("新品开发速度", "小单快反能力", "礼品定制能力", "节庆主题策划能力", "跨境平台经验", "终端陈列支持能力")}],
-    "I18": [{"key": "I18A", "title": "劳保安防专项", "fields": _industry_fields("防护标准符合性", "安防系统集成能力", "应急装备供货能力", "消防认证情况", "项目制供货经验", "培训与售后能力")}],
-    "I19": [{"key": "I19A", "title": "游戏动漫专项", "fields": _industry_fields("自有IP", "授权IP", "版权证明", "用户规模", "粉丝画像", "商业化数据")}],
-    "I20": [{"key": "I20A", "title": "数字科技服务专项", "fields": _industry_fields("核心技术栈", "交付团队规模", "项目管理体系", "数据安全合规能力", "SaaS/平台化能力", "行业解决方案案例")}],
-}
+from config.industry_config import INDUSTRY_EXTRA_FIELD_CONFIG
