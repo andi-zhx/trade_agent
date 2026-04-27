@@ -1,0 +1,18 @@
+{% extends 'base.html' %}
+{% block title %}{{ 标题 }}{% endblock %}
+{% block content %}
+<h1 class="h3 mb-3">{{ 标题 }}</h1>
+<p class="text-muted">{{ 提示 }}</p>
+<div class="card">
+    <div class="card-body">
+        <form method="post" enctype="multipart/form-data">
+            <div class="mb-3">
+                <label class="form-label">Excel/CSV 文件（推荐 UTF-8 CSV）</label>
+                <input class="form-control" type="file" name="file" accept=".csv,.xlsx" required>
+            </div>
+            <button class="btn btn-primary">开始导入</button>
+            <a class="btn btn-outline-secondary" href="{{ url_for('excel_tools') }}">返回</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,9 +1,11 @@
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
+from io import BytesIO
+import csv
 from pathlib import Path
 import re
 
-from flask import Flask, flash, redirect, render_template, request, send_from_directory, session, url_for
+from flask import Flask, flash, redirect, render_template, request, send_file, send_from_directory, session, url_for
 from sqlalchemy import func, or_
 
 from models import (
@@ -137,13 +139,13 @@ def create_app():
         撮合数量 = MatchRecord.query.count()
         项目总数 = ProjectProgress.query.count()
         已成交项目数 = ProjectProgress.query.filter(ProjectProgress.current_stage == "已成交").count()
-        商务谈判中项目数 = ProjectProgress.query.filter(ProjectProgress.current_stage == "商务谈判中").count()
-        本月起始日期 = date.today().replace(day=1)
-        本月新增项目数 = ProjectProgress.query.filter(ProjectProgress.created_at >= datetime.combine(本月起始日期, datetime.min.time())).count()
         总成交金额 = db.session.query(func.coalesce(func.sum(ProjectProgress.deal_amount), 0)).scalar() or Decimal("0")
-        资质总数 = Qualification.query.count()
         已过期证书数量 = sum(1 for 资质 in Qualification.query.all() if 计算证书状态(资质.expiry_date) == "已过期")
         九十天内到期证书数量 = sum(1 for 资质 in Qualification.query.all() if 计算证书状态(资质.expiry_date) == "即将到期")
+        企业行业数据 = 获取企业行业分布()
+        产品分类数据 = 获取产品分类分布()
+        项目阶段数据 = 获取项目阶段分布()
+        最近30天新增项目 = 获取最近30天项目趋势()
 
         核心模块 = [
             {"名称": "企业库管理", "说明": "维护国内企业基础信息、联系人及出海目标。", "链接": url_for("enterprise_list")},
@@ -162,14 +164,93 @@ def create_app():
             撮合数量=撮合数量,
             项目总数=项目总数,
             已成交项目数=已成交项目数,
-            商务谈判中项目数=商务谈判中项目数,
-            本月新增项目数=本月新增项目数,
             总成交金额=总成交金额,
-            资质总数=资质总数,
             已过期证书数量=已过期证书数量,
             九十天内到期证书数量=九十天内到期证书数量,
             核心模块=核心模块,
+            企业行业数据=企业行业数据,
+            产品分类数据=产品分类数据,
+            项目阶段数据=项目阶段数据,
+            最近30天新增项目=最近30天新增项目,
         )
+
+    @app.route("/search")
+    def global_search():
+        q = request.args.get("q", "", type=str).strip()
+        results = {"企业": [], "产品": [], "外资需求": [], "文件": []}
+        if q:
+            like_q = f"%{q}%"
+            results["企业"] = Enterprise.query.filter(
+                or_(
+                    Enterprise.company_name.ilike(like_q),
+                    Enterprise.english_name.ilike(like_q),
+                    Enterprise.main_products.ilike(like_q),
+                )
+            ).order_by(Enterprise.updated_at.desc()).limit(50).all()
+            results["产品"] = Product.query.filter(
+                or_(
+                    Product.product_name_cn.ilike(like_q),
+                    Product.product_name_en.ilike(like_q),
+                    Product.hs_code.ilike(like_q),
+                )
+            ).order_by(Product.updated_at.desc()).limit(50).all()
+            results["外资需求"] = Demand.query.join(ForeignClient, Demand.foreign_client_id == ForeignClient.id).filter(
+                or_(
+                    ForeignClient.client_name.ilike(like_q),
+                    Demand.product_keywords.ilike(like_q),
+                    Demand.purchase_category.ilike(like_q),
+                )
+            ).order_by(Demand.updated_at.desc()).limit(50).all()
+            results["文件"] = Document.query.filter(Document.document_name.ilike(like_q)).order_by(Document.uploaded_at.desc()).limit(50).all()
+
+        return render_template("search.html", q=q, results=results)
+
+    @app.get("/excel")
+    def excel_tools():
+        return render_template("excel_tools.html")
+
+    @app.get("/excel/export/<string:export_key>")
+    def excel_export(export_key):
+        try:
+            文件名, 表头, 行数据 = 构建导出数据(export_key)
+        except ValueError:
+            flash("不支持的导出类型。", "danger")
+            return redirect(url_for("excel_tools"))
+        缓冲区 = BytesIO()
+        text_buffer = []
+        text_buffer.append(",".join([csv_safe(v) for v in 表头]))
+        for row in 行数据:
+            text_buffer.append(",".join([csv_safe(v) for v in row]))
+        缓冲区.write(("\n".join(text_buffer)).encode("utf-8-sig"))
+        缓冲区.seek(0)
+        return send_file(
+            缓冲区,
+            as_attachment=True,
+            download_name=f"{文件名}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mimetype="text/csv",
+        )
+
+    @app.route("/excel/import/enterprises", methods=["GET", "POST"])
+    def import_enterprises():
+        if request.method == "POST":
+            上传文件 = request.files.get("file")
+            if not 上传文件 or not 上传文件.filename:
+                flash("请先选择企业 Excel 文件。", "danger")
+                return redirect(url_for("import_enterprises"))
+            成功条数, 失败列表 = 导入企业Excel(上传文件)
+            return render_template("import_result.html", 标题="企业导入结果", 成功条数=成功条数, 失败列表=失败列表)
+        return render_template("import_form.html", 标题="企业 Excel 导入", 提示="支持按企业编号更新或新增企业。")
+
+    @app.route("/excel/import/products", methods=["GET", "POST"])
+    def import_products():
+        if request.method == "POST":
+            上传文件 = request.files.get("file")
+            if not 上传文件 or not 上传文件.filename:
+                flash("请先选择产品 Excel 文件。", "danger")
+                return redirect(url_for("import_products"))
+            成功条数, 失败列表 = 导入产品Excel(上传文件)
+            return render_template("import_result.html", 标题="产品导入结果", 成功条数=成功条数, 失败列表=失败列表)
+        return render_template("import_form.html", 标题="产品 Excel 导入", 提示="支持按产品编号更新或新增产品。")
 
     @app.route("/enterprises")
     def enterprise_list():
@@ -615,7 +696,18 @@ def create_app():
                 enterprise_id=enterprise.id,
                 product_code=generate_product_code(enterprise.id),
             )
-            fill_product_from_form(product, request.form)
+            try:
+                fill_product_from_form(product, request.form)
+            except ValueError as exc:
+                flash(str(exc), "danger")
+                return render_template(
+                    "products/form.html",
+                    form_action=url_for("product_new"),
+                    enterprises=enterprises,
+                    form_title="新增产品",
+                    sections=PRODUCT_FORM_SECTIONS,
+                    product=product,
+                )
             db.session.add(product)
             db.session.commit()
             flash(f"产品已创建，编号：{product.product_code}。", "success")
@@ -681,7 +773,18 @@ def create_app():
             product.enterprise_id = enterprise.id
             if old_enterprise_id != enterprise.id:
                 product.product_code = generate_product_code(enterprise.id)
-            fill_product_from_form(product, request.form)
+            try:
+                fill_product_from_form(product, request.form)
+            except ValueError as exc:
+                flash(str(exc), "danger")
+                return render_template(
+                    "products/form.html",
+                    form_action=url_for("product_edit", product_id=product.id),
+                    enterprises=enterprises,
+                    form_title="编辑产品",
+                    sections=PRODUCT_FORM_SECTIONS,
+                    product=product,
+                )
             db.session.commit()
             flash("产品信息已更新。", "success")
             return redirect(url_for("product_detail", product_id=product.id))
@@ -1214,6 +1317,112 @@ def 生成企业编号():
     return f"E{当前数字 + 1:03d}"
 
 
+def 获取企业行业分布():
+    rows = (
+        db.session.query(Enterprise.industry_category, func.count(Enterprise.id))
+        .filter(Enterprise.industry_category.isnot(None), Enterprise.industry_category != "")
+        .group_by(Enterprise.industry_category)
+        .order_by(func.count(Enterprise.id).desc())
+        .limit(10)
+        .all()
+    )
+    return {"labels": [row[0] for row in rows], "data": [row[1] for row in rows]}
+
+
+def 获取产品分类分布():
+    rows = (
+        db.session.query(Product.product_category, func.count(Product.id))
+        .filter(Product.product_category.isnot(None), Product.product_category != "")
+        .group_by(Product.product_category)
+        .order_by(func.count(Product.id).desc())
+        .limit(10)
+        .all()
+    )
+    return {"labels": [row[0] for row in rows], "data": [row[1] for row in rows]}
+
+
+def 获取项目阶段分布():
+    rows = (
+        db.session.query(ProjectProgress.current_stage, func.count(ProjectProgress.id))
+        .filter(ProjectProgress.current_stage.isnot(None), ProjectProgress.current_stage != "")
+        .group_by(ProjectProgress.current_stage)
+        .order_by(func.count(ProjectProgress.id).desc())
+        .all()
+    )
+    return {"labels": [row[0] for row in rows], "data": [row[1] for row in rows]}
+
+
+def 获取最近30天项目趋势():
+    today = date.today()
+    start = today.fromordinal(today.toordinal() - 29)
+    trend_map = {start.fromordinal(start.toordinal() + i): 0 for i in range(30)}
+    rows = (
+        db.session.query(func.date(ProjectProgress.created_at), func.count(ProjectProgress.id))
+        .filter(ProjectProgress.created_at >= datetime.combine(start, datetime.min.time()))
+        .group_by(func.date(ProjectProgress.created_at))
+        .all()
+    )
+    for day, count in rows:
+        day_value = 读取日期(str(day))
+        if day_value in trend_map:
+            trend_map[day_value] = count
+    labels = [d.strftime("%m-%d") for d in trend_map.keys()]
+    data = list(trend_map.values())
+    return {"labels": labels, "data": data}
+
+
+def generate_product_code(enterprise_id):
+    最后产品 = Product.query.filter_by(enterprise_id=enterprise_id).order_by(Product.id.desc()).first()
+    if not 最后产品:
+        return "P001"
+    match = re.search(r"(\d+)$", 最后产品.product_code or "")
+    seq = int(match.group(1)) + 1 if match else Product.query.filter_by(enterprise_id=enterprise_id).count() + 1
+    return f"P{seq:03d}"
+
+
+def fill_product_from_form(product, form):
+    product.product_name_cn = form.get("product_name_cn", "").strip()
+    product.product_name_en = form.get("product_name_en", "").strip() or None
+    product.product_category = form.get("product_category", "").strip() or None
+    product.hs_code = form.get("hs_code", "").strip() or None
+    product.model = form.get("model", "").strip() or None
+    product.brand = form.get("brand", "").strip() or None
+    product.material = form.get("material", "").strip() or None
+    product.specification = form.get("specification", "").strip() or None
+    product.size = form.get("size", "").strip() or None
+    product.weight = form.get("weight", "").strip() or None
+    product.color = form.get("color", "").strip() or None
+    product.function_description = form.get("function_description", "").strip() or None
+    product.application_scenario = form.get("application_scenario", "").strip() or None
+    product.unit = form.get("unit", "").strip() or None
+    product.moq = form.get("moq", "").strip() or None
+    product.production_cycle = form.get("production_cycle", "").strip() or None
+    product.sample_cycle = form.get("sample_cycle", "").strip() or None
+    product.monthly_capacity = form.get("monthly_capacity", "").strip() or None
+    product.customization_supported = 读取布尔(form, "customization_supported")
+    product.currency = form.get("currency", "").strip() or "USD"
+    product.exw_price = 读取金额(form.get("exw_price"))
+    product.fob_price = 读取金额(form.get("fob_price"))
+    product.cif_price = 读取金额(form.get("cif_price"))
+    product.ddp_price = 读取金额(form.get("ddp_price"))
+    product.quote_date = 读取日期(form.get("quote_date"))
+    product.quote_valid_until = 读取日期(form.get("quote_valid_until"))
+    product.sample_policy = form.get("sample_policy", "").strip() or None
+    product.target_market = form.get("target_market", "").strip() or None
+    product.existing_sales_countries = form.get("existing_sales_countries", "").strip() or None
+    product.certifications = form.get("certifications", "").strip() or None
+    product.packaging = form.get("packaging", "").strip() or None
+    product.carton_size = form.get("carton_size", "").strip() or None
+    product.gross_weight = form.get("gross_weight", "").strip() or None
+    product.net_weight = form.get("net_weight", "").strip() or None
+    product.loading_quantity = form.get("loading_quantity", "").strip() or None
+    product.warranty = form.get("warranty", "").strip() or None
+    product.product_selling_points = form.get("product_selling_points", "").strip() or None
+    product.notes = form.get("notes", "").strip() or None
+    if not product.product_name_cn:
+        raise ValueError("产品中文名为必填项")
+
+
 def 生成需求编号():
     最新需求 = Demand.query.order_by(Demand.id.desc()).first()
     if not 最新需求:
@@ -1250,6 +1459,151 @@ def 填充需求字段(demand, form):
     demand.priority = form.get("priority", "").strip() or "中"
     demand.status = form.get("status", "").strip() or "待跟进"
     demand.notes = form.get("notes", "").strip() or None
+
+
+def 构建导出数据(export_key):
+    导出映射 = {
+        "enterprises": ("企业总表", 导出企业总表),
+        "products": ("产品总表", 导出产品总表),
+        "qualifications": ("资质有效期管理表", 导出资质表),
+        "matches": ("外资需求匹配表", 导出匹配表),
+        "projects": ("项目进展跟踪表", 导出项目表),
+    }
+    if export_key not in 导出映射:
+        raise ValueError("unknown export key")
+    文件名, 生成函数 = 导出映射[export_key]
+    表头, 行数据 = 生成函数()
+    return 文件名, 表头, 行数据
+
+
+def 导出企业总表():
+    表头 = ["企业编号", "企业名称", "英文名称", "统一社会信用代码", "行业类别", "主营产品", "已出口国家", "目标市场", "状态", "项目负责人", "更新时间"]
+    rows = []
+    for item in Enterprise.query.order_by(Enterprise.updated_at.desc()).all():
+        rows.append([
+            item.enterprise_code,
+            item.company_name,
+            item.english_name,
+            item.unified_social_credit_code,
+            item.industry_category,
+            item.main_products,
+            item.export_countries,
+            item.target_markets,
+            item.status,
+            item.project_owner,
+            item.updated_at.strftime("%Y-%m-%d %H:%M:%S") if item.updated_at else "",
+        ])
+    return 表头, rows
+
+
+def 导出产品总表():
+    表头 = ["产品编号", "企业编号", "企业名称", "产品中文名", "产品英文名", "产品类别", "HS编码", "型号", "FOB价格", "币种", "目标市场", "认证", "更新时间"]
+    enterprise_map = {e.id: e for e in Enterprise.query.all()}
+    rows = []
+    for item in Product.query.order_by(Product.updated_at.desc()).all():
+        enterprise = enterprise_map.get(item.enterprise_id)
+        rows.append([
+            item.product_code,
+            enterprise.enterprise_code if enterprise else "",
+            enterprise.company_name if enterprise else "",
+            item.product_name_cn,
+            item.product_name_en,
+            item.product_category,
+            item.hs_code,
+            item.model,
+            float(item.fob_price) if item.fob_price is not None else None,
+            item.currency,
+            item.target_market,
+            item.certifications,
+            item.updated_at.strftime("%Y-%m-%d %H:%M:%S") if item.updated_at else "",
+        ])
+    return 表头, rows
+
+
+def 导出资质表():
+    表头 = ["企业编号", "企业名称", "产品编号", "产品名称", "证书名称", "证书编号", "发证机构", "发证日期", "到期日期", "状态", "剩余天数", "影响推荐"]
+    enterprise_map = {e.id: e for e in Enterprise.query.all()}
+    product_map = {p.id: p for p in Product.query.all()}
+    rows = []
+    for q in Qualification.query.order_by(Qualification.expiry_date.asc()).all():
+        enterprise = enterprise_map.get(q.enterprise_id)
+        product = product_map.get(q.product_id)
+        剩余天数 = (q.expiry_date - date.today()).days if q.expiry_date else None
+        rows.append([
+            enterprise.enterprise_code if enterprise else "",
+            enterprise.company_name if enterprise else "",
+            product.product_code if product else "",
+            product.product_name_cn if product else "",
+            q.certificate_name,
+            q.certificate_no,
+            q.issuing_authority,
+            q.issue_date.isoformat() if q.issue_date else "",
+            q.expiry_date.isoformat() if q.expiry_date else "",
+            计算证书状态(q.expiry_date),
+            剩余天数,
+            "是" if q.affects_recommendation else "否",
+        ])
+    return 表头, rows
+
+
+def 导出匹配表():
+    表头 = ["需求编号", "外资客户", "企业编号", "企业名称", "产品编号", "产品名称", "匹配得分", "推荐状态", "匹配原因", "风险提示", "更新时间"]
+    demand_map = {d.id: d for d in Demand.query.all()}
+    client_map = {c.id: c for c in ForeignClient.query.all()}
+    enterprise_map = {e.id: e for e in Enterprise.query.all()}
+    product_map = {p.id: p for p in Product.query.all()}
+    rows = []
+    for m in MatchRecord.query.order_by(MatchRecord.updated_at.desc()).all():
+        demand = demand_map.get(m.demand_id)
+        enterprise = enterprise_map.get(m.enterprise_id)
+        product = product_map.get(m.product_id)
+        client = client_map.get(demand.foreign_client_id) if demand else None
+        rows.append([
+            demand.demand_code if demand else "",
+            client.client_name if client else "",
+            enterprise.enterprise_code if enterprise else "",
+            enterprise.company_name if enterprise else "",
+            product.product_code if product else "",
+            product.product_name_cn if product else "",
+            float(m.match_score) if m.match_score is not None else None,
+            m.recommendation_status,
+            m.match_reason,
+            m.risk_notes,
+            m.updated_at.strftime("%Y-%m-%d %H:%M:%S") if m.updated_at else "",
+        ])
+    return 表头, rows
+
+
+def 导出项目表():
+    表头 = ["项目编号", "企业编号", "企业名称", "产品编号", "产品名称", "外资客户", "需求编号", "当前阶段", "项目负责人", "样品状态", "报价状态", "合同状态", "成交金额", "下步动作", "更新时间"]
+    demand_map = {d.id: d for d in Demand.query.all()}
+    client_map = {c.id: c for c in ForeignClient.query.all()}
+    enterprise_map = {e.id: e for e in Enterprise.query.all()}
+    product_map = {p.id: p for p in Product.query.all()}
+    rows = []
+    for p in ProjectProgress.query.order_by(ProjectProgress.updated_at.desc()).all():
+        enterprise = enterprise_map.get(p.enterprise_id)
+        product = product_map.get(p.product_id)
+        client = client_map.get(p.foreign_client_id)
+        demand = demand_map.get(p.demand_id)
+        rows.append([
+            项目编号(p),
+            enterprise.enterprise_code if enterprise else "",
+            enterprise.company_name if enterprise else "",
+            product.product_code if product else "",
+            product.product_name_cn if product else "",
+            client.client_name if client else "",
+            demand.demand_code if demand else "",
+            p.current_stage,
+            p.project_owner,
+            p.sample_status,
+            p.quotation_status,
+            p.contract_status,
+            float(p.deal_amount) if p.deal_amount is not None else None,
+            p.next_action,
+            p.updated_at.strftime("%Y-%m-%d %H:%M:%S") if p.updated_at else "",
+        ])
+    return 表头, rows
 
 
 def 填充项目字段(project, form):
@@ -1416,6 +1770,118 @@ def 读取金额(值):
         return Decimal(值)
     except (InvalidOperation, ValueError):
         return None
+
+
+def 读取布尔文本(值):
+    return str(值 or "").strip().lower() in {"1", "true", "yes", "y", "是", "已", "on"}
+
+
+def csv_safe(value):
+    text = "" if value is None else str(value)
+    text = text.replace('"', '""')
+    return f'"{text}"'
+
+
+def 单元格文本(value):
+    if value is None:
+        return ""
+    if isinstance(value, datetime):
+        return value.strftime("%Y-%m-%d")
+    return str(value).strip()
+
+
+def 导入企业Excel(file_storage):
+    rows = list(csv.reader(file_storage.stream.read().decode("utf-8-sig").splitlines()))
+    if not rows:
+        return 0, [{"行号": 1, "原因": "文件为空", "数据": {}}]
+    header = [单元格文本(c) for c in rows[0]]
+    idx = {name: i for i, name in enumerate(header)}
+    必填 = ["企业名称"]
+    缺失 = [f for f in 必填 if f not in idx]
+    if 缺失:
+        return 0, [{"行号": 1, "原因": f"缺少必填列: {', '.join(缺失)}", "数据": {}}]
+
+    success = 0
+    failed = []
+    for row_num, row in enumerate(rows[1:], start=2):
+        try:
+            company_name = 单元格文本(row[idx["企业名称"]])
+            if not company_name:
+                raise ValueError("企业名称不能为空")
+            enterprise_code = 单元格文本(row[idx["企业编号"]]) if "企业编号" in idx else ""
+            enterprise = Enterprise.query.filter_by(enterprise_code=enterprise_code).first() if enterprise_code else None
+            if not enterprise:
+                enterprise = Enterprise(enterprise_code=enterprise_code or 生成企业编号())
+                db.session.add(enterprise)
+
+            enterprise.company_name = company_name
+            enterprise.english_name = 单元格文本(row[idx["英文名称"]]) or None if "英文名称" in idx else None
+            enterprise.unified_social_credit_code = 单元格文本(row[idx["统一社会信用代码"]]) or None if "统一社会信用代码" in idx else None
+            enterprise.industry_category = 单元格文本(row[idx["行业类别"]]) or None if "行业类别" in idx else None
+            enterprise.main_products = 单元格文本(row[idx["主营产品"]]) or None if "主营产品" in idx else None
+            enterprise.export_countries = 单元格文本(row[idx["已出口国家"]]) or None if "已出口国家" in idx else None
+            enterprise.target_markets = 单元格文本(row[idx["目标市场"]]) or None if "目标市场" in idx else None
+            enterprise.status = 单元格文本(row[idx["状态"]]) or "草稿" if "状态" in idx else "草稿"
+            enterprise.project_owner = 单元格文本(row[idx["项目负责人"]]) or None if "项目负责人" in idx else None
+            success += 1
+        except Exception as exc:
+            failed.append({"行号": row_num, "原因": str(exc), "数据": {"企业编号": row[idx["企业编号"]] if "企业编号" in idx else "", "企业名称": row[idx["企业名称"]] if "企业名称" in idx else ""}})
+    db.session.commit()
+    return success, failed
+
+
+def 导入产品Excel(file_storage):
+    rows = list(csv.reader(file_storage.stream.read().decode("utf-8-sig").splitlines()))
+    if not rows:
+        return 0, [{"行号": 1, "原因": "文件为空", "数据": {}}]
+    header = [单元格文本(c) for c in rows[0]]
+    idx = {name: i for i, name in enumerate(header)}
+    必填 = ["企业编号", "产品中文名"]
+    缺失 = [f for f in 必填 if f not in idx]
+    if 缺失:
+        return 0, [{"行号": 1, "原因": f"缺少必填列: {', '.join(缺失)}", "数据": {}}]
+
+    enterprise_map = {e.enterprise_code: e for e in Enterprise.query.all()}
+    success = 0
+    failed = []
+    for row_num, row in enumerate(rows[1:], start=2):
+        try:
+            enterprise_code = 单元格文本(row[idx["企业编号"]])
+            if not enterprise_code:
+                raise ValueError("企业编号不能为空")
+            enterprise = enterprise_map.get(enterprise_code)
+            if not enterprise:
+                raise ValueError(f"未找到企业编号 {enterprise_code}")
+            name_cn = 单元格文本(row[idx["产品中文名"]])
+            if not name_cn:
+                raise ValueError("产品中文名不能为空")
+            product_code = 单元格文本(row[idx["产品编号"]]) if "产品编号" in idx else ""
+            product = Product.query.filter_by(product_code=product_code, enterprise_id=enterprise.id).first() if product_code else None
+            if not product:
+                product = Product(
+                    enterprise_id=enterprise.id,
+                    product_code=product_code or generate_product_code(enterprise.id),
+                )
+                db.session.add(product)
+
+            product.enterprise_id = enterprise.id
+            product.product_name_cn = name_cn
+            product.product_name_en = 单元格文本(row[idx["产品英文名"]]) or None if "产品英文名" in idx else None
+            product.product_category = 单元格文本(row[idx["产品类别"]]) or None if "产品类别" in idx else None
+            product.hs_code = 单元格文本(row[idx["HS编码"]]) or None if "HS编码" in idx else None
+            product.model = 单元格文本(row[idx["型号"]]) or None if "型号" in idx else None
+            if "FOB价格" in idx:
+                product.fob_price = 读取金额(单元格文本(row[idx["FOB价格"]]))
+            product.currency = 单元格文本(row[idx["币种"]]) or "USD" if "币种" in idx else "USD"
+            product.target_market = 单元格文本(row[idx["目标市场"]]) or None if "目标市场" in idx else None
+            product.certifications = 单元格文本(row[idx["认证"]]) or None if "认证" in idx else None
+            if "支持定制" in idx:
+                product.customization_supported = 读取布尔文本(row[idx["支持定制"]])
+            success += 1
+        except Exception as exc:
+            failed.append({"行号": row_num, "原因": str(exc), "数据": {"企业编号": row[idx["企业编号"]] if "企业编号" in idx else "", "产品中文名": row[idx["产品中文名"]] if "产品中文名" in idx else ""}})
+    db.session.commit()
+    return success, failed
 
 
 def 获取证书类型选项():

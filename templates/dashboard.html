@@ -1,129 +1,48 @@
 {% extends 'base.html' %}
-
-{% block title %}首页仪表盘 - 跨境经贸企业库与产品管理系统{% endblock %}
-
+{% block title %}首页 Dashboard{% endblock %}
 {% block content %}
-<div class="p-4 p-md-5 mb-4 bg-light rounded-3 border">
-    <h1 class="display-6 fw-bold">跨境经贸企业库与产品管理系统</h1>
-    <p class="lead mb-2">用于管理企业、产品、资质证照、外资客户需求与撮合进展，支持项目归档与服务方案分析。</p>
-    <p class="text-muted mb-0">建议流程：企业入库 → 产品梳理 → 需求匹配 → 跟踪撮合 → 归档复盘。</p>
+<div class="p-4 mb-4 bg-light rounded-3 border">
+    <h1 class="h3 mb-2">首页 Dashboard</h1>
+    <p class="text-muted mb-0">企业、产品、需求、项目和证照预警总览。</p>
 </div>
 
 <div class="row g-3 mb-4">
-    <div class="col-6 col-lg-3">
-        <div class="card card-stat h-100">
-            <div class="card-body">
-                <div class="text-muted">企业总数</div>
-                <div class="fs-2 fw-bold">{{ 企业数量 }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="card card-stat h-100">
-            <div class="card-body">
-                <div class="text-muted">产品总数</div>
-                <div class="fs-2 fw-bold">{{ 产品数量 }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="card card-stat h-100">
-            <div class="card-body">
-                <div class="text-muted">客户需求数</div>
-                <div class="fs-2 fw-bold">{{ 需求数量 }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="card card-stat h-100">
-            <div class="card-body">
-                <div class="text-muted">撮合进展数</div>
-                <div class="fs-2 fw-bold">{{ 撮合数量 }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="card card-stat h-100">
-            <div class="card-body">
-                <div class="text-muted">资质总数</div>
-                <div class="fs-2 fw-bold">{{ 资质总数 }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="card card-stat h-100 border-danger-subtle">
-            <div class="card-body">
-                <div class="text-muted">已过期证书</div>
-                <div class="fs-2 fw-bold text-danger">{{ 已过期证书数量 }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="card card-stat h-100 border-warning-subtle">
-            <div class="card-body">
-                <div class="text-muted">90天内到期</div>
-                <div class="fs-2 fw-bold text-warning-emphasis">{{ 九十天内到期证书数量 }}</div>
-            </div>
-        </div>
-    </div>
+    <div class="col-6 col-xl-3"><div class="card h-100"><div class="card-body"><div class="text-muted">已入库企业数量</div><div class="fs-3 fw-bold">{{ 企业数量 }}</div></div></div></div>
+    <div class="col-6 col-xl-3"><div class="card h-100"><div class="card-body"><div class="text-muted">已入库产品数量</div><div class="fs-3 fw-bold">{{ 产品数量 }}</div></div></div></div>
+    <div class="col-6 col-xl-3"><div class="card h-100"><div class="card-body"><div class="text-muted">外资需求数量</div><div class="fs-3 fw-bold">{{ 需求数量 }}</div></div></div></div>
+    <div class="col-6 col-xl-3"><div class="card h-100"><div class="card-body"><div class="text-muted">撮合项目数量</div><div class="fs-3 fw-bold">{{ 撮合数量 }}</div></div></div></div>
+    <div class="col-6 col-xl-3"><div class="card h-100 border-success-subtle"><div class="card-body"><div class="text-muted">已成交项目数量</div><div class="fs-3 fw-bold text-success">{{ 已成交项目数 }}</div></div></div></div>
+    <div class="col-6 col-xl-3"><div class="card h-100 border-warning-subtle"><div class="card-body"><div class="text-muted">90天内到期证书数量</div><div class="fs-3 fw-bold text-warning-emphasis">{{ 九十天内到期证书数量 }}</div></div></div></div>
+    <div class="col-6 col-xl-3"><div class="card h-100 border-danger-subtle"><div class="card-body"><div class="text-muted">已过期证书数量</div><div class="fs-3 fw-bold text-danger">{{ 已过期证书数量 }}</div></div></div></div>
+    <div class="col-6 col-xl-3"><div class="card h-100 border-primary-subtle"><div class="card-body"><div class="text-muted">总成交金额</div><div class="fs-5 fw-bold text-primary">{{ 总成交金额|currency }}</div></div></div></div>
 </div>
 
-<h2 class="h4 mb-3">撮合项目看板</h2>
-<div class="row g-3 mb-4">
-    <div class="col-6 col-lg-3">
-        <div class="card card-stat h-100">
-            <div class="card-body">
-                <div class="text-muted">项目总数</div>
-                <div class="fs-2 fw-bold">{{ 项目总数 }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="card card-stat h-100">
-            <div class="card-body">
-                <div class="text-muted">已成交项目数</div>
-                <div class="fs-2 fw-bold text-success">{{ 已成交项目数 }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="card card-stat h-100">
-            <div class="card-body">
-                <div class="text-muted">商务谈判中</div>
-                <div class="fs-2 fw-bold text-warning-emphasis">{{ 商务谈判中项目数 }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-6 col-lg-3">
-        <div class="card card-stat h-100">
-            <div class="card-body">
-                <div class="text-muted">本月新增项目</div>
-                <div class="fs-2 fw-bold">{{ 本月新增项目数 }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-12 col-lg-4">
-        <div class="card card-stat h-100 border-success-subtle">
-            <div class="card-body">
-                <div class="text-muted">总成交金额</div>
-                <div class="fs-3 fw-bold text-success">{{ 总成交金额|currency }}</div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<h2 class="h4 mb-3">核心模块入口</h2>
 <div class="row g-3">
-    {% for 模块 in 核心模块 %}
-    <div class="col-md-6 col-xl-4">
-        <div class="card h-100 module-card">
-            <div class="card-body d-flex flex-column">
-                <h3 class="h5">{{ 模块.名称 }}</h3>
-                <p class="text-muted flex-grow-1">{{ 模块.说明 }}</p>
-                <a href="{{ 模块.链接 }}" class="btn btn-outline-primary btn-sm {% if 模块.链接 == "#" %}disabled{% endif %}">{% if 模块.链接 == "#" %}即将开放{% else %}进入模块{% endif %}</a>
-            </div>
-        </div>
-    </div>
-    {% endfor %}
+    <div class="col-lg-6"><div class="card"><div class="card-body"><h2 class="h6">企业按行业分布</h2><canvas id="enterpriseIndustryChart" height="140"></canvas></div></div></div>
+    <div class="col-lg-6"><div class="card"><div class="card-body"><h2 class="h6">产品按行业/类别分布</h2><canvas id="productCategoryChart" height="140"></canvas></div></div></div>
+    <div class="col-lg-6"><div class="card"><div class="card-body"><h2 class="h6">项目阶段分布</h2><canvas id="projectStageChart" height="140"></canvas></div></div></div>
+    <div class="col-lg-6"><div class="card"><div class="card-body"><h2 class="h6">近30天项目新增趋势</h2><canvas id="projectTrendChart" height="140"></canvas></div></div></div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+new Chart(document.getElementById('enterpriseIndustryChart'), {
+    type: 'bar',
+    data: {labels: {{ 企业行业数据.labels|tojson }}, datasets: [{label: '企业数', data: {{ 企业行业数据.data|tojson }}, backgroundColor: '#0d6efd'}]}
+});
+new Chart(document.getElementById('productCategoryChart'), {
+    type: 'pie',
+    data: {labels: {{ 产品分类数据.labels|tojson }}, datasets: [{data: {{ 产品分类数据.data|tojson }}}]}
+});
+new Chart(document.getElementById('projectStageChart'), {
+    type: 'bar',
+    data: {labels: {{ 项目阶段数据.labels|tojson }}, datasets: [{label: '项目数', data: {{ 项目阶段数据.data|tojson }}, backgroundColor: '#20c997'}]}
+});
+new Chart(document.getElementById('projectTrendChart'), {
+    type: 'line',
+    data: {labels: {{ 最近30天新增项目.labels|tojson }}, datasets: [{label: '新增项目', data: {{ 最近30天新增项目.data|tojson }}, borderColor: '#dc3545', fill: false, tension: 0.2}]}
+});
+</script>
 {% endblock %}
