@@ -2,139 +2,150 @@
 {% block title %}企业详情 - {{ 企业.company_name }}{% endblock %}
 
 {% block content %}
+{% set ext = 扩展字段 or {} %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-sm">返回首页</a>
+    <a href="{{ url_for('enterprise_list') }}" class="btn btn-outline-secondary btn-sm">返回企业列表</a>
     <div class="d-flex gap-2">
-        <a href="{{ url_for('enterprise_list') }}" class="btn btn-outline-primary btn-sm">返回企业列表</a>
         <a href="{{ url_for('enterprise_edit', id=企业.id) }}" class="btn btn-warning btn-sm">编辑</a>
     </div>
 </div>
 
 <div class="card shadow-sm mb-3">
-    <div class="card-header fw-bold">企业基础信息</div>
-    <div class="card-body row g-3">
-        <div class="col-md-3"><strong>企业编号：</strong>{{ 企业.enterprise_code }}</div>
-        <div class="col-md-3"><strong>企业名称：</strong>{{ 企业.company_name }}</div>
-        <div class="col-md-3"><strong>城市：</strong>{{ 企业.city or '-' }}</div>
-        <div class="col-md-3"><strong>行业分类：</strong>{% if 企业.industry_code %}{{ 企业.industry_code }} {{ 企业.industry_category or '' }}{% else %}-{% endif %}</div>
-        <div class="col-md-6"><strong>主营产品：</strong>{{ 企业.main_products or '-' }}</div>
-        <div class="col-md-6"><strong>入库状态：</strong>{{ 企业.status }}</div>
-        <div class="col-md-6"><strong>已出口国家：</strong>{{ 企业.export_countries or '-' }}</div>
-        <div class="col-md-6"><strong>项目负责人：</strong>{{ 企业.project_owner or '-' }}</div>
+    <div class="card-header fw-bold d-flex justify-content-between align-items-center">
+        <span>快速操作</span>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{{ url_for('product_new') }}" class="btn btn-sm btn-outline-primary">新增产品</a>
+            <a href="{{ url_for('document_upload', enterprise_id=企业.id) }}" class="btn btn-sm btn-outline-primary">上传企业文件</a>
+            <a href="{{ url_for('enterprise_export', id=企业.id) }}" class="btn btn-sm btn-outline-success">导出企业信息</a>
+            <a href="{{ url_for('enterprise_folder_download', id=企业.id) }}" class="btn btn-sm btn-outline-info">打开企业文件夹</a>
+        </div>
     </div>
 </div>
 
-{% set extra = 企业.enterprise_extra_fields or {} %}
-<div class="card shadow-sm mb-3">
-    <div class="card-header fw-bold">通用企业信息（按字段组）</div>
-    <div class="card-body">
-        {% for group in 通用字段组 %}
-        <div class="mb-3">
-            <h6 class="fw-bold mb-2">{{ group.title }}</h6>
-            <div class="row g-2">
-                {% for field in group.fields %}
-                {% set value = extra.get(field.key) %}
-                <div class="col-md-4">
-                    <strong>{{ field.label }}：</strong>
-                    {% if value is sequence and value is not string %}
-                        {{ value|join('、') if value else '-' }}
-                    {% else %}
-                        {{ value or '-' }}
-                    {% endif %}
-                </div>
-                {% endfor %}
-            </div>
-        </div>
+{% if 缺失资料提示 %}
+<div class="alert alert-warning shadow-sm">
+    <div class="fw-bold mb-1">资料缺失提示</div>
+    <ul class="mb-0">
+        {% for item in 缺失资料提示 %}
+        <li>{{ item }}</li>
         {% endfor %}
-    </div>
-</div>
-
-{% if 行业专项字段组 %}
-<div class="card shadow-sm mb-3">
-    <div class="card-header fw-bold">行业专项信息（{{ 企业.industry_code }}）</div>
-    <div class="card-body">
-        {% for group in 行业专项字段组 %}
-        <div class="mb-3">
-            <h6 class="fw-bold mb-2">{{ group.title }}</h6>
-            <div class="row g-2">
-                {% for field in group.fields %}
-                <div class="col-md-4"><strong>{{ field.label }}：</strong>{{ extra.get(field.key) or '-' }}</div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endfor %}
-    </div>
+    </ul>
 </div>
 {% endif %}
 
 <div class="row g-3">
     <div class="col-lg-6">
         <div class="card shadow-sm h-100">
-            <div class="card-header fw-bold">联系人信息</div>
-            <ul class="list-group list-group-flush">
-                {% for c in 联系人列表 %}
-                <li class="list-group-item">
-                    <div><strong>{{ c.contact_type }}</strong> - {{ c.name }}</div>
-                    <small class="text-muted">{{ c.position or '-' }} / {{ c.phone or '-' }} / {{ c.email or '-' }}</small>
-                </li>
-                {% else %}
-                <li class="list-group-item text-muted">暂无联系人</li>
-                {% endfor %}
-            </ul>
+            <div class="card-header fw-bold">企业基础资料</div>
+            <div class="card-body small">
+                <div><strong>企业编号：</strong>{{ 企业.enterprise_code }}</div>
+                <div><strong>企业名称：</strong>{{ 企业.company_name }}</div>
+                <div><strong>英文名称：</strong>{{ 企业.english_name or '-' }}</div>
+                <div><strong>统一社会信用代码：</strong>{{ 企业.unified_social_credit_code or '-' }}</div>
+                <div><strong>行业分类：</strong>{{ 企业.industry_code or '-' }} {{ 企业.industry_category or '' }}</div>
+                <div><strong>省市：</strong>{{ 企业.province or '-' }} / {{ 企业.city or '-' }}</div>
+                <div><strong>企业性质：</strong>{{ ext.get('enterprise_natures', [])|join('、') if ext.get('enterprise_natures') else (企业.company_type or '-') }}</div>
+            </div>
         </div>
     </div>
     <div class="col-lg-6">
         <div class="card shadow-sm h-100">
-            <div class="card-header fw-bold">产品列表</div>
-            <ul class="list-group list-group-flush">
-                {% for p in 产品列表 %}
-                <li class="list-group-item">{{ p.product_name_cn }}{% if p.product_category %}（{{ p.product_category }}）{% endif %}</li>
-                {% else %}
-                <li class="list-group-item text-muted">暂无产品</li>
-                {% endfor %}
-            </ul>
+            <div class="card-header fw-bold">联系信息</div>
+            <div class="card-body small">
+                <div><strong>外贸负责人：</strong>{{ ext.get('trade_lead') or '-' }}</div>
+                <div><strong>销售负责人：</strong>{{ ext.get('sales_lead') or '-' }}</div>
+                <div><strong>项目对接人：</strong>{{ ext.get('project_contact') or '-' }}</div>
+                <div><strong>电话：</strong>{{ ext.get('contact_phone') or '-' }}</div>
+                <div><strong>邮箱：</strong>{{ ext.get('contact_email') or '-' }}</div>
+                <div><strong>官网：</strong>{{ ext.get('website') or '-' }}</div>
+            </div>
         </div>
     </div>
 
     <div class="col-lg-6">
         <div class="card shadow-sm h-100">
-            <div class="card-header fw-bold">资质与合规信息</div>
-            <div class="table-responsive">
-                <table class="table table-sm mb-0 align-middle">
-                    <thead>
-                    <tr>
-                        <th>证书名称</th>
-                        <th>证书类型</th>
-                        <th>证书编号</th>
-                        <th>到期日期</th>
-                        <th>剩余天数</th>
-                        <th>状态</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {% for item in 资质展示列表 %}
-                    <tr>
-                        <td>{{ item.记录.certificate_name }}</td>
-                        <td>{{ item.记录.certificate_type or '-' }}</td>
-                        <td>{{ item.记录.certificate_no or '-' }}</td>
-                        <td>{{ item.记录.expiry_date or '-' }}</td>
-                        <td>{{ item.剩余天数 if item.剩余天数 is not none else '-' }}</td>
-                        <td><span class="badge text-bg-{{ item.状态样式 }}">{{ item.证书状态 }}</span></td>
-                    </tr>
-                    {% else %}
-                    <tr><td colspan="6" class="text-muted text-center">暂无资质证照</td></tr>
-                    {% endfor %}
-                    </tbody>
-                </table>
+            <div class="card-header fw-bold">经营情况</div>
+            <div class="card-body small">
+                <div><strong>主营业务：</strong>{{ ext.get('main_business') or 企业.main_business or '-' }}</div>
+                <div><strong>主营产品：</strong>{{ ext.get('core_products') or 企业.main_products or '-' }}</div>
+                <div><strong>年销售额区间：</strong>{{ ext.get('annual_sales') or '-' }}</div>
+                <div><strong>年出口额区间：</strong>{{ ext.get('annual_exports') or '-' }}</div>
+                <div><strong>主要客户：</strong>{{ ext.get('major_clients') or '-' }}</div>
             </div>
         </div>
     </div>
     <div class="col-lg-6">
         <div class="card shadow-sm h-100">
-            <div class="card-header fw-bold d-flex justify-content-between align-items-center">
-                <span>已上传文件</span>
-                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('document_upload', enterprise_id=企业.id) }}">上传文件</a>
+            <div class="card-header fw-bold">生产能力</div>
+            <div class="card-body small">
+                <div><strong>厂房面积：</strong>{{ ext.get('factory_area_range') or 企业.factory_area or '-' }}</div>
+                <div><strong>员工数量：</strong>{{ ext.get('employee_count_range') or (企业.employee_count ~ '人' if 企业.employee_count else '-') }}</div>
+                <div><strong>产线数量：</strong>{{ ext.get('production_line_count') or '-' }}</div>
+                <div><strong>年产能：</strong>{{ ext.get('annual_capacity_level') or 企业.annual_capacity or '-' }}</div>
+                <div><strong>产能利用率：</strong>{{ ext.get('capacity_utilization') or '-' }}</div>
             </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header fw-bold">外贸能力</div>
+            <div class="card-body small">
+                <div><strong>是否有出口经验：</strong>{{ ext.get('export_experience') or ('是' if 企业.has_foreign_trade_experience else '否') }}</div>
+                <div><strong>出口国家：</strong>{{ ext.get('export_countries') or 企业.export_countries or '-' }}</div>
+                <div><strong>常用贸易条款：</strong>{{ ext.get('trade_terms', [])|join('、') if ext.get('trade_terms') else '-' }}</div>
+                <div><strong>英文沟通能力：</strong>{{ ext.get('english_communication') or '-' }}</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header fw-bold">财务信用</div>
+            <div class="card-body small">
+                <div><strong>纳税证明：</strong>{{ ext.get('tax_certificate') or '-' }}</div>
+                <div><strong>信用报告：</strong>{{ ext.get('credit_report') or '-' }}</div>
+                <div><strong>涉诉情况：</strong>{{ ext.get('litigation_status') or '-' }}</div>
+                <div><strong>行政处罚：</strong>{{ ext.get('penalty_status') or '-' }}</div>
+                <div><strong>银行资信证明：</strong>{{ ext.get('bank_credit_certificate') or '-' }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header fw-bold">合作意愿</div>
+            <div class="card-body small">
+                <div><strong>目标市场：</strong>{{ ext.get('target_countries') or 企业.target_markets or '-' }}</div>
+                <div><strong>目标客户类型：</strong>{{ ext.get('target_client_types', [])|join('、') if ext.get('target_client_types') else '-' }}</div>
+                <div><strong>可接受合作模式：</strong>{{ ext.get('cooperation_models', [])|join('、') if ext.get('cooperation_models') else '-' }}</div>
+                <div><strong>资料完整度：</strong>{{ ext.get('material_completeness') or '-' }}</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header fw-bold">行业专项资料</div>
+            <div class="card-body small">
+                {% if 行业专项字段组 %}
+                    {% for group in 行业专项字段组 %}
+                    <div class="mb-2"><strong>{{ group.title }}</strong></div>
+                    <ul class="mb-0">
+                        {% for field in group.fields %}
+                        <li>{{ field.label }}：{{ ext.get(field.key) or '-' }}</li>
+                        {% endfor %}
+                    </ul>
+                    {% endfor %}
+                {% else %}
+                <span class="text-muted">暂无行业专项资料。</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header fw-bold">企业文件</div>
             <ul class="list-group list-group-flush">
                 {% for d in 文件列表 %}
                 <li class="list-group-item d-flex justify-content-between align-items-center">
@@ -143,6 +154,18 @@
                 </li>
                 {% else %}
                 <li class="list-group-item text-muted">暂无文件</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header fw-bold">关联产品列表</div>
+            <ul class="list-group list-group-flush">
+                {% for p in 产品列表 %}
+                <li class="list-group-item">{{ p.product_name_cn }}{% if p.product_category %}（{{ p.product_category }}）{% endif %}</li>
+                {% else %}
+                <li class="list-group-item text-muted">暂无关联产品</li>
                 {% endfor %}
             </ul>
         </div>

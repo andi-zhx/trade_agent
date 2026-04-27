@@ -522,28 +522,51 @@ def create_app():
     def enterprise_list():
         page = request.args.get("page", 1, type=int)
         q = request.args.get("q", "", type=str).strip()
+        province = request.args.get("province", "", type=str).strip()
         city = request.args.get("city", "", type=str).strip()
         industry = request.args.get("industry", "", type=str).strip()
-        manufacturer = request.args.get("manufacturer", "", type=str).strip()
-        status = request.args.get("status", "", type=str).strip()
+        company_nature = request.args.get("company_nature", "", type=str).strip()
+        has_export = request.args.get("has_export", "", type=str).strip()
+        sales_range = request.args.get("sales_range", "", type=str).strip()
+        export_range = request.args.get("export_range", "", type=str).strip()
+        completeness = request.args.get("completeness", "", type=str).strip()
 
         查询 = Enterprise.query
         if q:
             查询 = 查询.filter(Enterprise.company_name.ilike(f"%{q}%"))
+        if province:
+            查询 = 查询.filter(Enterprise.province == province)
         if city:
             查询 = 查询.filter(Enterprise.city == city)
         if industry:
             查询 = 查询.filter(Enterprise.industry_code == industry)
-        if manufacturer in {"yes", "no"}:
-            查询 = 查询.filter(Enterprise.is_manufacturer.is_(manufacturer == "yes"))
-        if status:
-            查询 = 查询.filter(Enterprise.status == status)
+        if company_nature:
+            nature_filter_map = {
+                "制造商": Enterprise.is_manufacturer.is_(True),
+                "贸易商": Enterprise.is_trader.is_(True),
+                "品牌商": Enterprise.is_brand_owner.is_(True),
+                "OEM/ODM工厂": Enterprise.is_oem_odm.is_(True),
+                "服务商": Enterprise.is_service_provider.is_(True),
+            }
+            查询 = 查询.filter(nature_filter_map.get(company_nature, Enterprise.company_type == company_nature))
+        if has_export in {"yes", "no"}:
+            查询 = 查询.filter(Enterprise.has_foreign_trade_experience.is_(has_export == "yes"))
+        if sales_range:
+            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_sales") == sales_range)
+        if export_range:
+            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_exports") == export_range)
+        if completeness:
+            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.material_completeness") == completeness)
 
         分页 = 查询.order_by(Enterprise.updated_at.desc()).paginate(page=page, per_page=PER_PAGE, error_out=False)
 
+        省份列表 = [项[0] for 项 in db.session.query(Enterprise.province).filter(Enterprise.province.isnot(None), Enterprise.province != "").distinct().order_by(Enterprise.province).all()]
         城市列表 = [项[0] for 项 in db.session.query(Enterprise.city).filter(Enterprise.city.isnot(None), Enterprise.city != "").distinct().order_by(Enterprise.city).all()]
         行业列表 = 行业下拉选项()
-        状态列表 = [项[0] for 项 in db.session.query(Enterprise.status).filter(Enterprise.status.isnot(None), Enterprise.status != "").distinct().order_by(Enterprise.status).all()]
+        年销售额区间选项 = [项[0] for 项 in db.session.query(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_sales")).filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_sales").isnot(None), func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_sales") != "").distinct().order_by(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_sales")).all()]
+        年出口额区间选项 = [项[0] for 项 in db.session.query(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_exports")).filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_exports").isnot(None), func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_exports") != "").distinct().order_by(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_exports")).all()]
+        资料完整度选项 = [项[0] for 项 in db.session.query(func.json_extract(Enterprise.enterprise_extra_fields, "$.material_completeness")).filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.material_completeness").isnot(None), func.json_extract(Enterprise.enterprise_extra_fields, "$.material_completeness") != "").distinct().order_by(func.json_extract(Enterprise.enterprise_extra_fields, "$.material_completeness")).all()]
+        企业性质选项 = ["制造商", "贸易商", "品牌商", "OEM/ODM工厂", "服务商"]
 
         企业ID列表 = [企业.id for 企业 in 分页.items]
         外贸负责人映射 = {}
@@ -556,10 +579,24 @@ def create_app():
         return render_template(
             "enterprise_list.html",
             分页=分页,
-            筛选={"q": q, "city": city, "industry": industry, "manufacturer": manufacturer, "status": status},
+            筛选={
+                "q": q,
+                "province": province,
+                "city": city,
+                "industry": industry,
+                "company_nature": company_nature,
+                "has_export": has_export,
+                "sales_range": sales_range,
+                "export_range": export_range,
+                "completeness": completeness,
+            },
+            省份列表=省份列表,
             城市列表=城市列表,
             行业列表=行业列表,
-            状态列表=状态列表,
+            企业性质选项=企业性质选项,
+            年销售额区间选项=年销售额区间选项,
+            年出口额区间选项=年出口额区间选项,
+            资料完整度选项=资料完整度选项,
             外贸负责人映射=外贸负责人映射,
         )
 
@@ -659,10 +696,30 @@ def create_app():
         ).all()
         资质展示列表 = [构建证照展示项(资质) for 资质 in 资质列表]
         文件列表 = Document.query.filter_by(enterprise_id=id).all()
+        文件类型集合 = {item.document_type for item in 文件列表}
+        扩展字段 = 企业.enterprise_extra_fields or {}
+        缺失资料提示 = []
+        if "营业执照" not in 文件类型集合:
+            缺失资料提示.append("缺少营业执照")
+        if "产品目录" not in 文件类型集合:
+            缺失资料提示.append("缺少产品目录")
+        if "产品图片" not in 文件类型集合:
+            缺失资料提示.append("缺少产品图片")
+        if "报价单" not in 文件类型集合:
+            缺失资料提示.append("缺少报价单")
+        if not 资质列表 and "企业资质" not in 文件类型集合 and "产品认证" not in 文件类型集合:
+            缺失资料提示.append("缺少主要资质证书")
+        if "检测报告" not in 文件类型集合:
+            缺失资料提示.append("缺少质量检测报告")
+        if not 扩展字段.get("export_experience") and not 企业.export_countries:
+            缺失资料提示.append("缺少外贸经验说明")
+        if not 扩展字段.get("target_countries") and not 扩展字段.get("major_markets") and not 企业.target_markets:
+            缺失资料提示.append("缺少目标市场说明")
 
         return render_template(
             "enterprise_detail.html",
             企业=企业,
+            扩展字段=扩展字段,
             通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS,
             行业专项字段组=行业专项字段组(企业.industry_code),
             联系人列表=联系人列表,
@@ -670,6 +727,71 @@ def create_app():
             资质列表=资质列表,
             资质展示列表=资质展示列表,
             文件列表=文件列表,
+            缺失资料提示=缺失资料提示,
+        )
+
+    @app.get("/enterprises/<int:id>/export")
+    def enterprise_export(id):
+        企业 = Enterprise.query.get_or_404(id)
+        扩展字段 = 企业.enterprise_extra_fields or {}
+        表头 = ["企业编号", "企业名称", "行业分类", "省份", "城市", "企业性质", "主营产品", "是否有出口经验", "年销售额区间", "年出口额区间", "资料完整度", "最近更新时间"]
+        企业性质 = "、".join(
+            [
+                名称
+                for 名称, 开关 in [
+                    ("制造商", 企业.is_manufacturer),
+                    ("贸易商", 企业.is_trader),
+                    ("品牌商", 企业.is_brand_owner),
+                    ("OEM/ODM工厂", 企业.is_oem_odm),
+                    ("服务商", 企业.is_service_provider),
+                ]
+                if 开关
+            ]
+        ) or (企业.company_type or "-")
+        行数据 = [[
+            企业.enterprise_code,
+            企业.company_name,
+            f"{企业.industry_code or ''} {企业.industry_category or ''}".strip() or "-",
+            企业.province or "-",
+            企业.city or "-",
+            企业性质,
+            企业.main_products or "-",
+            "是" if 企业.has_foreign_trade_experience else "否",
+            扩展字段.get("annual_sales") or "-",
+            扩展字段.get("annual_exports") or "-",
+            扩展字段.get("material_completeness") or "-",
+            企业.updated_at.strftime("%Y-%m-%d %H:%M"),
+        ]]
+        缓冲区 = BytesIO()
+        文本缓冲 = [",".join([csv_safe(v) for v in 表头])]
+        文本缓冲.extend([",".join([csv_safe(v) for v in row]) for row in 行数据])
+        缓冲区.write(("\n".join(文本缓冲)).encode("utf-8-sig"))
+        缓冲区.seek(0)
+        return send_file(
+            缓冲区,
+            as_attachment=True,
+            download_name=f"{企业.enterprise_code}_{企业.company_name}_企业信息.csv",
+            mimetype="text/csv",
+        )
+
+    @app.get("/enterprises/<int:id>/folder")
+    def enterprise_folder_download(id):
+        企业 = Enterprise.query.get_or_404(id)
+        企业目录 = BASE_DIR / 构建企业归档目录(企业)
+        if not 企业目录.exists():
+            flash("企业文件夹尚未创建，请先上传企业文件。", "warning")
+            return redirect(url_for("enterprise_detail", id=企业.id))
+        缓冲区 = BytesIO()
+        with ZipFile(缓冲区, "w", compression=ZIP_DEFLATED) as zipf:
+            for 文件路径 in 企业目录.rglob("*"):
+                if 文件路径.is_file():
+                    zipf.write(文件路径, arcname=文件路径.relative_to(企业目录.parent))
+        缓冲区.seek(0)
+        return send_file(
+            缓冲区,
+            as_attachment=True,
+            download_name=f"{企业.enterprise_code}_{企业.company_name}_企业文件夹.zip",
+            mimetype="application/zip",
         )
 
     @app.route("/enterprises/<int:id>/analysis-note", methods=["POST"])
