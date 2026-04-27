@@ -145,14 +145,52 @@
             </h2>
             <div id="collapse_J" class="accordion-collapse collapse" data-bs-parent="#enterpriseAccordion">
                 <div class="accordion-body">
+                    {% if 模式 == 'new' %}
+                    <div class="alert alert-warning py-2 mb-3">请先保存草稿后上传附件</div>
+                    {% endif %}
                     <div id="enterpriseUploadRows" class="vstack gap-2">
                         <div class="row g-2 enterprise-upload-row" data-module-field>
-                            <div class="col-md-3"><select class="form-select" name="enterprise_upload_type"><option value="">请选择文件类型</option>{% for t in 企业文件类型选项 %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></div>
-                            <div class="col-md-4"><input class="form-control" name="enterprise_upload_name" placeholder="文件名称（可选）"></div>
-                            <div class="col-md-5"><input class="form-control" type="file" name="enterprise_upload_file"></div>
+                            <div class="col-md-3"><select class="form-select" name="enterprise_upload_type" {% if 模式 == 'new' %}disabled{% endif %}><option value="">请选择文件类型</option>{% for t in 企业文件类型选项 %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></div>
+                            <div class="col-md-4"><input class="form-control" name="enterprise_upload_name" placeholder="命名参数（证书名/联系人名/资料说明等）" {% if 模式 == 'new' %}disabled{% endif %}></div>
+                            <div class="col-md-5"><input class="form-control" type="file" name="enterprise_upload_file" {% if 模式 == 'new' %}disabled{% endif %}></div>
                         </div>
                     </div>
-                    <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="addEnterpriseUploadRow">+ 添加文件</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="addEnterpriseUploadRow" {% if 模式 == 'new' %}disabled{% endif %}>+ 添加文件</button>
+                    <div class="form-text mt-2">
+                        附件分类与格式：营业执照(PDF/JPG/PNG，必填)、企业宣传册(PDF/PPT/图片)、企业介绍PPT(PPT/PDF)、资质证书包(PDF/JPG/ZIP)、工厂/办公照片(JPG/PNG/视频，可多文件)、企业名片(JPG/PNG/PDF)、其他补充资料(常见安全格式)。
+                    </div>
+
+                    {% set 已上传文件 = 已上传附件列表 if 已上传附件列表 is defined else [] %}
+                    <hr class="my-3">
+                    <h6 class="mb-2">已上传文件</h6>
+                    {% if 已上传文件 %}
+                    <div class="table-responsive">
+                        <table class="table table-sm align-middle">
+                            <thead>
+                                <tr><th>文件类型</th><th>文件名</th><th>上传时间</th><th>下载</th><th>删除</th></tr>
+                            </thead>
+                            <tbody>
+                                {% for item in 已上传文件 %}
+                                <tr>
+                                    <td>{{ item.document_type }}</td>
+                                    <td>{{ item.document_name }}</td>
+                                    <td>{{ item.uploaded_at.strftime('%Y-%m-%d %H:%M') if item.uploaded_at else '-' }}</td>
+                                    <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('document_download', document_id=item.id) }}">下载</a></td>
+                                    <td>
+                                        <form method="post" action="{{ url_for('document_delete', document_id=item.id) }}" onsubmit="return confirm('确认删除该文件？')">
+                                            <input type="hidden" name="confirm_delete" value="YES">
+                                            <input type="hidden" name="next" value="{{ request.path }}">
+                                            <button class="btn btn-sm btn-outline-danger" type="submit">删除</button>
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-muted small">暂无上传文件。</div>
+                    {% endif %}
                 </div>
             </div>
         </div>
@@ -181,6 +219,16 @@
     const industryName = document.getElementById('industryName');
     const hiddenName = document.getElementById('industryNameHidden');
     const completenessBadge = document.getElementById('overviewCompleteness');
+    const existingUploadedTypes = new Set({{ ((已上传附件列表 or []) | map(attribute='document_type') | list) | tojson }});
+    const enterpriseUploadRules = {
+        '营业执照': ['.pdf', '.jpg', '.jpeg', '.png'],
+        '企业宣传册': ['.pdf', '.ppt', '.pptx', '.jpg', '.jpeg', '.png', '.webp'],
+        '企业介绍PPT': ['.ppt', '.pptx', '.pdf'],
+        '资质证书包': ['.pdf', '.jpg', '.jpeg', '.zip'],
+        '工厂/办公照片': ['.jpg', '.jpeg', '.png', '.mp4', '.mov', '.avi', '.mkv', '.webm'],
+        '企业名片': ['.jpg', '.jpeg', '.png', '.pdf'],
+        '其他补充资料': ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.jpg', '.jpeg', '.png', '.zip', '.rar', '.7z', '.txt', '.csv', '.mp4', '.mov']
+    };
 
     const getFieldValues = (fieldName) => {
         const elements = Array.from(document.querySelectorAll(`[name="${fieldName}"]`));
@@ -206,9 +254,12 @@
 
     submitReviewBtn?.addEventListener('click', () => {
         const missing = requiredForReview.filter(([key]) => getFieldValues(key).length === 0).map(([, label]) => label);
-        const typeValues = Array.from(document.querySelectorAll('select[name="enterprise_upload_type"]')).map((el) => el.value);
-        const fileValues = Array.from(document.querySelectorAll('input[name="enterprise_upload_file"]')).some((el) => (el.files || []).length > 0);
-        if (!(typeValues.includes('营业执照') && fileValues)) missing.push('营业执照附件（若历史已上传可忽略本提示）');
+        const hasLicenseInCurrent = Array.from(document.querySelectorAll('.enterprise-upload-row')).some((row) => {
+            const type = row.querySelector('select[name="enterprise_upload_type"]')?.value || '';
+            const fileInput = row.querySelector('input[name="enterprise_upload_file"]');
+            return type === '营业执照' && (fileInput?.files || []).length > 0;
+        });
+        if (!existingUploadedTypes.has('营业执照') && !hasLicenseInCurrent) missing.push('营业执照附件');
         if (missing.length) {
             const ul = document.getElementById('missingFieldsList');
             ul.innerHTML = missing.map((item) => `<li>${item}</li>`).join('');
@@ -258,14 +309,15 @@
         const suggestedKeys = ['enterprise_natures','employee_count_range','business_directions','customer_types','foreign_trade_team_size','production_mode','recommended_cooperation_directions','risk_tags','certificate_completeness','certificate_validity_status'];
         const attachmentRules = [
             ['营业执照'],
-            ['宣传册', '企业简介'],
-            ['宣传PPT', '英文PPT'],
-            ['企业资质', '产品认证', '合规文件'],
-            ['尽调照片', '产品图片'],
+            ['企业宣传册'],
+            ['企业介绍PPT'],
+            ['资质证书包'],
+            ['工厂/办公照片'],
             ['企业名片'],
-            ['其他文件'],
+            ['其他补充资料'],
         ];
         const hasBusinessLicenseUpload = () => {
+            if (existingUploadedTypes.has('营业执照')) return true;
             const rows = Array.from(document.querySelectorAll('.enterprise-upload-row'));
             return rows.some((row) => {
                 const type = row.querySelector('select[name="enterprise_upload_type"]')?.value || '';
@@ -274,6 +326,7 @@
             });
         };
         const hasAttachmentType = (types) => {
+            if (types.some((type) => existingUploadedTypes.has(type))) return true;
             const rows = Array.from(document.querySelectorAll('.enterprise-upload-row'));
             return rows.some((row) => {
                 const type = row.querySelector('select[name="enterprise_upload_type"]')?.value || '';
@@ -320,6 +373,20 @@
         cloned.querySelectorAll('select').forEach((el) => el.value = '');
         container.appendChild(cloned);
         syncProgress();
+    });
+
+    document.getElementById('enterpriseUploadRows')?.addEventListener('change', (event) => {
+        const fileInput = event.target.closest('input[name="enterprise_upload_file"]');
+        if (!fileInput) return;
+        const row = fileInput.closest('.enterprise-upload-row');
+        const type = row?.querySelector('select[name="enterprise_upload_type"]')?.value || '';
+        if (!type || !(fileInput.files || []).length) return;
+        const allow = enterpriseUploadRules[type] || [];
+        const invalid = Array.from(fileInput.files).find((file) => !allow.includes(`.${(file.name.split('.').pop() || '').toLowerCase()}`));
+        if (invalid) {
+            alert(`${type} 不支持文件：${invalid.name}`);
+            fileInput.value = '';
+        }
     });
 
     const contactsContainer = document.getElementById('dynamicContactsContainer');
