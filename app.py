@@ -4,7 +4,7 @@ from pathlib import Path
 import re
 
 from flask import Flask, flash, redirect, render_template, request, send_from_directory, session, url_for
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 
 from models import (
     Contact,
@@ -74,6 +74,45 @@ DOCUMENT_FOLDER_MAPPING = {
     "OTHER": "11_其他资料",
 }
 
+PROJECT_STAGE_OPTIONS = [
+    "待补充资料",
+    "已完成入库",
+    "已推荐给外资",
+    "外资初步感兴趣",
+    "已发送资料",
+    "已寄送样品",
+    "已报价",
+    "商务谈判中",
+    "合同签署中",
+    "已成交",
+    "暂停/终止",
+]
+
+SAMPLE_STATUS_OPTIONS = [
+    "未涉及",
+    "待寄样",
+    "已寄样",
+    "样品反馈中",
+    "样品通过",
+    "样品未通过",
+]
+
+QUOTATION_STATUS_OPTIONS = [
+    "未报价",
+    "已初步报价",
+    "已更新报价",
+    "报价接受",
+    "报价未接受",
+]
+
+CONTRACT_STATUS_OPTIONS = [
+    "未开始",
+    "起草中",
+    "审核中",
+    "已签署",
+    "未成交",
+]
+
 
 def create_app():
     app = Flask(__name__)
@@ -96,6 +135,12 @@ def create_app():
         产品数量 = Product.query.count()
         需求数量 = Demand.query.count()
         撮合数量 = MatchRecord.query.count()
+        项目总数 = ProjectProgress.query.count()
+        已成交项目数 = ProjectProgress.query.filter(ProjectProgress.current_stage == "已成交").count()
+        商务谈判中项目数 = ProjectProgress.query.filter(ProjectProgress.current_stage == "商务谈判中").count()
+        本月起始日期 = date.today().replace(day=1)
+        本月新增项目数 = ProjectProgress.query.filter(ProjectProgress.created_at >= datetime.combine(本月起始日期, datetime.min.time())).count()
+        总成交金额 = db.session.query(func.coalesce(func.sum(ProjectProgress.deal_amount), 0)).scalar() or Decimal("0")
         资质总数 = Qualification.query.count()
         已过期证书数量 = sum(1 for 资质 in Qualification.query.all() if 计算证书状态(资质.expiry_date) == "已过期")
         九十天内到期证书数量 = sum(1 for 资质 in Qualification.query.all() if 计算证书状态(资质.expiry_date) == "即将到期")
@@ -105,7 +150,7 @@ def create_app():
             {"名称": "产品管理", "说明": "管理企业产品信息、品类与产品描述。", "链接": "#"},
             {"名称": "资质证照", "说明": "维护企业相关资质证照、编号和有效期。", "链接": url_for("qualification_list")},
             {"名称": "外资客户需求", "说明": "记录海外客户需求与目标采购方向。", "链接": url_for("demand_list")},
-            {"名称": "撮合进展", "说明": "跟踪撮合过程、阶段状态与跟进记录。", "链接": "#"},
+            {"名称": "撮合进展", "说明": "跟踪撮合过程、阶段状态与跟进记录。", "链接": url_for("project_list")},
             {"名称": "归档文件", "说明": "统一存放项目过程文档与归档资料。", "链接": url_for("document_list")},
         ]
 
@@ -115,6 +160,11 @@ def create_app():
             产品数量=产品数量,
             需求数量=需求数量,
             撮合数量=撮合数量,
+            项目总数=项目总数,
+            已成交项目数=已成交项目数,
+            商务谈判中项目数=商务谈判中项目数,
+            本月新增项目数=本月新增项目数,
+            总成交金额=总成交金额,
             资质总数=资质总数,
             已过期证书数量=已过期证书数量,
             九十天内到期证书数量=九十天内到期证书数量,
@@ -653,6 +703,125 @@ def create_app():
         flash("产品已删除。", "info")
         return redirect(url_for("product_list"))
 
+    @app.route("/projects")
+    def project_list():
+        current_stage = request.args.get("current_stage", "", type=str).strip()
+        project_owner = request.args.get("project_owner", "", type=str).strip()
+        foreign_client = request.args.get("foreign_client", "", type=str).strip()
+        enterprise_name = request.args.get("enterprise_name", "", type=str).strip()
+
+        query = ProjectProgress.query
+        if current_stage:
+            query = query.filter(ProjectProgress.current_stage == current_stage)
+        if project_owner:
+            query = query.filter(ProjectProgress.project_owner == project_owner)
+        if foreign_client:
+            query = query.join(ForeignClient, ProjectProgress.foreign_client_id == ForeignClient.id).filter(
+                ForeignClient.client_name.ilike(f"%{foreign_client}%")
+            )
+        if enterprise_name:
+            query = query.join(Enterprise, ProjectProgress.enterprise_id == Enterprise.id).filter(
+                Enterprise.company_name.ilike(f"%{enterprise_name}%")
+            )
+
+        projects = query.order_by(ProjectProgress.updated_at.desc(), ProjectProgress.id.desc()).all()
+        enterprise_map = {item.id: item for item in Enterprise.query.filter(Enterprise.id.in_({p.enterprise_id for p in projects if p.enterprise_id})).all()} if projects else {}
+        product_map = {item.id: item for item in Product.query.filter(Product.id.in_({p.product_id for p in projects if p.product_id})).all()} if projects else {}
+        client_map = {item.id: item for item in ForeignClient.query.filter(ForeignClient.id.in_({p.foreign_client_id for p in projects if p.foreign_client_id})).all()} if projects else {}
+
+        owners = [
+            row[0]
+            for row in db.session.query(ProjectProgress.project_owner)
+            .filter(ProjectProgress.project_owner.isnot(None), ProjectProgress.project_owner != "")
+            .distinct()
+            .order_by(ProjectProgress.project_owner)
+            .all()
+        ]
+
+        return render_template(
+            "projects/list.html",
+            projects=projects,
+            enterprise_map=enterprise_map,
+            product_map=product_map,
+            client_map=client_map,
+            filters={
+                "current_stage": current_stage,
+                "project_owner": project_owner,
+                "foreign_client": foreign_client,
+                "enterprise_name": enterprise_name,
+            },
+            stage_options=PROJECT_STAGE_OPTIONS,
+            owner_options=owners,
+            project_code=项目编号,
+        )
+
+    @app.route("/projects/new", methods=["GET", "POST"])
+    def project_new():
+        enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
+        products = Product.query.order_by(Product.product_name_cn.asc()).all()
+        clients = ForeignClient.query.order_by(ForeignClient.client_name.asc()).all()
+        demands = Demand.query.order_by(Demand.updated_at.desc()).all()
+
+        if request.method == "POST":
+            project = ProjectProgress()
+            填充项目字段(project, request.form)
+            if not project.enterprise_id:
+                flash("请选择企业。", "danger")
+                return render_template(
+                    "projects/form.html",
+                    form_title="新增撮合项目",
+                    enterprises=enterprises,
+                    products=products,
+                    clients=clients,
+                    demands=demands,
+                    stage_options=PROJECT_STAGE_OPTIONS,
+                    sample_status_options=SAMPLE_STATUS_OPTIONS,
+                    quotation_status_options=QUOTATION_STATUS_OPTIONS,
+                    contract_status_options=CONTRACT_STATUS_OPTIONS,
+                    form_data=request.form,
+                )
+
+            db.session.add(project)
+            db.session.commit()
+            flash(f"项目 {项目编号(project)} 创建成功。", "success")
+            return redirect(url_for("project_detail", project_id=project.id))
+
+        return render_template(
+            "projects/form.html",
+            form_title="新增撮合项目",
+            enterprises=enterprises,
+            products=products,
+            clients=clients,
+            demands=demands,
+            stage_options=PROJECT_STAGE_OPTIONS,
+            sample_status_options=SAMPLE_STATUS_OPTIONS,
+            quotation_status_options=QUOTATION_STATUS_OPTIONS,
+            contract_status_options=CONTRACT_STATUS_OPTIONS,
+            form_data={},
+        )
+
+    @app.route("/projects/<int:project_id>")
+    def project_detail(project_id):
+        project = ProjectProgress.query.get_or_404(project_id)
+        enterprise = Enterprise.query.get(project.enterprise_id) if project.enterprise_id else None
+        product = Product.query.get(project.product_id) if project.product_id else None
+        client = ForeignClient.query.get(project.foreign_client_id) if project.foreign_client_id else None
+        demand = Demand.query.get(project.demand_id) if project.demand_id else None
+        documents = Document.query.filter_by(related_project_id=project.id).order_by(Document.uploaded_at.desc()).all()
+        timeline = 构建项目时间线(project)
+
+        return render_template(
+            "projects/detail.html",
+            project=project,
+            enterprise=enterprise,
+            product=product,
+            client=client,
+            demand=demand,
+            documents=documents,
+            timeline=timeline,
+            project_code=项目编号(project),
+        )
+
     @app.route("/documents")
     def document_list():
         enterprise_id = request.args.get("enterprise_id", type=int)
@@ -1081,6 +1250,48 @@ def 填充需求字段(demand, form):
     demand.priority = form.get("priority", "").strip() or "中"
     demand.status = form.get("status", "").strip() or "待跟进"
     demand.notes = form.get("notes", "").strip() or None
+
+
+def 填充项目字段(project, form):
+    project.enterprise_id = form.get("enterprise_id", type=int)
+    project.product_id = form.get("product_id", type=int)
+    project.foreign_client_id = form.get("foreign_client_id", type=int)
+    project.demand_id = form.get("demand_id", type=int)
+    project.current_stage = form.get("current_stage", "").strip() or "待补充资料"
+    project.first_contact_date = 读取日期(form.get("first_contact_date"))
+    project.material_sent_date = 读取日期(form.get("material_sent_date"))
+    project.sample_status = form.get("sample_status", "").strip() or None
+    project.quotation_status = form.get("quotation_status", "").strip() or None
+    project.negotiation_status = form.get("negotiation_status", "").strip() or None
+    project.contract_status = form.get("contract_status", "").strip() or None
+    project.deal_amount = 读取金额(form.get("deal_amount"))
+    project.next_action = form.get("next_action", "").strip() or None
+    project.project_owner = form.get("project_owner", "").strip() or None
+    project.notes = form.get("notes", "").strip() or None
+
+
+def 项目编号(project):
+    if not project:
+        return "-"
+    return f"P{project.id:04d}" if project.id else "P-待生成"
+
+
+def 构建项目时间线(project):
+    timeline = []
+    if project.first_contact_date:
+        timeline.append({"date": project.first_contact_date, "title": "首次对接", "desc": "已与客户建立初步沟通。"})
+    if project.material_sent_date:
+        timeline.append({"date": project.material_sent_date, "title": "资料发送", "desc": "已发送企业/产品资料。"})
+    if project.sample_status and project.sample_status != "未涉及":
+        timeline.append({"date": None, "title": "样品状态", "desc": project.sample_status})
+    if project.quotation_status:
+        timeline.append({"date": None, "title": "报价状态", "desc": project.quotation_status})
+    if project.negotiation_status:
+        timeline.append({"date": None, "title": "谈判状态", "desc": project.negotiation_status})
+    if project.contract_status:
+        timeline.append({"date": None, "title": "合同状态", "desc": project.contract_status})
+    timeline.append({"date": project.updated_at.date() if project.updated_at else None, "title": "最近更新", "desc": project.current_stage or "阶段未设置"})
+    return timeline
 
 
 def 统一关键词集合(text):
