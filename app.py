@@ -866,6 +866,10 @@ def create_app():
         has_overseas_business = request.args.get("has_overseas_business", "", type=str).strip()
         has_own_factory = request.args.get("has_own_factory", "", type=str).strip()
         has_export = request.args.get("has_export", "", type=str).strip()
+        is_listed = request.args.get("is_listed", "", type=str).strip()
+        has_cross_border = request.args.get("has_cross_border", "", type=str).strip()
+        has_own_brand = request.args.get("has_own_brand", "", type=str).strip()
+        certificate_validity_status = request.args.get("certificate_validity_status", "", type=str).strip()
         recommendation_level = request.args.get("recommendation_level", "", type=str).strip()
         recommended_for_pool = request.args.get("recommended_for_pool", "", type=str).strip()
         status = request.args.get("status", "", type=str).strip()
@@ -902,6 +906,21 @@ def create_app():
             查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.has_own_factory") == has_own_factory)
         if has_export:
             查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.export_experience") == has_export)
+        if is_listed:
+            查询 = 查询.filter(Enterprise.is_listed_or_pre_ipo.is_(is_listed == "是"))
+        if has_cross_border:
+            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.has_cross_border_ecommerce") == has_cross_border)
+        if has_own_brand:
+            查询 = 查询.filter(
+                or_(
+                    func.json_extract(Enterprise.enterprise_extra_fields, "$.has_own_brand_business") == has_own_brand,
+                    func.json_extract(Enterprise.enterprise_extra_fields, "$.has_own_brand") == has_own_brand,
+                )
+            )
+        if certificate_validity_status:
+            查询 = 查询.filter(
+                func.json_extract(Enterprise.enterprise_extra_fields, "$.certificate_validity_status") == certificate_validity_status
+            )
         if recommendation_level:
             查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.recommendation_level") == recommendation_level)
         if recommended_for_pool:
@@ -945,6 +964,10 @@ def create_app():
         海外业务选项 = 提取JSON枚举值("has_overseas_business") or ["是", "否"]
         自有工厂选项 = 提取JSON枚举值("has_own_factory") or ["是", "否", "部分自有"]
         出口经验选项 = 提取JSON枚举值("export_experience") or ["是", "否"]
+        上市选项 = ["是", "否"]
+        跨境电商选项 = 提取JSON枚举值("has_cross_border_ecommerce") or ["是", "否"]
+        自有品牌选项 = sorted(set(提取JSON枚举值("has_own_brand_business") + 提取JSON枚举值("has_own_brand"))) or ["是", "否"]
+        证书有效期选项 = 提取JSON枚举值("certificate_validity_status") or ["全部有效", "部分临期", "部分过期", "未核验"]
         推荐等级选项 = 提取JSON枚举值("recommendation_level") or ["A", "B", "C", "D", "待评估"]
         建议入库选项 = 提取JSON枚举值("recommended_for_pool") or ["是", "否", "待定"]
         资料完整度选项 = ["80%以上", "50%-79%", "50%以下"]
@@ -983,6 +1006,10 @@ def create_app():
                 "has_overseas_business": has_overseas_business,
                 "has_own_factory": has_own_factory,
                 "has_export": has_export,
+                "is_listed": is_listed,
+                "has_cross_border": has_cross_border,
+                "has_own_brand": has_own_brand,
+                "certificate_validity_status": certificate_validity_status,
                 "recommendation_level": recommendation_level,
                 "recommended_for_pool": recommended_for_pool,
                 "status": status,
@@ -996,6 +1023,10 @@ def create_app():
             海外业务选项=海外业务选项,
             自有工厂选项=自有工厂选项,
             出口经验选项=出口经验选项,
+            上市选项=上市选项,
+            跨境电商选项=跨境电商选项,
+            自有品牌选项=自有品牌选项,
+            证书有效期选项=证书有效期选项,
             推荐等级选项=推荐等级选项,
             建议入库选项=建议入库选项,
             入库状态选项=入库状态选项,
@@ -2983,7 +3014,7 @@ def 计算推荐状态(score):
 
 
 def 读取布尔(form, 字段名):
-    return form.get(字段名) == "on"
+    return str(form.get(字段名, "")).strip().lower() in {"1", "true", "yes", "y", "是", "已", "on"}
 
 
 def 读取日期(值):
