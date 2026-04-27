@@ -6,7 +6,7 @@
     <a class="btn btn-outline-secondary" href="{{ url_for('product_list') }}">返回列表</a>
 </div>
 
-<form method="post" action="{{ form_action }}">
+<form method="post" action="{{ form_action }}" enctype="multipart/form-data">
     <div class="accordion" id="productAccordion">
         <div class="accordion-item">
             <h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#A">A. 所属企业</button></h2>
@@ -165,6 +165,32 @@
         </div>
     </div>
 
+    <div class="card mt-3">
+        <div class="card-header fw-bold">产品资料上传</div>
+        <div class="card-body">
+            <div id="productUploadRows" class="vstack gap-2">
+                <div class="row g-2 product-upload-row">
+                    <div class="col-md-3">
+                        <select class="form-select" name="product_upload_type">
+                            <option value="">请选择文件类型</option>
+                            {% for t in 产品文件类型选项 %}
+                            <option value="{{ t }}">{{ t }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <input class="form-control" name="product_upload_name" placeholder="文件名称（可选）">
+                    </div>
+                    <div class="col-md-5">
+                        <input class="form-control" type="file" name="product_upload_file">
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="addProductUploadRow">+ 添加文件</button>
+            <div class="form-text">支持一次新增多个文件；禁止 exe / bat / sh / js。</div>
+        </div>
+    </div>
+
     <div class="mt-3">
         <button class="btn btn-primary" type="submit">保存产品</button>
     </div>
@@ -235,6 +261,19 @@
 
     syncIndustryFromEnterprise();
     renderIndustryExtraFields();
+
+    const uploadRows = document.getElementById('productUploadRows');
+    const addBtn = document.getElementById('addProductUploadRow');
+    if (uploadRows && addBtn) {
+        addBtn.addEventListener('click', () => {
+            const firstRow = uploadRows.querySelector('.product-upload-row');
+            if (!firstRow) return;
+            const cloned = firstRow.cloneNode(true);
+            cloned.querySelectorAll('input').forEach((input) => input.value = '');
+            cloned.querySelectorAll('select').forEach((select) => select.value = '');
+            uploadRows.appendChild(cloned);
+        });
+    }
 })();
 </script>
 {% endblock %}

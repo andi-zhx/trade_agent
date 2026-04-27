@@ -34,7 +34,6 @@ from models import (
 
 BASE_DIR = Path(__file__).resolve().parent
 PER_PAGE = 10
-ALLOWED_EXTENSIONS = {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".jpg", ".png", ".mp4"}
 BLOCKED_EXTENSIONS = {".exe", ".bat", ".js", ".sh", ".cmd", ".com", ".msi", ".ps1"}
 MAX_UPLOAD_SIZE = 100 * 1024 * 1024
 
@@ -51,42 +50,86 @@ PRODUCT_FORM_SECTIONS = [
     ("I", "售后与备注"),
 ]
 
-DOCUMENT_TYPE_OPTIONS = [
-    ("BASE", "BASE 企业基础信息"),
-    ("CERT", "CERT 资质证照"),
-    ("FIN", "FIN 经营财务"),
-    ("TRADE", "TRADE 外贸能力"),
-    ("PROD", "PROD 产品信息"),
-    ("SPEC", "SPEC 产品规格书"),
-    ("IMG", "IMG 图片"),
-    ("VIDEO", "VIDEO 视频"),
-    ("PPT", "PPT 宣传PPT"),
-    ("MIN", "MIN 会议纪要"),
-    ("CONTRACT", "CONTRACT 合同协议"),
-    ("AUTH", "AUTH 授权文件"),
-    ("REVIEW", "REVIEW 审核归档"),
-    ("QUOTE", "QUOTE 报价单"),
-    ("SAMPLE", "SAMPLE 样品资料"),
-    ("OTHER", "OTHER 其他"),
+ENTERPRISE_UPLOAD_TYPES = [
+    "营业执照",
+    "企业简介",
+    "企业资质",
+    "经营资料",
+    "外贸资料",
+    "尽调照片",
+    "尽调视频",
+    "宣传PPT",
+    "合同协议",
+    "其他文件",
+]
+
+PRODUCT_UPLOAD_TYPES = [
+    "产品图片",
+    "产品视频",
+    "产品规格书",
+    "产品说明书",
+    "检测报告",
+    "产品认证",
+    "报价单",
+    "包装资料",
+    "英文PPT",
+    "案例资料",
+    "其他文件",
+]
+
+DOCUMENT_TYPE_OPTIONS = [(item, item) for item in ENTERPRISE_UPLOAD_TYPES + PRODUCT_UPLOAD_TYPES]
+
+ENTERPRISE_SUB_FOLDERS = [
+    "01_企业基础资料",
+    "02_企业资质与合规文件",
+    "03_企业经营与外贸能力",
+    "04_产品目录与产品信息表",
+    "05_产品规格与技术资料",
+    "06_产品认证与检测报告",
+    "07_报价与交易条件",
+    "08_包装物流与交付资料",
+    "09_宣传展示资料",
+    "10_图片视频与样品资料",
+    "11_客户案例与项目案例",
+    "12_合作需求与撮合记录",
+    "13_风险审核与归档确认",
 ]
 
 DOCUMENT_FOLDER_MAPPING = {
-    "BASE": "01_企业基础信息",
-    "CERT": "02_企业资质证照",
-    "FIN": "03_经营财务资料",
-    "TRADE": "04_外贸能力与交易记录",
-    "PROD": "05_产品资料",
-    "SPEC": "05_产品资料",
-    "PPT": "06_宣传展示材料",
-    "MIN": "07_项目沟通与会议记录",
-    "IMG": "08_影像资料",
-    "VIDEO": "08_影像资料",
-    "CONTRACT": "09_合同协议与授权文件",
-    "AUTH": "09_合同协议与授权文件",
-    "REVIEW": "10_审核归档文件",
-    "QUOTE": "10_审核归档文件",
-    "SAMPLE": "10_审核归档文件",
-    "OTHER": "11_其他资料",
+    "营业执照": "01_企业基础资料",
+    "企业简介": "01_企业基础资料",
+    "企业资质": "02_企业资质与合规文件",
+    "合规文件": "02_企业资质与合规文件",
+    "经营资料": "03_企业经营与外贸能力",
+    "外贸资料": "03_企业经营与外贸能力",
+    "产品目录": "04_产品目录与产品信息表",
+    "产品信息表": "04_产品目录与产品信息表",
+    "产品规格书": "05_产品规格与技术资料",
+    "产品说明书": "05_产品规格与技术资料",
+    "技术资料": "05_产品规格与技术资料",
+    "检测报告": "06_产品认证与检测报告",
+    "产品认证": "06_产品认证与检测报告",
+    "报价单": "07_报价与交易条件",
+    "交易条件": "07_报价与交易条件",
+    "包装资料": "08_包装物流与交付资料",
+    "物流资料": "08_包装物流与交付资料",
+    "宣传PPT": "09_宣传展示资料",
+    "英文PPT": "09_宣传展示资料",
+    "宣传册": "09_宣传展示资料",
+    "尽调照片": "10_图片视频与样品资料",
+    "尽调视频": "10_图片视频与样品资料",
+    "产品图片": "10_图片视频与样品资料",
+    "产品视频": "10_图片视频与样品资料",
+    "样品资料": "10_图片视频与样品资料",
+    "案例资料": "11_客户案例与项目案例",
+    "客户案例": "11_客户案例与项目案例",
+    "项目案例": "11_客户案例与项目案例",
+    "合作需求": "12_合作需求与撮合记录",
+    "撮合记录": "12_合作需求与撮合记录",
+    "合同协议": "13_风险审核与归档确认",
+    "风险审核": "13_风险审核与归档确认",
+    "归档确认": "13_风险审核与归档确认",
+    "其他文件": "13_风险审核与归档确认",
 }
 
 PROJECT_STAGE_OPTIONS = [
@@ -314,6 +357,34 @@ def create_app():
             if 字段列表:
                 分组数据.append({"title": 分组["title"], "fields": 字段列表})
         return 分组数据
+
+    def 处理表单文件上传(enterprise, 类型字段名, 名称字段名, 文件字段名, product=None):
+        类型列表 = request.form.getlist(类型字段名)
+        名称列表 = request.form.getlist(名称字段名)
+        文件列表 = request.files.getlist(文件字段名)
+        当前上传人 = (session.get("用户") or "未署名").strip() or "未署名"
+        上传成功数 = 0
+
+        for 索引, 上传文件 in enumerate(文件列表):
+            if not 上传文件 or not 上传文件.filename:
+                continue
+            文件类型 = (类型列表[索引] if 索引 < len(类型列表) else "").strip()
+            自定义名称 = (名称列表[索引] if 索引 < len(名称列表) else "").strip()
+            if not 文件类型:
+                raise ValueError("存在未选择文件类型的上传项。")
+            原始名称 = Path(上传文件.filename).stem
+            文件名称 = 清洗路径片段(自定义名称 or 原始名称) or "未命名文件"
+            保存文件并登记记录(
+                app=app,
+                enterprise=enterprise,
+                product=product,
+                上传文件=上传文件,
+                document_type=文件类型,
+                document_name=文件名称,
+                uploaded_by=当前上传人,
+            )
+            上传成功数 += 1
+        return 上传成功数
 
     @app.route("/")
     def dashboard():
@@ -545,10 +616,10 @@ def create_app():
 
             if not 企业.company_name:
                 flash("企业名称为必填项", "danger")
-                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={})
+                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
             if not 行业代码:
                 flash("行业分类必须从下拉框选择。", "danger")
-                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={})
+                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
 
             db.session.add(企业)
             db.session.flush()
@@ -561,12 +632,22 @@ def create_app():
                         position="外贸负责人",
                     )
                 )
+            try:
+                上传数 = 处理表单文件上传(
+                    enterprise=企业,
+                    类型字段名="enterprise_upload_type",
+                    名称字段名="enterprise_upload_name",
+                    文件字段名="enterprise_upload_file",
+                )
+            except ValueError as exc:
+                flash(str(exc), "danger")
+                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
             记录审计日志("新增企业", "enterprise", target_id=企业.id, detail=企业.company_name)
             db.session.commit()
-            flash(f"企业 {企业.company_name} 新增成功", "success")
+            flash(f"企业 {企业.company_name} 新增成功，上传文件 {上传数} 个。", "success")
             return redirect(url_for("enterprise_detail", id=企业.id))
 
-        return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={})
+        return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
 
     @app.route("/enterprises/<int:id>")
     def enterprise_detail(id):
@@ -672,14 +753,24 @@ def create_app():
 
             if not 企业.company_name:
                 flash("企业名称为必填项", "danger")
-                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {})
+                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
             if not 行业代码:
                 flash("行业分类必须从下拉框选择。", "danger")
-                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {})
+                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
 
+            try:
+                上传数 = 处理表单文件上传(
+                    enterprise=企业,
+                    类型字段名="enterprise_upload_type",
+                    名称字段名="enterprise_upload_name",
+                    文件字段名="enterprise_upload_file",
+                )
+            except ValueError as exc:
+                flash(str(exc), "danger")
+                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
             记录审计日志("编辑企业", "enterprise", target_id=企业.id, detail=企业.company_name)
             db.session.commit()
-            flash("企业信息更新成功", "success")
+            flash(f"企业信息更新成功，新增上传文件 {上传数} 个。", "success")
             return redirect(url_for("enterprise_detail", id=企业.id))
 
         return render_template(
@@ -691,6 +782,7 @@ def create_app():
             通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS,
             行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG,
             企业扩展字段=企业.enterprise_extra_fields or {},
+            企业文件类型选项=ENTERPRISE_UPLOAD_TYPES,
         )
 
     @app.route("/enterprises/<int:id>/delete", methods=["POST"])
@@ -926,6 +1018,7 @@ def create_app():
                     common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
                     industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
                     product_extra_values={},
+                    产品文件类型选项=PRODUCT_UPLOAD_TYPES,
                 )
 
             product = Product(
@@ -947,12 +1040,36 @@ def create_app():
                     common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
                     industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
                     product_extra_values=product.product_extra_fields or {},
+                    产品文件类型选项=PRODUCT_UPLOAD_TYPES,
                 )
             db.session.add(product)
             db.session.flush()
+            try:
+                上传数 = 处理表单文件上传(
+                    enterprise=enterprise,
+                    product=product,
+                    类型字段名="product_upload_type",
+                    名称字段名="product_upload_name",
+                    文件字段名="product_upload_file",
+                )
+            except ValueError as exc:
+                flash(str(exc), "danger")
+                return render_template(
+                    "products/form.html",
+                    form_action=url_for("product_new"),
+                    enterprises=enterprises,
+                    form_title="新增产品",
+                    sections=PRODUCT_FORM_SECTIONS,
+                    product=product,
+                    industries=行业下拉选项(),
+                    common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
+                    industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
+                    product_extra_values=product.product_extra_fields or {},
+                    产品文件类型选项=PRODUCT_UPLOAD_TYPES,
+                )
             记录审计日志("新增产品", "product", target_id=product.id, detail=product.product_name_cn)
             db.session.commit()
-            flash(f"产品已创建，编号：{product.product_code}。", "success")
+            flash(f"产品已创建，编号：{product.product_code}，上传文件 {上传数} 个。", "success")
             return redirect(url_for("product_detail", product_id=product.id))
 
         return render_template(
@@ -966,6 +1083,7 @@ def create_app():
             common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
             industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
             product_extra_values={},
+            产品文件类型选项=PRODUCT_UPLOAD_TYPES,
         )
 
     @app.route("/products/<int:product_id>")
@@ -1018,6 +1136,7 @@ def create_app():
                     common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
                     industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
                     product_extra_values=(product.product_extra_fields or {}) if product else {},
+                    产品文件类型选项=PRODUCT_UPLOAD_TYPES,
                 )
 
             old_enterprise_id = product.enterprise_id
@@ -1039,10 +1158,34 @@ def create_app():
                     common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
                     industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
                     product_extra_values=(product.product_extra_fields or {}) if product else {},
+                    产品文件类型选项=PRODUCT_UPLOAD_TYPES,
+                )
+            try:
+                上传数 = 处理表单文件上传(
+                    enterprise=enterprise,
+                    product=product,
+                    类型字段名="product_upload_type",
+                    名称字段名="product_upload_name",
+                    文件字段名="product_upload_file",
+                )
+            except ValueError as exc:
+                flash(str(exc), "danger")
+                return render_template(
+                    "products/form.html",
+                    form_action=url_for("product_edit", product_id=product.id),
+                    enterprises=enterprises,
+                    form_title="编辑产品",
+                    sections=PRODUCT_FORM_SECTIONS,
+                    product=product,
+                    industries=行业下拉选项(),
+                    common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
+                    industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
+                    product_extra_values=(product.product_extra_fields or {}) if product else {},
+                    产品文件类型选项=PRODUCT_UPLOAD_TYPES,
                 )
             记录审计日志("编辑产品", "product", target_id=product.id, detail=product.product_name_cn)
             db.session.commit()
-            flash("产品信息已更新。", "success")
+            flash(f"产品信息已更新，新增上传文件 {上传数} 个。", "success")
             return redirect(url_for("product_detail", product_id=product.id))
 
         return render_template(
@@ -1056,6 +1199,7 @@ def create_app():
             common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
             industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
             product_extra_values=product.product_extra_fields or {},
+            产品文件类型选项=PRODUCT_UPLOAD_TYPES,
         )
 
     @app.post("/products/<int:product_id>/delete")
@@ -1272,7 +1416,7 @@ def create_app():
                     form_data=request.form,
                 )
 
-            document_type = request.form.get("document_type", "").strip().upper()
+            document_type = request.form.get("document_type", "").strip()
             document_name = request.form.get("document_name", "").strip()
             version = request.form.get("version", "").strip() or "V01"
             uploaded_by = request.form.get("uploaded_by", "").strip() or "未署名"
@@ -1309,17 +1453,6 @@ def create_app():
                     document_types=DOCUMENT_TYPE_OPTIONS,
                     form_data=request.form,
                 )
-            if 包含非法文件名字符(document_name):
-                flash("文件名称不能包含以下字符：\\ / : * ? \" < > |", "danger")
-                return render_template(
-                    "documents/upload.html",
-                    enterprises=enterprises,
-                    products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
-                    projects=projects,
-                    document_types=DOCUMENT_TYPE_OPTIONS,
-                    form_data=request.form,
-                )
-
             上传文件 = request.files.get("file")
             if not 上传文件 or not 上传文件.filename:
                 flash("请选择需要上传的文件。", "danger")
@@ -1333,7 +1466,7 @@ def create_app():
                 )
 
             扩展名 = Path(上传文件.filename).suffix.lower()
-            if 扩展名 in BLOCKED_EXTENSIONS or 扩展名 not in ALLOWED_EXTENSIONS:
+            if 扩展名 in BLOCKED_EXTENSIONS:
                 flash("文件类型不允许上传。", "danger")
                 return render_template(
                     "documents/upload.html",
@@ -1354,46 +1487,29 @@ def create_app():
                     form_data=request.form,
                 )
 
-            安全原始文件名 = secure_filename(上传文件.filename)
-            if not 安全原始文件名:
-                flash("上传文件名无效，请重命名后重试。", "danger")
-                return redirect(url_for("document_upload"))
-
-            企业目录 = app.config["UPLOAD_ROOT"] / f"{enterprise.enterprise_code}_{清洗路径片段(enterprise.company_name)}"
-            if product:
-                归档目录 = 企业目录 / "05_产品资料" / f"{enterprise.enterprise_code}_{product.product_code}_{清洗路径片段(product.product_name_cn)}"
-            else:
-                归档目录 = 企业目录 / 获取文件分类目录(document_type)
-            归档目录.mkdir(parents=True, exist_ok=True)
-
-            日期文本 = datetime.now().strftime("%Y%m%d")
-            标准文件名 = 构建标准文件名(
-                enterprise_code=enterprise.enterprise_code,
-                product_code=product.product_code if product else None,
-                document_type=document_type,
-                document_name=document_name,
-                version=version,
-                date_text=日期文本,
-                uploaded_by=uploaded_by,
-                extension=扩展名,
-            )
-            存储路径 = 生成不覆盖文件路径(归档目录 / 标准文件名)
-            上传文件.save(存储路径)
-
-            document = Document(
-                enterprise_id=enterprise.id,
-                product_id=product.id if product else None,
-                related_project_id=related_project_id,
-                document_type=document_type,
-                document_name=document_name,
-                version=version,
-                file_path=str(存储路径.relative_to(BASE_DIR)),
-                original_filename=安全原始文件名,
-                uploaded_by=uploaded_by,
-                notes=notes,
-            )
-            db.session.add(document)
-            db.session.flush()
+            try:
+                document = 保存文件并登记记录(
+                    app=app,
+                    enterprise=enterprise,
+                    product=product,
+                    上传文件=上传文件,
+                    document_type=document_type,
+                    document_name=清洗路径片段(document_name),
+                    uploaded_by=uploaded_by,
+                    notes=notes,
+                    related_project_id=related_project_id,
+                )
+            except ValueError as exc:
+                flash(str(exc), "danger")
+                return render_template(
+                    "documents/upload.html",
+                    enterprises=enterprises,
+                    products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
+                    projects=projects,
+                    document_types=DOCUMENT_TYPE_OPTIONS,
+                    form_data=request.form,
+                )
+            document.version = version
             记录审计日志("上传文件", "document", target_id=document.id, detail=document.document_name)
             db.session.commit()
             flash("文件上传并归档成功。", "success")
@@ -2300,17 +2416,36 @@ def 清洗路径片段(名称):
 
 
 def 获取文件分类目录(document_type):
-    return DOCUMENT_FOLDER_MAPPING.get((document_type or "").upper(), DOCUMENT_FOLDER_MAPPING["OTHER"])
+    return DOCUMENT_FOLDER_MAPPING.get((document_type or "").strip(), "13_风险审核与归档确认")
 
 
-def 构建标准文件名(enterprise_code, product_code, document_type, document_name, version, date_text, uploaded_by, extension):
+def 构建企业归档目录(enterprise):
+    行业编号 = 清洗路径片段(enterprise.industry_code or "I00")
+    企业编号 = 清洗路径片段(enterprise.enterprise_code or "E000")
+    企业名称 = 清洗路径片段(enterprise.company_name or "未命名企业")
+    省市 = 清洗路径片段((enterprise.province or "") + (enterprise.city or "")) or "未知地区"
+    入库日期 = (enterprise.created_at.date() if enterprise.created_at else date.today()).strftime("%Y%m%d")
+    目录名 = f"{行业编号}_{企业编号}_{企业名称}_{省市}_{入库日期}"
+    return Path("uploads") / "企业库" / 目录名
+
+
+def 初始化企业归档目录(upload_root, enterprise):
+    企业相对目录 = 构建企业归档目录(enterprise)
+    企业绝对目录 = BASE_DIR / 企业相对目录
+    企业绝对目录.mkdir(parents=True, exist_ok=True)
+    for 子目录 in ENTERPRISE_SUB_FOLDERS:
+        (企业绝对目录 / 子目录).mkdir(parents=True, exist_ok=True)
+    return 企业绝对目录
+
+
+def 构建标准文件名(industry_code, enterprise_code, product_code, document_type, document_name, date_text, uploaded_by, extension):
     安全文件名 = 清洗路径片段(document_name)
     安全上传人 = 清洗路径片段(uploaded_by)
-    片段 = [enterprise_code]
+    片段 = [清洗路径片段(industry_code), 清洗路径片段(enterprise_code)]
     if product_code:
-        片段.append(product_code)
-    片段.extend([document_type, 安全文件名, version, date_text, 安全上传人])
-    return "_".join(片段) + extension
+        片段.append(清洗路径片段(product_code))
+    片段.extend([清洗路径片段(document_type), 安全文件名, date_text, 安全上传人])
+    return "_".join([片段项 for 片段项 in 片段 if 片段项]) + extension
 
 
 def 生成不覆盖文件路径(目标路径):
@@ -2318,6 +2453,52 @@ def 生成不覆盖文件路径(目标路径):
         return 目标路径
     时间戳 = datetime.now().strftime("%H%M%S")
     return 目标路径.with_name(f"{目标路径.stem}_{时间戳}{目标路径.suffix}")
+
+
+def 保存文件并登记记录(app, enterprise, product, 上传文件, document_type, document_name, uploaded_by, notes=None, related_project_id=None):
+    扩展名 = Path(上传文件.filename).suffix.lower()
+    if 扩展名 in BLOCKED_EXTENSIONS:
+        raise ValueError("文件类型不允许上传。")
+    if request.content_length and request.content_length > MAX_UPLOAD_SIZE:
+        raise ValueError("单文件大小不能超过 100MB。")
+
+    安全原始文件名 = secure_filename(上传文件.filename)
+    if not 安全原始文件名:
+        raise ValueError("上传文件名无效，请重命名后重试。")
+
+    企业目录 = 初始化企业归档目录(app.config["UPLOAD_ROOT"], enterprise)
+    归档目录 = 企业目录 / 获取文件分类目录(document_type)
+    归档目录.mkdir(parents=True, exist_ok=True)
+
+    日期文本 = datetime.now().strftime("%Y%m%d")
+    标准文件名 = 构建标准文件名(
+        industry_code=enterprise.industry_code or "I00",
+        enterprise_code=enterprise.enterprise_code or "E000",
+        product_code=product.product_code if product else None,
+        document_type=document_type,
+        document_name=document_name,
+        date_text=日期文本,
+        uploaded_by=uploaded_by,
+        extension=扩展名,
+    )
+    存储路径 = 生成不覆盖文件路径(归档目录 / 标准文件名)
+    上传文件.save(存储路径)
+
+    document = Document(
+        enterprise_id=enterprise.id,
+        product_id=product.id if product else None,
+        related_project_id=related_project_id,
+        document_type=document_type,
+        document_name=document_name,
+        version="V01",
+        file_path=str(存储路径.relative_to(BASE_DIR)),
+        original_filename=安全原始文件名,
+        uploaded_by=uploaded_by,
+        notes=notes,
+    )
+    db.session.add(document)
+    db.session.flush()
+    return document
 
 
 def 包含关键词(文本, 关键词列表):

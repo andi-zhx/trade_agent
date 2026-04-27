@@ -23,7 +23,7 @@
     <a href="{{ url_for('enterprise_list') }}" class="btn btn-outline-primary btn-sm">返回企业列表</a>
 </div>
 
-<form method="post" class="vstack gap-3">
+<form method="post" enctype="multipart/form-data" class="vstack gap-3">
     <div class="card shadow-sm">
         <div class="card-header fw-bold">入库信息</div>
         <div class="card-body row g-3">
@@ -130,6 +130,32 @@
         {% endfor %}
     </div>
 
+    <div class="card shadow-sm">
+        <div class="card-header fw-bold">企业资料上传</div>
+        <div class="card-body">
+            <div id="enterpriseUploadRows" class="vstack gap-2">
+                <div class="row g-2 enterprise-upload-row">
+                    <div class="col-md-3">
+                        <select class="form-select" name="enterprise_upload_type">
+                            <option value="">请选择文件类型</option>
+                            {% for t in 企业文件类型选项 %}
+                            <option value="{{ t }}">{{ t }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <input class="form-control" name="enterprise_upload_name" placeholder="文件名称（可选）">
+                    </div>
+                    <div class="col-md-5">
+                        <input class="form-control" type="file" name="enterprise_upload_file">
+                    </div>
+                </div>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="addEnterpriseUploadRow">+ 添加文件</button>
+            <div class="form-text">禁止上传 exe / bat / sh / js。系统会自动清理非法字符并避免重名覆盖。</div>
+        </div>
+    </div>
+
     <div class="d-flex gap-2">
         <button class="btn btn-primary" type="submit">保存</button>
         <a href="{{ url_for('enterprise_list') }}" class="btn btn-outline-secondary">取消</a>
@@ -157,6 +183,19 @@
 
     industrySelect.addEventListener('change', sync);
     sync();
+
+    const uploadRows = document.getElementById('enterpriseUploadRows');
+    const addBtn = document.getElementById('addEnterpriseUploadRow');
+    if (uploadRows && addBtn) {
+        addBtn.addEventListener('click', () => {
+            const firstRow = uploadRows.querySelector('.enterprise-upload-row');
+            if (!firstRow) return;
+            const cloned = firstRow.cloneNode(true);
+            cloned.querySelectorAll('input').forEach((input) => input.value = '');
+            cloned.querySelectorAll('select').forEach((select) => select.value = '');
+            uploadRows.appendChild(cloned);
+        });
+    }
 })();
 </script>
 {% endblock %}
