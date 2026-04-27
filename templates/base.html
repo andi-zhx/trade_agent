@@ -12,7 +12,6 @@
     <aside class="app-sidebar">
         <a class="sidebar-brand" href="{{ url_for('dashboard') }}">跨境经贸资料管理系统</a>
         <nav class="nav flex-column sidebar-nav">
-            <a class="nav-link {% if request.endpoint == 'dashboard' %}active{% endif %}" href="{{ url_for('dashboard') }}">首页</a>
             <a class="nav-link {% if request.endpoint in ['enterprise_library', 'enterprise_list', 'enterprise_new', 'enterprise_detail', 'enterprise_edit'] %}active{% endif %}" href="{{ url_for('enterprise_library') }}">企业库</a>
             <a class="nav-link {% if request.endpoint in ['product_library', 'product_list', 'product_new', 'product_detail', 'product_edit'] %}active{% endif %}" href="{{ url_for('product_library') }}">产品库</a>
             <a class="nav-link {% if request.endpoint in ['backup_management', 'backup_tools'] %}active{% endif %}" href="{{ url_for('backup_management') }}">备份管理</a>
