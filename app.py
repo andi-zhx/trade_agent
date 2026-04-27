@@ -1,8 +1,10 @@
 from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+import re
 
 from flask import Flask, flash, redirect, render_template, request, session, url_for
+from sqlalchemy import or_
 
 from models import (
     Contact,
@@ -21,6 +23,19 @@ BASE_DIR = Path(__file__).resolve().parent
 PER_PAGE = 10
 
 
+PRODUCT_FORM_SECTIONS = [
+    ("A", "所属企业"),
+    ("B", "产品基础信息"),
+    ("C", "规格参数"),
+    ("D", "生产与供货能力"),
+    ("E", "价格与贸易条款"),
+    ("F", "认证与合规"),
+    ("G", "包装与物流"),
+    ("H", "市场与卖点"),
+    ("I", "售后与备注"),
+]
+
+
 def create_app():
     app = Flask(__name__)
     app.config["SECRET_KEY"] = "replace-with-a-secure-secret-key"
@@ -28,6 +43,12 @@ def create_app():
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     db.init_app(app)
+
+    @app.template_filter("currency")
+    def currency_filter(value, currency="USD"):
+        if value is None:
+            return "-"
+        return f"{currency} {value:,.2f}"
 
     @app.route("/")
     def dashboard():
@@ -292,6 +313,170 @@ def create_app():
         session.pop("用户", None)
         flash("已退出登录", "info")
         return redirect(url_for("登录"))
+
+    @app.route("/enterprises")
+    def enterprise_list():
+        enterprises = Enterprise.query.order_by(Enterprise.enterprise_code.asc()).all()
+        return render_template("enterprise_list.html", enterprises=enterprises)
+
+    @app.route("/enterprises/<int:enterprise_id>")
+    def enterprise_detail(enterprise_id):
+        enterprise = Enterprise.query.get_or_404(enterprise_id)
+        products = Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.created_at.desc()).all()
+        return render_template("enterprise_detail.html", enterprise=enterprise, products=products)
+
+    @app.route("/products")
+    def product_list():
+        q_enterprise = request.args.get("enterprise", "").strip()
+        q_keyword = request.args.get("keyword", "").strip()
+        q_category = request.args.get("category", "").strip()
+        q_hs_code = request.args.get("hs_code", "").strip()
+        q_target_market = request.args.get("target_market", "").strip()
+        q_certification = request.args.get("certification", "").strip()
+        q_price_min = request.args.get("price_min", "").strip()
+        q_price_max = request.args.get("price_max", "").strip()
+
+        query = Product.query.join(Enterprise, Product.enterprise_id == Enterprise.id)
+
+        if q_enterprise:
+            query = query.filter(Enterprise.company_name.ilike(f"%{q_enterprise}%"))
+        if q_keyword:
+            keyword_like = f"%{q_keyword}%"
+            query = query.filter(
+                or_(
+                    Product.product_name_cn.ilike(keyword_like),
+                    Product.product_name_en.ilike(keyword_like),
+                    Product.model.ilike(keyword_like),
+                )
+            )
+        if q_category:
+            query = query.filter(Product.product_category.ilike(f"%{q_category}%"))
+        if q_hs_code:
+            query = query.filter(Product.hs_code.ilike(f"%{q_hs_code}%"))
+        if q_target_market:
+            query = query.filter(Product.target_market.ilike(f"%{q_target_market}%"))
+        if q_certification:
+            query = query.filter(Product.certifications.ilike(f"%{q_certification}%"))
+
+        if q_price_min:
+            try:
+                price_min = Decimal(q_price_min)
+                query = query.filter(or_(Product.fob_price >= price_min, Product.cif_price >= price_min, Product.ddp_price >= price_min))
+            except InvalidOperation:
+                flash("最低价格输入格式无效，已忽略。", "warning")
+        if q_price_max:
+            try:
+                price_max = Decimal(q_price_max)
+                query = query.filter(or_(Product.fob_price <= price_max, Product.cif_price <= price_max, Product.ddp_price <= price_max))
+            except InvalidOperation:
+                flash("最高价格输入格式无效，已忽略。", "warning")
+
+        products = query.order_by(Product.updated_at.desc()).all()
+        enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
+        categories = [r[0] for r in db.session.query(Product.product_category).filter(Product.product_category.isnot(None)).distinct().all()]
+        return render_template(
+            "products/list.html",
+            products=products,
+            enterprises=enterprises,
+            categories=categories,
+            filters=request.args,
+        )
+
+    @app.route("/products/new", methods=["GET", "POST"])
+    def product_new():
+        enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
+        if request.method == "POST":
+            enterprise_id = request.form.get("enterprise_id", type=int)
+            enterprise = Enterprise.query.get(enterprise_id) if enterprise_id else None
+            if not enterprise:
+                flash("请选择有效的所属企业。", "danger")
+                return render_template(
+                    "products/form.html",
+                    form_action=url_for("product_new"),
+                    enterprises=enterprises,
+                    form_title="新增产品",
+                    sections=PRODUCT_FORM_SECTIONS,
+                    product=None,
+                )
+
+            product = Product(
+                enterprise_id=enterprise.id,
+                product_code=generate_product_code(enterprise.id),
+            )
+            fill_product_from_form(product, request.form)
+            db.session.add(product)
+            db.session.commit()
+            flash(f"产品已创建，编号：{product.product_code}。", "success")
+            return redirect(url_for("product_detail", product_id=product.id))
+
+        return render_template(
+            "products/form.html",
+            form_action=url_for("product_new"),
+            enterprises=enterprises,
+            form_title="新增产品",
+            sections=PRODUCT_FORM_SECTIONS,
+            product=None,
+        )
+
+    @app.route("/products/<int:product_id>")
+    def product_detail(product_id):
+        product = Product.query.get_or_404(product_id)
+        enterprise = Enterprise.query.get(product.enterprise_id)
+        certificates = Qualification.query.filter_by(product_id=product.id).order_by(Qualification.expiry_date.desc()).all()
+        product_files = Document.query.filter_by(product_id=product.id).order_by(Document.uploaded_at.desc()).all()
+        archive_code = f"{enterprise.enterprise_code}_{product.product_code}" if enterprise else product.product_code
+        return render_template(
+            "products/detail.html",
+            product=product,
+            enterprise=enterprise,
+            certificates=certificates,
+            product_files=product_files,
+            archive_code=archive_code,
+        )
+
+    @app.route("/products/<int:product_id>/edit", methods=["GET", "POST"])
+    def product_edit(product_id):
+        product = Product.query.get_or_404(product_id)
+        enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
+        if request.method == "POST":
+            enterprise_id = request.form.get("enterprise_id", type=int)
+            enterprise = Enterprise.query.get(enterprise_id) if enterprise_id else None
+            if not enterprise:
+                flash("请选择有效的所属企业。", "danger")
+                return render_template(
+                    "products/form.html",
+                    form_action=url_for("product_edit", product_id=product.id),
+                    enterprises=enterprises,
+                    form_title="编辑产品",
+                    sections=PRODUCT_FORM_SECTIONS,
+                    product=product,
+                )
+
+            old_enterprise_id = product.enterprise_id
+            product.enterprise_id = enterprise.id
+            if old_enterprise_id != enterprise.id:
+                product.product_code = generate_product_code(enterprise.id)
+            fill_product_from_form(product, request.form)
+            db.session.commit()
+            flash("产品信息已更新。", "success")
+            return redirect(url_for("product_detail", product_id=product.id))
+
+        return render_template(
+            "products/form.html",
+            form_action=url_for("product_edit", product_id=product.id),
+            enterprises=enterprises,
+            form_title="编辑产品",
+            sections=PRODUCT_FORM_SECTIONS,
+            product=product,
+        )
+
+    @app.post("/products/<int:product_id>/delete")
+    def product_delete(product_id):
+        product = Product.query.get_or_404(product_id)
+        db.session.delete(product)
+        db.session.commit()
+        flash("产品已删除。", "info")
+        return redirect(url_for("product_list"))
 
     @app.cli.command("init-db")
     def init_db_command():
