@@ -33,6 +33,20 @@
                     <div class="col-md-12 mb-2"><strong>卖点：</strong>{{ product.product_selling_points or '-' }}</div>
                     <div class="col-md-12 mb-2"><strong>备注：</strong>{{ product.notes or '-' }}</div>
                 </div>
+                {% if product_extra_display_groups %}
+                <hr>
+                <h6 class="fw-bold mb-2">通用/行业专项产品信息</h6>
+                {% for group in product_extra_display_groups %}
+                <div class="mb-2">
+                    <div class="fw-semibold">{{ group.title }}</div>
+                    <div class="row small">
+                        {% for field in group.fields %}
+                        <div class="col-md-6 mb-1"><strong>{{ field.label }}：</strong>{{ field.value }}</div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+                {% endif %}
             </div>
         </div>
     </div>

@@ -39,29 +39,20 @@
 <table class="table table-bordered table-hover align-middle small">
     <thead class="table-light">
     <tr>
-        <th>企业编号</th><th>企业名称</th><th>产品编号</th><th>产品中文名</th><th>行业分类</th><th>产品英文名</th><th>产品类别</th><th>HS编码</th><th>型号</th><th>MOQ</th><th>生产周期</th><th>FOB价格</th><th>CIF价格</th><th>DDP价格</th><th>报价有效期</th><th>目标市场</th><th>认证类型</th><th>操作</th>
+        <th>企业</th><th>产品编号</th><th>产品名称</th><th>行业分类</th><th>产品类别</th><th>型号</th><th>FOB价格</th><th>MOQ</th><th>操作</th>
     </tr>
     </thead>
     <tbody>
     {% for p in products %}
     <tr>
-        <td>{{ p.enterprise.enterprise_code if p.enterprise else '-' }}</td>
-        <td>{{ p.enterprise.company_name if p.enterprise else '-' }}</td>
+        <td>{{ p.enterprise.enterprise_code if p.enterprise else '-' }} / {{ p.enterprise.company_name if p.enterprise else '-' }}</td>
         <td>{{ p.product_code }}</td>
-        <td>{{ p.product_name_cn }}</td>
+        <td>{{ p.product_name_cn }}{% if p.product_name_en %}<div class="text-muted">{{ p.product_name_en }}</div>{% endif %}</td>
         <td>{% if p.industry_code %}{{ p.industry_code }} {{ p.industry_name or '' }}{% else %}-{% endif %}</td>
-        <td>{{ p.product_name_en or '-' }}</td>
         <td>{{ p.product_category or '-' }}</td>
-        <td>{{ p.hs_code or '-' }}</td>
         <td>{{ p.model or '-' }}</td>
-        <td>{{ p.moq or '-' }}</td>
-        <td>{{ p.production_cycle or '-' }}</td>
         <td>{{ p.fob_price|currency(p.currency) }}</td>
-        <td>{{ p.cif_price|currency(p.currency) }}</td>
-        <td>{{ p.ddp_price|currency(p.currency) }}</td>
-        <td>{{ p.quote_valid_until or '-' }}</td>
-        <td>{{ p.target_market or '-' }}</td>
-        <td>{{ p.certifications or '-' }}</td>
+        <td>{{ p.moq or '-' }}</td>
         <td>
             <a class="btn btn-sm btn-outline-primary" href="{{ url_for('product_detail', product_id=p.id) }}">查看</a>
             <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('product_edit', product_id=p.id) }}">编辑</a>
@@ -74,7 +65,7 @@
         </td>
     </tr>
     {% else %}
-    <tr><td colspan="18" class="text-center text-muted">暂无产品数据</td></tr>
+    <tr><td colspan="9" class="text-center text-muted">暂无产品数据</td></tr>
     {% endfor %}
     </tbody>
 </table>

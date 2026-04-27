@@ -15,6 +15,7 @@ from werkzeug.utils import secure_filename
 
 from config.enterprise_form_config import COMMON_ENTERPRISE_FIELD_GROUPS, INDUSTRY_EXTRA_FIELD_CONFIG
 from config.industry_config import INDUSTRY_MAP, INDUSTRY_OPTIONS
+from config.product_form_config import COMMON_PRODUCT_FIELD_GROUPS, INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG
 from models import (
     Contact,
     Demand,
@@ -272,6 +273,47 @@ def create_app():
                 continue
             数据[键名] = 值
         return 数据
+
+    def 产品行业专项字段组(行业代码):
+        return INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG.get((行业代码 or "").strip(), [])
+
+    def 产品扩展字段配置(行业代码):
+        配置 = []
+        for 分组 in COMMON_PRODUCT_FIELD_GROUPS:
+            配置.extend(分组.get("fields", []))
+        for 分组 in 产品行业专项字段组(行业代码):
+            配置.extend(分组.get("fields", []))
+        return 配置
+
+    def 提取产品扩展字段(form, 行业代码):
+        数据 = {}
+        for 字段 in 产品扩展字段配置(行业代码):
+            键名 = 字段["key"]
+            if 字段.get("type") == "checkbox_group":
+                值 = 读取多选值(form, 键名)
+            else:
+                原值 = form.get(键名, "")
+                值 = 原值.strip() if isinstance(原值, str) else 原值
+            if 值 in (None, "", []):
+                continue
+            数据[键名] = 值
+        return 数据
+
+    def 构建产品扩展信息分组(行业代码, 扩展字段):
+        扩展字段 = 扩展字段 or {}
+        分组数据 = []
+        for 分组 in [*COMMON_PRODUCT_FIELD_GROUPS, *产品行业专项字段组(行业代码)]:
+            字段列表 = []
+            for 字段 in 分组.get("fields", []):
+                值 = 扩展字段.get(字段["key"])
+                if 值 in (None, "", []):
+                    continue
+                if isinstance(值, list):
+                    值 = "、".join(值)
+                字段列表.append({"label": 字段["label"], "value": 值})
+            if 字段列表:
+                分组数据.append({"title": 分组["title"], "fields": 字段列表})
+        return 分组数据
 
     @app.route("/")
     def dashboard():
@@ -881,6 +923,9 @@ def create_app():
                     sections=PRODUCT_FORM_SECTIONS,
                     product=None,
                     industries=行业下拉选项(),
+                    common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
+                    industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
+                    product_extra_values={},
                 )
 
             product = Product(
@@ -899,6 +944,9 @@ def create_app():
                     sections=PRODUCT_FORM_SECTIONS,
                     product=product,
                     industries=行业下拉选项(),
+                    common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
+                    industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
+                    product_extra_values=product.product_extra_fields or {},
                 )
             db.session.add(product)
             db.session.flush()
@@ -915,6 +963,9 @@ def create_app():
             sections=PRODUCT_FORM_SECTIONS,
             product=None,
             industries=行业下拉选项(),
+            common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
+            industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
+            product_extra_values={},
         )
 
     @app.route("/products/<int:product_id>")
@@ -944,6 +995,7 @@ def create_app():
             product_files=product_files,
             archive_code=archive_code,
             匹配需求列表=匹配需求列表,
+            product_extra_display_groups=构建产品扩展信息分组(product.industry_code, product.product_extra_fields),
         )
 
     @app.route("/products/<int:product_id>/edit", methods=["GET", "POST"])
@@ -963,6 +1015,9 @@ def create_app():
                     sections=PRODUCT_FORM_SECTIONS,
                     product=product,
                     industries=行业下拉选项(),
+                    common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
+                    industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
+                    product_extra_values=(product.product_extra_fields or {}) if product else {},
                 )
 
             old_enterprise_id = product.enterprise_id
@@ -981,6 +1036,9 @@ def create_app():
                     sections=PRODUCT_FORM_SECTIONS,
                     product=product,
                     industries=行业下拉选项(),
+                    common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
+                    industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
+                    product_extra_values=(product.product_extra_fields or {}) if product else {},
                 )
             记录审计日志("编辑产品", "product", target_id=product.id, detail=product.product_name_cn)
             db.session.commit()
@@ -995,6 +1053,9 @@ def create_app():
             sections=PRODUCT_FORM_SECTIONS,
             product=product,
             industries=行业下拉选项(),
+            common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
+            industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
+            product_extra_values=product.product_extra_fields or {},
         )
 
     @app.post("/products/<int:product_id>/delete")
@@ -1631,6 +1692,51 @@ def generate_product_code(enterprise_id):
     return f"P{seq:03d}"
 
 
+def 产品行业专项字段组(行业代码):
+    return INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG.get((行业代码 or "").strip(), [])
+
+
+def 产品扩展字段配置(行业代码):
+    配置 = []
+    for 分组 in COMMON_PRODUCT_FIELD_GROUPS:
+        配置.extend(分组.get("fields", []))
+    for 分组 in 产品行业专项字段组(行业代码):
+        配置.extend(分组.get("fields", []))
+    return 配置
+
+
+def 提取产品扩展字段(form, 行业代码):
+    数据 = {}
+    for 字段 in 产品扩展字段配置(行业代码):
+        键名 = 字段["key"]
+        if 字段.get("type") == "checkbox_group":
+            值 = [item.strip() for item in form.getlist(键名) if item and item.strip()]
+        else:
+            原值 = form.get(键名, "")
+            值 = 原值.strip() if isinstance(原值, str) else 原值
+        if 值 in (None, "", []):
+            continue
+        数据[键名] = 值
+    return 数据
+
+
+def 构建产品扩展信息分组(行业代码, 扩展字段):
+    扩展字段 = 扩展字段 or {}
+    分组数据 = []
+    for 分组 in [*COMMON_PRODUCT_FIELD_GROUPS, *产品行业专项字段组(行业代码)]:
+        字段列表 = []
+        for 字段 in 分组.get("fields", []):
+            值 = 扩展字段.get(字段["key"])
+            if 值 in (None, "", []):
+                continue
+            if isinstance(值, list):
+                值 = "、".join(值)
+            字段列表.append({"label": 字段["label"], "value": 值})
+        if 字段列表:
+            分组数据.append({"title": 分组["title"], "fields": 字段列表})
+    return 分组数据
+
+
 def fill_product_from_form(product, form):
     enterprise = Enterprise.query.get(product.enterprise_id) if product.enterprise_id else None
     选中行业代码 = (form.get("industry_code") or "").strip() or (enterprise.industry_code if enterprise else "")
@@ -1678,6 +1784,7 @@ def fill_product_from_form(product, form):
     product.warranty = form.get("warranty", "").strip() or None
     product.product_selling_points = form.get("product_selling_points", "").strip() or None
     product.notes = form.get("notes", "").strip() or None
+    product.product_extra_fields = 提取产品扩展字段(form, product.industry_code)
     if not product.product_name_cn:
         raise ValueError("产品中文名为必填项")
 
@@ -2340,6 +2447,8 @@ def init_db(app):
         if "industry_name" not in product_columns:
             db.session.execute(text("ALTER TABLE products ADD COLUMN industry_name VARCHAR(100)"))
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_products_industry_name ON products (industry_name)"))
+        if "product_extra_fields" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN product_extra_fields JSON"))
         db.session.commit()
 
         db.session.execute(
