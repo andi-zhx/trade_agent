@@ -9,8 +9,15 @@
 <div class="card mb-3">
     <div class="card-body">
         <form class="row g-2" method="get">
-            <div class="col-md-3"><input name="enterprise" class="form-control" placeholder="企业名称" value="{{ filters.get('enterprise','') }}"></div>
-            <div class="col-md-3"><input name="keyword" class="form-control" placeholder="产品关键词" value="{{ filters.get('keyword','') }}"></div>
+            <div class="col-md-3"><input name="keyword" class="form-control" placeholder="产品名称关键词" value="{{ filters.get('keyword','') }}"></div>
+            <div class="col-md-2">
+                <select name="enterprise" class="form-select">
+                    <option value="">所属企业（全部）</option>
+                    {% for ent in enterprises %}
+                    <option value="{{ ent.id }}" {% if filters.get('enterprise') == ent.id|string %}selected{% endif %}>{{ ent.company_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
             <div class="col-md-2">
                 <select name="industry" class="form-select">
                     <option value="">行业分类（全部）</option>
@@ -21,10 +28,40 @@
             </div>
             <div class="col-md-2"><input name="category" class="form-control" placeholder="产品类别" value="{{ filters.get('category','') }}"></div>
             <div class="col-md-2"><input name="hs_code" class="form-control" placeholder="HS编码" value="{{ filters.get('hs_code','') }}"></div>
-            <div class="col-md-2"><input name="target_market" class="form-control" placeholder="目标市场" value="{{ filters.get('target_market','') }}"></div>
             <div class="col-md-3"><input name="certification" class="form-control" placeholder="认证类型" value="{{ filters.get('certification','') }}"></div>
-            <div class="col-md-2"><input type="number" step="0.01" name="price_min" class="form-control" placeholder="最低价格" value="{{ filters.get('price_min','') }}"></div>
-            <div class="col-md-2"><input type="number" step="0.01" name="price_max" class="form-control" placeholder="最高价格" value="{{ filters.get('price_max','') }}"></div>
+            <div class="col-md-2">
+                <select name="moq_range" class="form-select">
+                    <option value="">MOQ范围（全部）</option>
+                    {% for option in moq_options %}
+                    <option value="{{ option }}" {% if filters.get('moq_range') == option %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="production_cycle" class="form-select">
+                    <option value="">生产周期（全部）</option>
+                    {% for option in production_cycle_options %}
+                    <option value="{{ option }}" {% if filters.get('production_cycle') == option %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% for name, label in [('customization_supported','支持定制'), ('fit_cross_border','跨境电商'), ('fit_engineering','工程采购'), ('fit_distributor','经销代理')] %}
+            <div class="col-md-2">
+                <select name="{{ name }}" class="form-select">
+                    <option value="">{{ label }}（全部）</option>
+                    {% for option in ['是','否','待判断'] %}
+                    <option value="{{ option }}" {% if filters.get(name) == option %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            {% endfor %}
+            <div class="col-md-2">
+                <select name="status" class="form-select">
+                    <option value="active" {% if filters.get('status', 'active') == 'active' %}selected{% endif %}>仅启用产品</option>
+                    <option value="inactive" {% if filters.get('status') == 'inactive' %}selected{% endif %}>仅停用产品</option>
+                    <option value="" {% if filters.get('status') == '' %}selected{% endif %}>全部状态</option>
+                </select>
+            </div>
             <div class="col-md-2">
                 <button class="btn btn-outline-primary w-100">筛选</button>
             </div>
@@ -39,23 +76,57 @@
 <table class="table table-bordered table-hover align-middle small">
     <thead class="table-light">
     <tr>
-        <th>企业</th><th>产品编号</th><th>产品名称</th><th>行业分类</th><th>产品类别</th><th>型号</th><th>FOB价格</th><th>MOQ</th><th>操作</th>
+        <th>产品编号</th>
+        <th>产品名称</th>
+        <th>所属企业</th>
+        <th>行业分类</th>
+        <th>产品类别</th>
+        <th>HS编码</th>
+        <th>MOQ</th>
+        <th>生产周期</th>
+        <th>FOB价</th>
+        <th>主要认证</th>
+        <th>可样品</th>
+        <th>支持定制</th>
+        <th>跨境电商</th>
+        <th>工程采购</th>
+        <th>经销代理</th>
+        <th>最近更新时间</th>
+        <th>操作</th>
     </tr>
     </thead>
     <tbody>
     {% for p in products %}
+    {% set extra = p.product_extra_fields or {} %}
     <tr>
-        <td>{{ p.enterprise.enterprise_code if p.enterprise else '-' }} / {{ p.enterprise.company_name if p.enterprise else '-' }}</td>
         <td>{{ p.product_code }}</td>
-        <td>{{ p.product_name_cn }}{% if p.product_name_en %}<div class="text-muted">{{ p.product_name_en }}</div>{% endif %}</td>
+        <td>
+            {{ p.product_name_cn }}
+            {% if p.status == 'inactive' %}<span class="badge text-bg-secondary">停用</span>{% endif %}
+            {% if p.product_name_en %}<div class="text-muted">{{ p.product_name_en }}</div>{% endif %}
+        </td>
+        <td>{{ p.enterprise.company_name if p.enterprise else '-' }}</td>
         <td>{% if p.industry_code %}{{ p.industry_code }} {{ p.industry_name or '' }}{% else %}-{% endif %}</td>
         <td>{{ p.product_category or '-' }}</td>
-        <td>{{ p.model or '-' }}</td>
+        <td>{{ p.hs_code or '-' }}</td>
+        <td>{{ p.moq or extra.get('trade_moq') or '-' }}</td>
+        <td>{{ p.production_cycle or extra.get('trade_mass_cycle') or '-' }}</td>
         <td>{{ p.fob_price|currency(p.currency) }}</td>
-        <td>{{ p.moq or '-' }}</td>
+        <td>{{ p.certifications or '-' }}</td>
+        <td>{{ '否' if extra.get('trade_sample_policy') == '不支持样品' else '是' }}</td>
+        <td>{{ extra.get('support_customization') or ('是' if p.customization_supported else '否') }}</td>
+        <td>{{ extra.get('fit_cross_border') or '待判断' }}</td>
+        <td>{{ extra.get('fit_engineering') or '待判断' }}</td>
+        <td>{{ extra.get('fit_distributor') or '待判断' }}</td>
+        <td>{{ p.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
         <td>
             <a class="btn btn-sm btn-outline-primary" href="{{ url_for('product_detail', product_id=p.id) }}">查看</a>
             <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('product_edit', product_id=p.id) }}">编辑</a>
+            <a class="btn btn-sm btn-outline-info" href="{{ url_for('document_upload', enterprise_id=p.enterprise_id, product_id=p.id) }}">上传文件</a>
+            <form method="post" action="{{ url_for('product_toggle_status', product_id=p.id) }}" class="d-inline">
+                <input type="hidden" name="action" value="{{ 'enable' if p.status == 'inactive' else 'disable' }}">
+                <button class="btn btn-sm btn-outline-warning" type="submit">{{ '启用' if p.status == 'inactive' else '停用' }}</button>
+            </form>
             {% if 是管理员 %}
             <form method="post" action="{{ url_for('product_delete', product_id=p.id) }}" class="d-inline" onsubmit="return confirm('确认删除该产品？');">
                 <input type="hidden" name="confirm_delete" value="YES">
@@ -65,7 +136,7 @@
         </td>
     </tr>
     {% else %}
-    <tr><td colspan="9" class="text-center text-muted">暂无产品数据</td></tr>
+    <tr><td colspan="17" class="text-center text-muted">暂无产品数据</td></tr>
     {% endfor %}
     </tbody>
 </table>
