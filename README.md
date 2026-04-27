@@ -12,20 +12,21 @@
 - 建立 **归档中心**：保存项目过程文件和归档资料。
 - 支撑后续数据分析能力：为出海方案推荐与服务策略制定提供数据支撑。
 
-## 二、当前功能（第一版）
+## 二、当前功能
 
 - Flask + SQLAlchemy 项目骨架。
 - SQLite 本地数据库（默认 `trade_agent.db`）。
 - 预留 PostgreSQL 升级能力（替换数据库连接字符串即可）。
 - 简单登录模块（预置 `users` 表，默认账号 `admin/admin123`）。
 - 中文化 Dashboard 首页，展示系统名称、统计卡片与核心模块入口。
-- 统一布局模板（Jinja2 + Bootstrap 5）。
+- `python app.py` 启动时自动初始化数据库并自动建表。
 
 ## 三、项目结构
 
 ```text
 trade_agent/
 ├── app.py
+├── models.py
 ├── requirements.txt
 ├── README.md
 ├── trade_agent.db               # 首次启动后自动创建
@@ -45,7 +46,7 @@ trade_agent/
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate    # Windows 可使用 .venv\\Scripts\\activate
+source .venv/bin/activate    # Windows 可使用 .venv\Scripts\activate
 ```
 
 ### 2) 安装依赖
@@ -65,27 +66,50 @@ python app.py
 - 首页（Dashboard）：`http://127.0.0.1:5000/`
 - 登录页：`http://127.0.0.1:5000/登录`
 
-## 五、数据库说明
+## 五、数据库模型说明
 
-### 默认数据库（SQLite）
+所有模型定义在 `models.py`，核心表如下：
 
-项目默认使用：
+- `enterprises`：企业主档（企业编号、企业画像、经营与产能、营收、出海需求、风险与状态）。
+- `contacts`：企业联系人（法定代表人、外贸负责人、项目对接人等）。
+- `products`：产品档案（产品名称、参数、价格体系、认证、包装、卖点等）。
+- `qualifications`：资质证照（企业/产品层面的证书信息、有效期、状态、附件路径）。
+- `foreign_clients`：外资客户（客户基础信息及联系人）。
+- `demands`：外资需求（需求编号、采购要素、价格与交付条款、优先级和跟进状态）。
+- `match_records`：撮合匹配记录（需求与企业/产品匹配结果、分数、推荐状态、风险提示）。
+- `project_progress`：项目进展（从首联到报价、谈判、签约的阶段性跟踪）。
+- `documents`：文件归档（文档类型、版本、存储路径、上传信息）。
+- `audit_logs`：操作日志（操作者、动作、目标对象、明细）。
+- `users`：系统登录用户（当前用于演示登录，可扩展权限体系）。
 
-```python
-sqlite:///trade_agent.db
+### 表关系简述
+
+- 一个 `enterprise` 可关联多个 `contacts`、`products`、`qualifications`、`documents`。
+- 一个 `foreign_client` 可关联多个 `demands`。
+- 一个 `demand` 可关联多个 `match_records`。
+- `project_progress` 可同时关联企业、产品、外资客户与需求。
+- `documents` 可关联企业、产品与项目进展记录。
+
+## 六、数据库初始化逻辑
+
+### 自动初始化（推荐）
+
+执行 `python app.py` 时会自动执行：
+
+1. `db.create_all()` 创建所有表。
+2. 检查并创建默认管理员账号 `admin/admin123`（仅首次创建）。
+
+### 手动初始化
+
+也可使用 Flask CLI：
+
+```bash
+flask init-db
 ```
 
-### 后续升级 PostgreSQL
+> 如使用 Flask CLI，请确保环境变量 `FLASK_APP=app.py`（或等效设置）已配置。
 
-在 `app.py` 中将 `SQLALCHEMY_DATABASE_URI` 改为例如：
-
-```python
-postgresql+psycopg2://user:password@localhost:5432/trade_agent
-```
-
-再执行迁移/建表流程即可完成升级。
-
-## 六、后续建议迭代
+## 七、后续建议迭代
 
 - 增加企业、产品、资质、需求、撮合的增删改查页面。
 - 增加文件上传与归档管理。
