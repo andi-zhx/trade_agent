@@ -3,178 +3,187 @@
 
 {% block content %}
 {% set ext = 扩展字段 or {} %}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <a href="{{ url_for('enterprise_list') }}" class="btn btn-outline-secondary btn-sm">返回企业列表</a>
-    <div class="d-flex gap-2">
-        <a href="{{ url_for('enterprise_edit', id=企业.id) }}" class="btn btn-warning btn-sm">编辑</a>
-    </div>
-</div>
+{% set completeness_score = 完整度信息.score if 完整度信息 and 完整度信息.score is not none else (ext.get('material_completeness_score') or 0) %}
+{% set risk_tips = [] %}
+{% if ext.get('has_major_litigation') == '是' %}{% set _ = risk_tips.append('存在重大诉讼风险，请优先核查案件进展。') %}{% endif %}
+{% if ext.get('has_admin_penalty') == '是' %}{% set _ = risk_tips.append('存在行政处罚记录，请评估合规整改情况。') %}{% endif %}
+{% if ext.get('has_dishonest_record') == '是' %}{% set _ = risk_tips.append('存在失信记录，建议谨慎推进合作。') %}{% endif %}
+{% if ext.get('certificate_validity_status') in ['部分临期', '部分过期'] %}{% set _ = risk_tips.append('证书有效期状态为“' ~ ext.get('certificate_validity_status') ~ '”，请尽快补齐或续期。') %}{% endif %}
+{% if ext.get('certificate_completeness') == '待补充' %}{% set _ = risk_tips.append('证书资料待补充，建议补齐核心资质后再评估推荐。') %}{% endif %}
+{% if completeness_score < 50 %}{% set _ = risk_tips.append('资料完整度低于 50%，请优先完善关键字段与附件。') %}{% endif %}
 
-<div class="card shadow-sm mb-3">
-    <div class="card-header fw-bold d-flex justify-content-between align-items-center">
-        <span>快速操作</span>
-        <div class="d-flex flex-wrap gap-2">
-            <a href="{{ url_for('product_new') }}" class="btn btn-sm btn-outline-primary">新增产品</a>
-            <a href="{{ url_for('document_upload', enterprise_id=企业.id) }}" class="btn btn-sm btn-outline-primary">上传企业文件</a>
-            <a href="{{ url_for('enterprise_export', id=企业.id) }}" class="btn btn-sm btn-outline-success">导出企业信息</a>
-            <a href="{{ url_for('enterprise_folder_download', id=企业.id) }}" class="btn btn-sm btn-outline-info">打开企业文件夹</a>
-        </div>
-    </div>
-</div>
+{% macro show_text(value) -%}
+    {%- if value is string -%}
+        {{ value.strip() if value and value.strip() else '未填写' }}
+    {%- elif value is not none and value != '' -%}
+        {{ value }}
+    {%- else -%}
+        未填写
+    {%- endif -%}
+{%- endmacro %}
 
-<div class="card shadow-sm mb-3">
-    <div class="card-body d-flex align-items-center justify-content-between">
-        <div class="fw-bold">资料完整度</div>
-        <span class="badge bg-{% if 完整度信息.color == 'success' %}success{% elif 完整度信息.color == 'warning' %}warning text-dark{% else %}danger{% endif %} fs-6">{{ 完整度信息.label }}</span>
-    </div>
-</div>
+{% macro show_tags(values) -%}
+    {%- if values is string -%}
+        {%- set values = [values] if values.strip() else [] -%}
+    {%- endif -%}
+    {%- if values and values|length > 0 -%}
+        <div class="d-flex flex-wrap gap-1">
+            {%- for item in values -%}
+                <span class="badge rounded-pill text-bg-light border">{{ item }}</span>
+            {%- endfor -%}
+        </div>
+    {%- else -%}
+        <span class="text-muted">未填写</span>
+    {%- endif -%}
+{%- endmacro %}
 
-{% if 缺失资料提示 %}
-<div class="alert alert-warning shadow-sm">
-    <div class="fw-bold mb-1">缺失项清单</div>
-    <ul class="mb-0">
-        {% for item in 缺失资料提示 %}
-        <li>{{ item }}</li>
-        {% endfor %}
-    </ul>
-</div>
-{% endif %}
+{% macro field_value(field) -%}
+    {%- set key = field.key -%}
+    {%- set val = ext.get(key) -%}
+    {%- if key == 'company_full_name' and not val -%}{% set val = 企业.company_name %}{%- endif -%}
+    {%- if key == 'english_name' and not val -%}{% set val = 企业.english_name %}{%- endif -%}
+    {%- if key == 'unified_social_credit_code' and not val -%}{% set val = 企业.unified_social_credit_code %}{%- endif -%}
+    {%- if key == 'registered_address' and not val -%}{% set val = 企业.registered_address %}{%- endif -%}
+    {%- if key == 'business_address' and not val -%}{% set val = 企业.business_address %}{%- endif -%}
+    {%- if key == 'founded_date' and not val -%}{% set val = 企业.founded_date.strftime('%Y-%m-%d') if 企业.founded_date else '' %}{%- endif -%}
+    {%- if key == 'registered_capital' and not val -%}{% set val = 企业.registered_capital %}{%- endif -%}
+    {%- if key == 'main_business' and not val -%}{% set val = 企业.main_business %}{%- endif -%}
+    {%- if key == 'export_experience' and not val -%}{% set val = '是' if 企业.has_foreign_trade_experience else '否' %}{%- endif -%}
+    {%- if key == 'factory_area_range' and not val -%}{% set val = 企业.factory_area %}{%- endif -%}
+    {%- if key == 'employee_count_range' and not val and 企业.employee_count -%}{% set val = 企业.employee_count ~ '人' %}{%- endif -%}
+    {%- if key == 'target_expansion_markets' and not val and 企业.target_markets -%}{% set val = 企业.target_markets.split('、') %}{%- endif -%}
 
-<div class="row g-3">
-    <div class="col-lg-6">
-        <div class="card shadow-sm h-100">
-            <div class="card-header fw-bold">企业基础资料</div>
-            <div class="card-body small">
-                <div><strong>企业编号：</strong>{{ 企业.enterprise_code }}</div>
-                <div><strong>企业名称：</strong>{{ 企业.company_name }}</div>
-                <div><strong>英文名称：</strong>{{ 企业.english_name or '-' }}</div>
-                <div><strong>统一社会信用代码：</strong>{{ 企业.unified_social_credit_code or '-' }}</div>
-                <div><strong>行业分类：</strong>{{ 企业.industry_code or '-' }} {{ 企业.industry_category or '' }}</div>
-                <div><strong>省市：</strong>{{ 企业.province or '-' }} / {{ 企业.city or '-' }}</div>
-                <div><strong>企业性质：</strong>{{ ext.get('enterprise_natures', [])|join('、') if ext.get('enterprise_natures') else (企业.company_type or '-') }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-6">
-        <div class="card shadow-sm h-100">
-            <div class="card-header fw-bold">联系信息</div>
-            <div class="card-body small">
-                <div><strong>外贸负责人：</strong>{{ ext.get('trade_lead') or '-' }}</div>
-                <div><strong>销售负责人：</strong>{{ ext.get('sales_lead') or '-' }}</div>
-                <div><strong>项目对接人：</strong>{{ ext.get('project_contact') or '-' }}</div>
-                <div><strong>电话：</strong>{{ ext.get('contact_phone') or '-' }}</div>
-                <div><strong>邮箱：</strong>{{ ext.get('contact_email') or '-' }}</div>
-                <div><strong>官网：</strong>{{ ext.get('website') or '-' }}</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-6">
-        <div class="card shadow-sm h-100">
-            <div class="card-header fw-bold">经营情况</div>
-            <div class="card-body small">
-                <div><strong>主营业务：</strong>{{ ext.get('main_business') or 企业.main_business or '-' }}</div>
-                <div><strong>主营产品：</strong>{{ ext.get('core_products') or 企业.main_products or '-' }}</div>
-                <div><strong>年销售额区间：</strong>{{ ext.get('annual_sales') or '-' }}</div>
-                <div><strong>年出口额区间：</strong>{{ ext.get('annual_exports') or '-' }}</div>
-                <div><strong>主要客户：</strong>{{ ext.get('major_clients') or '-' }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-6">
-        <div class="card shadow-sm h-100">
-            <div class="card-header fw-bold">生产能力</div>
-            <div class="card-body small">
-                <div><strong>厂房面积：</strong>{{ ext.get('factory_area_range') or 企业.factory_area or '-' }}</div>
-                <div><strong>员工数量：</strong>{{ ext.get('employee_count_range') or (企业.employee_count ~ '人' if 企业.employee_count else '-') }}</div>
-                <div><strong>产线数量：</strong>{{ ext.get('production_line_count') or '-' }}</div>
-                <div><strong>年产能：</strong>{{ ext.get('annual_capacity_level') or 企业.annual_capacity or '-' }}</div>
-                <div><strong>产能利用率：</strong>{{ ext.get('capacity_utilization') or '-' }}</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-6">
-        <div class="card shadow-sm h-100">
-            <div class="card-header fw-bold">外贸能力</div>
-            <div class="card-body small">
-                <div><strong>是否有出口经验：</strong>{{ ext.get('export_experience') or ('是' if 企业.has_foreign_trade_experience else '否') }}</div>
-                <div><strong>出口国家：</strong>{{ ext.get('export_countries') or 企业.export_countries or '-' }}</div>
-                <div><strong>常用贸易条款：</strong>{{ ext.get('trade_terms', [])|join('、') if ext.get('trade_terms') else '-' }}</div>
-                <div><strong>英文沟通能力：</strong>{{ ext.get('english_communication') or '-' }}</div>
-            </div>
-        </div>
-    </div>
-    <div class="col-lg-6">
-        <div class="card shadow-sm h-100">
-            <div class="card-header fw-bold">财务信用</div>
-            <div class="card-body small">
-                <div><strong>纳税证明：</strong>{{ ext.get('tax_certificate') or '-' }}</div>
-                <div><strong>信用报告：</strong>{{ ext.get('credit_report') or '-' }}</div>
-                <div><strong>涉诉情况：</strong>{{ ext.get('litigation_status') or '-' }}</div>
-                <div><strong>行政处罚：</strong>{{ ext.get('penalty_status') or '-' }}</div>
-                <div><strong>银行资信证明：</strong>{{ ext.get('bank_credit_certificate') or '-' }}</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-6">
-        <div class="card shadow-sm h-100">
-            <div class="card-header fw-bold">合作意愿</div>
-            <div class="card-body small">
-                <div><strong>目标市场：</strong>{{ ext.get('target_countries') or 企业.target_markets or '-' }}</div>
-                <div><strong>目标客户类型：</strong>{{ ext.get('target_client_types', [])|join('、') if ext.get('target_client_types') else '-' }}</div>
-                <div><strong>可接受合作模式：</strong>{{ ext.get('cooperation_models', [])|join('、') if ext.get('cooperation_models') else '-' }}</div>
-                <div><strong>资料完整度：</strong>{{ ext.get('material_completeness') or '-' }}</div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-6">
-        <div class="card shadow-sm h-100">
-            <div class="card-header fw-bold">行业专项资料</div>
-            <div class="card-body small">
-                {% if 行业专项字段组 %}
-                    {% for group in 行业专项字段组 %}
-                    <div class="mb-2"><strong>{{ group.title }}</strong></div>
-                    <ul class="mb-0">
-                        {% for field in group.fields %}
-                        <li>{{ field.label }}：{{ ext.get(field.key) or '-' }}</li>
-                        {% endfor %}
-                    </ul>
+    {%- if field.type in ['checkbox_tags', 'checkbox_group'] -%}
+        {{ show_tags(val if val is iterable and val is not string else (val.split('、') if val is string and '、' in val else ([val] if val else []))) }}
+    {%- elif field.type == 'dynamic_contacts' -%}
+        {% set contacts = ext.get('dynamic_contacts', []) %}
+        {% if contacts and contacts|length > 0 %}
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered align-middle mb-0">
+                <thead class="table-light">
+                    <tr><th>姓名</th><th>职位</th><th>手机</th><th>邮箱</th><th>主联系人</th></tr>
+                </thead>
+                <tbody>
+                    {% for c in contacts %}
+                    <tr>
+                        <td>{{ show_text(c.get('name')) }}</td>
+                        <td>{{ show_text(c.get('position')) }}</td>
+                        <td>{{ show_text(c.get('mobile')) }}</td>
+                        <td>{{ show_text(c.get('email')) }}</td>
+                        <td>{{ '是' if c.get('is_primary_contact') else '否' }}</td>
+                    </tr>
                     {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+            <span class="text-muted">未填写</span>
+        {% endif %}
+    {%- else -%}
+        {{ show_text(val) }}
+    {%- endif -%}
+{%- endmacro %}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">企业详情</h4>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('enterprise_edit', id=企业.id) }}" class="btn btn-warning btn-sm">编辑企业</a>
+        <a href="{{ url_for('document_upload', enterprise_id=企业.id) }}" class="btn btn-outline-primary btn-sm">上传附件</a>
+        <a href="{{ url_for('enterprise_list') }}" class="btn btn-outline-secondary btn-sm">返回企业库</a>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-header fw-bold">顶部概览</div>
+    <div class="card-body">
+        <div class="row g-3 small">
+            <div class="col-md-4"><strong>企业编号：</strong>{{ show_text(企业.enterprise_code) }}</div>
+            <div class="col-md-4"><strong>企业名称：</strong>{{ show_text(ext.get('company_full_name') or 企业.company_name) }}</div>
+            <div class="col-md-4"><strong>入库状态：</strong>{{ show_text(企业.status) }}</div>
+            <div class="col-md-4"><strong>行业大类：</strong>{{ show_text(企业.industry_code) }} {{ 企业.industry_category or '' }}</div>
+            <div class="col-md-4"><strong>省市：</strong>{{ show_text(企业.province) }} / {{ show_text(企业.city) }}</div>
+            <div class="col-md-4"><strong>项目负责人：</strong>{{ show_text(企业.project_owner) }}</div>
+            <div class="col-md-4"><strong>资料完整度：</strong><span class="badge bg-{% if completeness_score >= 80 %}success{% elif completeness_score >= 50 %}warning text-dark{% else %}danger{% endif %}">{{ 完整度信息.label if 完整度信息 else (completeness_score ~ '%') }}</span></div>
+            <div class="col-md-4"><strong>是否建议入库：</strong>{{ show_text(ext.get('recommended_for_pool')) }}</div>
+            <div class="col-md-4"><strong>推荐等级：</strong>{{ show_text(ext.get('recommendation_level')) }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-3 border-{% if risk_tips %}warning{% else %}success{% endif %}">
+    <div class="card-header fw-bold">风险提示区</div>
+    <div class="card-body">
+        {% if risk_tips %}
+        <ul class="mb-0 text-warning-emphasis">
+            {% for tip in risk_tips %}<li>{{ tip }}</li>{% endfor %}
+        </ul>
+        {% else %}
+        <span class="text-success">暂无触发风险提示项。</span>
+        {% endif %}
+    </div>
+</div>
+
+<div class="accordion" id="enterpriseDetailAccordion">
+    <div class="accordion-item mb-2">
+        <h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#detail_entry">入库信息</button></h2>
+        <div id="detail_entry" class="accordion-collapse collapse show" data-bs-parent="#enterpriseDetailAccordion">
+            <div class="accordion-body">
+                <div class="row g-3 small">
+                    <div class="col-md-3"><strong>企业编号：</strong>{{ show_text(企业.enterprise_code) }}</div>
+                    <div class="col-md-3"><strong>入库状态：</strong>{{ show_text(企业.status) }}</div>
+                    <div class="col-md-3"><strong>项目负责人：</strong>{{ show_text(企业.project_owner) }}</div>
+                    <div class="col-md-3"><strong>行业代码：</strong>{{ show_text(企业.industry_code) }}</div>
+                    <div class="col-md-3"><strong>行业名称：</strong>{{ show_text(企业.industry_category) }}</div>
+                    <div class="col-md-3"><strong>省份：</strong>{{ show_text(企业.province) }}</div>
+                    <div class="col-md-3"><strong>城市：</strong>{{ show_text(企业.city) }}</div>
+                    <div class="col-md-3"><strong>区县：</strong>{{ show_text(企业.district) }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% for group in 通用字段组 %}
+    <div class="accordion-item mb-2">
+        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#detail_{{ group.key }}">{{ group.title }}</button></h2>
+        <div id="detail_{{ group.key }}" class="accordion-collapse collapse" data-bs-parent="#enterpriseDetailAccordion">
+            <div class="accordion-body">
+                <div class="row g-3 small">
+                    {% for field in group.fields %}
+                    <div class="{% if field.type == 'dynamic_contacts' %}col-12{% else %}col-lg-4 col-md-6{% endif %}">
+                        <div class="fw-semibold mb-1">{{ field.label }}</div>
+                        <div>{{ field_value(field) }}</div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+
+    <div class="accordion-item mb-2">
+        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#detail_J">J. 附件资料</button></h2>
+        <div id="detail_J" class="accordion-collapse collapse" data-bs-parent="#enterpriseDetailAccordion">
+            <div class="accordion-body">
+                {% if 文件列表 %}
+                <div class="table-responsive">
+                    <table class="table table-sm table-bordered align-middle">
+                        <thead class="table-light"><tr><th>文件类型</th><th>文件名</th><th>上传时间</th><th>下载入口</th></tr></thead>
+                        <tbody>
+                            {% for d in 文件列表 %}
+                            <tr>
+                                <td>{{ show_text(d.document_type) }}</td>
+                                <td>{{ show_text(d.document_name) }}</td>
+                                <td>{{ d.uploaded_at.strftime('%Y-%m-%d %H:%M') if d.uploaded_at else '未填写' }}</td>
+                                <td><a class="btn btn-sm btn-outline-success" href="{{ url_for('document_download', document_id=d.id) }}">下载</a></td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
                 {% else %}
-                <span class="text-muted">暂无行业专项资料。</span>
+                <span class="text-muted">未填写</span>
                 {% endif %}
             </div>
-        </div>
-    </div>
-
-    <div class="col-lg-6">
-        <div class="card shadow-sm h-100">
-            <div class="card-header fw-bold">企业文件</div>
-            <ul class="list-group list-group-flush">
-                {% for d in 文件列表 %}
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <span>{{ d.document_name }} <small class="text-muted">({{ d.document_type }})</small></span>
-                    <a class="btn btn-sm btn-outline-success" href="{{ url_for('document_download', document_id=d.id) }}">下载</a>
-                </li>
-                {% else %}
-                <li class="list-group-item text-muted">暂无文件</li>
-                {% endfor %}
-            </ul>
-        </div>
-    </div>
-    <div class="col-lg-6">
-        <div class="card shadow-sm h-100">
-            <div class="card-header fw-bold">关联产品列表</div>
-            <ul class="list-group list-group-flush">
-                {% for p in 产品列表 %}
-                <li class="list-group-item">{{ p.product_name_cn }}{% if p.product_category %}（{{ p.product_category }}）{% endif %}</li>
-                {% else %}
-                <li class="list-group-item text-muted">暂无关联产品</li>
-                {% endfor %}
-            </ul>
         </div>
     </div>
 </div>
