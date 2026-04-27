@@ -388,6 +388,36 @@ def create_app():
             数据[键名] = 值
         return 数据
 
+    def 企业提交审核缺失字段(企业, 扩展字段):
+        缺失 = []
+        最小必填项 = [
+            ("企业全称", (扩展字段.get("company_full_name") or 企业.company_name or "").strip()),
+            ("统一社会信用代码", (扩展字段.get("unified_social_credit_code") or 企业.unified_social_credit_code or "").strip()),
+            ("行业大类", (企业.industry_code or "").strip()),
+            ("省份", (企业.province or "").strip()),
+            ("城市", (企业.city or "").strip()),
+            ("企业角色", "、".join(扩展字段.get("enterprise_natures", []))),
+            ("主联系人姓名", (扩展字段.get("primary_contact_name") or "").strip()),
+            ("手机", (扩展字段.get("primary_contact_mobile") or "").strip()),
+            ("是否已有海外业务", (扩展字段.get("has_overseas_business") or "").strip()),
+            ("是否自有工厂", (扩展字段.get("has_own_factory") or "").strip()),
+            ("是否建议入库", (扩展字段.get("recommended_for_pool") or "").strip()),
+        ]
+        for 字段名, 值 in 最小必填项:
+            if not 值:
+                缺失.append(字段名)
+
+        已有营业执照 = Document.query.filter_by(enterprise_id=企业.id, document_type="营业执照").first() is not None if 企业.id else False
+        当前上传类型列表 = request.form.getlist("enterprise_upload_type")
+        当前上传文件列表 = request.files.getlist("enterprise_upload_file")
+        本次上传营业执照 = any(
+            ((当前上传类型列表[idx] if idx < len(当前上传类型列表) else "").strip() == "营业执照") and 上传文件 and 上传文件.filename
+            for idx, 上传文件 in enumerate(当前上传文件列表)
+        )
+        if not (已有营业执照 or 本次上传营业执照):
+            缺失.append("营业执照附件")
+        return 缺失
+
     def 产品行业专项字段组(行业代码):
         return INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG.get((行业代码 or "").strip(), [])
 
@@ -749,6 +779,7 @@ def create_app():
     @app.route("/enterprises/new", methods=["GET", "POST"])
     def enterprise_new():
         if request.method == "POST":
+            操作动作 = (request.form.get("action") or "save_draft").strip()
             行业代码, 行业名称 = 解析行业(request.form.get("industry_code"))
             扩展字段 = 提取企业扩展字段(request.form, 行业代码)
             企业性质列表 = 扩展字段.get("enterprise_natures", [])
@@ -799,15 +830,31 @@ def create_app():
 
             外贸负责人 = (扩展字段.get("trade_lead") or "").strip()
 
-            if not 企业.company_name:
-                flash("企业名称为必填项", "danger")
+            if 操作动作 == "save_draft" and not (企业.company_name or 企业.unified_social_credit_code):
+                flash("保存草稿时，企业全称或统一社会信用代码至少填写一项。", "danger")
                 return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+            if 操作动作 != "save_draft" and not 企业.company_name:
+                flash("企业名称为必填项", "danger")
+                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
             if not 行业代码:
                 flash("行业分类必须从下拉框选择。", "danger")
-                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
             if 主联系人数 > 1:
                 flash("联系人子表单中“是否主联系人”只能选择一位。", "danger")
                 return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+
+            if 操作动作 == "submit_review":
+                缺失字段 = 企业提交审核缺失字段(企业, 扩展字段)
+                if 缺失字段:
+                    flash(f"提交审核失败，缺失字段：{'、'.join(缺失字段)}", "danger")
+                    return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+                企业.status = "待审核"
+            elif 操作动作 == "save_next":
+                企业.status = "跟进中"
+            elif 操作动作 == "save_return":
+                企业.status = 企业.status or "草稿"
+            else:
+                企业.status = "草稿"
 
             db.session.add(企业)
             db.session.flush()
@@ -832,7 +879,11 @@ def create_app():
                 return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
             记录审计日志("新增企业", "enterprise", target_id=企业.id, detail=企业.company_name)
             db.session.commit()
-            flash(f"企业 {企业.company_name} 新增成功，上传文件 {上传数} 个。", "success")
+            flash(f"企业 {企业.company_name or 企业.unified_social_credit_code or 企业.enterprise_code} 保存成功，上传文件 {上传数} 个。", "success")
+            if 操作动作 == "save_return":
+                return redirect(url_for("enterprise_list"))
+            if 操作动作 == "save_next":
+                return redirect(url_for("enterprise_edit", id=企业.id) + "#enterpriseAccordion")
             return redirect(url_for("enterprise_detail", id=企业.id))
 
         return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
@@ -966,6 +1017,7 @@ def create_app():
         外贸联系人 = Contact.query.filter_by(enterprise_id=id, contact_type="外贸负责人").first()
 
         if request.method == "POST":
+            操作动作 = (request.form.get("action") or "save_draft").strip()
             行业代码, 行业名称 = 解析行业(request.form.get("industry_code"))
             扩展字段 = 提取企业扩展字段(request.form, 行业代码)
             企业性质列表 = 扩展字段.get("enterprise_natures", [])
@@ -1026,7 +1078,10 @@ def create_app():
                 else:
                     db.session.delete(外贸联系人)
 
-            if not 企业.company_name:
+            if 操作动作 == "save_draft" and not (企业.company_name or 企业.unified_social_credit_code):
+                flash("保存草稿时，企业全称或统一社会信用代码至少填写一项。", "danger")
+                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+            if 操作动作 != "save_draft" and not 企业.company_name:
                 flash("企业名称为必填项", "danger")
                 return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
             if not 行业代码:
@@ -1035,6 +1090,18 @@ def create_app():
             if 主联系人数 > 1:
                 flash("联系人子表单中“是否主联系人”只能选择一位。", "danger")
                 return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+            if 操作动作 == "submit_review":
+                缺失字段 = 企业提交审核缺失字段(企业, 扩展字段)
+                if 缺失字段:
+                    flash(f"提交审核失败，缺失字段：{'、'.join(缺失字段)}", "danger")
+                    return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+                企业.status = "待审核"
+            elif 操作动作 == "save_next":
+                企业.status = "跟进中"
+            elif 操作动作 == "save_return":
+                企业.status = 企业.status or "草稿"
+            else:
+                企业.status = "草稿"
 
             try:
                 上传数 = 处理表单文件上传(
@@ -1049,6 +1116,10 @@ def create_app():
             记录审计日志("编辑企业", "enterprise", target_id=企业.id, detail=企业.company_name)
             db.session.commit()
             flash(f"企业信息更新成功，新增上传文件 {上传数} 个。", "success")
+            if 操作动作 == "save_return":
+                return redirect(url_for("enterprise_list"))
+            if 操作动作 == "save_next":
+                return redirect(url_for("enterprise_edit", id=企业.id) + "#enterpriseAccordion")
             return redirect(url_for("enterprise_detail", id=企业.id))
 
         return render_template(

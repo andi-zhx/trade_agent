@@ -9,414 +9,282 @@
     {%- endif -%}
 {%- endmacro %}
 
-{% macro extra_list(field_name) -%}
-    {%- if request.method == 'POST' -%}
-        {{ request.form.getlist(field_name) }}
-    {%- else -%}
-        {{ (企业扩展字段 or {}).get(field_name, []) }}
-    {%- endif -%}
-{%- endmacro %}
+{% set overview_completeness = extra_value('material_completeness', '未评估') %}
+{% set overview_recommend = extra_value('recommended_for_pool', '待定') %}
 
 {% block content %}
+<style>
+.enterprise-overview-sticky { position: sticky; top: 64px; z-index: 1000; }
+.enterprise-action-sticky { position: sticky; bottom: 0; z-index: 1020; }
+.field-required::after { content: ' *'; color: #dc3545; }
+.tag-check { display: none; }
+.tag-label { border: 1px solid #ced4da; border-radius: 999px; padding: .35rem .75rem; cursor: pointer; font-size: .875rem; }
+.tag-check:checked + .tag-label { background: #0d6efd; color: #fff; border-color: #0d6efd; }
+</style>
+
 <div class="d-flex justify-content-between align-items-center mb-3">
     <a href="{{ url_for('enterprise_list') }}" class="btn btn-outline-secondary btn-sm">返回企业列表</a>
-    <a href="{{ url_for('backup_tools') }}" class="btn btn-outline-primary btn-sm">进入备份管理</a>
+    <span class="text-muted small">新增/编辑使用同一套表单组件</span>
 </div>
 
-<form method="post" enctype="multipart/form-data" class="vstack gap-3">
-    <div id="entryAutoTips" class="vstack gap-2"></div>
+<form method="post" enctype="multipart/form-data" class="vstack gap-3" id="enterpriseForm">
+    <input type="hidden" name="action" id="formAction" value="save_draft">
 
-    <div class="card shadow-sm">
-        <div class="card-header fw-bold">入库信息</div>
-        <div class="card-body row g-3">
-            <div class="col-md-3"><label class="form-label">企业编号</label><input class="form-control" value="{{ 企业.enterprise_code if 企业 else '自动生成（保存后可见）' }}" disabled></div>
-            <div class="col-md-3"><label class="form-label">入库状态</label><select class="form-select" name="status">{% set 状态值 = request.form.get('status') if request.method == 'POST' else (企业.status if 企业 else '草稿') %}{% for s in ['草稿','待审核','已入库','跟进中','冻结'] %}<option value="{{ s }}" {% if s == 状态值 %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
-            <div class="col-md-3"><label class="form-label">项目负责人</label><input class="form-control" name="project_owner" value="{{ request.form.get('project_owner') if request.method == 'POST' else (企业.project_owner if 企业 else '') }}"></div>
-            <div class="col-md-3"><label class="form-label">行业分类 <span class="text-danger">*</span></label><select class="form-select" id="industryCode" name="industry_code" required><option value="">请选择行业分类</option>{% set 当前行业代码 = request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '') %}{% for item in 行业列表 %}<option value="{{ item.code }}" data-name="{{ item.name }}" {% if item.code == 当前行业代码 %}selected{% endif %}>{{ item.code }} {{ item.name }}</option>{% endfor %}</select></div>
-            <div class="col-md-4"><label class="form-label">行业名称</label><input id="industryName" class="form-control" value="{{ request.form.get('industry_category') if request.method == 'POST' else (企业.industry_category if 企业 else '') }}" readonly><input type="hidden" name="industry_category" id="industryNameHidden"></div>
-            <div class="col-md-4"><label class="form-label">省份</label><input class="form-control" name="province" value="{{ request.form.get('province') if request.method == 'POST' else (企业.province if 企业 else '') }}"></div>
-            <div class="col-md-4"><label class="form-label">城市</label><input class="form-control" name="city" value="{{ request.form.get('city') if request.method == 'POST' else (企业.city if 企业 else '') }}"></div>
-            <div class="col-md-4"><label class="form-label">区县</label><input class="form-control" name="district" value="{{ request.form.get('district') if request.method == 'POST' else (企业.district if 企业 else '') }}"></div>
-            <div class="col-md-4"><label class="form-label">细分行业</label><input class="form-control" name="sub_industry" value="{{ request.form.get('sub_industry') if request.method == 'POST' else (企业.sub_industry if 企业 else '') }}"></div>
-            <div class="col-md-4"><label class="form-label">企业类型备注</label><input class="form-control" name="company_type" value="{{ request.form.get('company_type') if request.method == 'POST' else (企业.company_type if 企业 else '') }}"></div>
+    <div class="card shadow-sm enterprise-overview-sticky">
+        <div class="card-body py-2">
+            <div class="row g-2 small">
+                <div class="col-md-2"><strong>企业编号：</strong>{{ 企业.enterprise_code if 企业 else '自动生成' }}</div>
+                <div class="col-md-2"><strong>入库状态：</strong>{{ request.form.get('status') if request.method == 'POST' else (企业.status if 企业 else '草稿') }}</div>
+                <div class="col-md-2"><strong>行业大类：</strong>{{ request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '-') }}</div>
+                <div class="col-md-2"><strong>项目负责人：</strong>{{ request.form.get('project_owner') if request.method == 'POST' else (企业.project_owner if 企业 else '-') }}</div>
+                <div class="col-md-2"><strong>资料完整度：</strong>{{ overview_completeness }}</div>
+                <div class="col-md-2"><strong>是否建议入库：</strong>{{ overview_recommend }}</div>
+            </div>
         </div>
     </div>
 
     <div class="accordion" id="enterpriseAccordion">
-    {% for group in 通用字段组 %}
-    <div class="accordion-item shadow-sm border-0 mb-2">
-        <h2 class="accordion-header" id="heading_{{ group.key }}">
-            <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_{{ group.key }}">
-                {{ group.title }}
-            </button>
-        </h2>
-        <div id="collapse_{{ group.key }}" class="accordion-collapse collapse {% if loop.first %}show{% endif %}" data-bs-parent="#enterpriseAccordion">
-        <div class="accordion-body row g-3">
-            {% for field in group.fields %}
-                {% set show_when = field.show_when if field.show_when is defined else None %}
-                {% set show_when_any = field.show_when_any if field.show_when_any is defined else None %}
-                {% set col_class = 'col-12' if field.type in ['checkbox_group', 'checkbox_tags', 'radio_group', 'dynamic_contacts'] else ('col-lg-6' if field.type == 'textarea' else 'col-lg-3 col-md-4') %}
-                <div class="{{ col_class }}" {% if show_when %}data-show-when='{{ show_when|tojson|forceescape }}'{% endif %}{% if show_when_any %} data-show-when-any='{{ show_when_any|tojson|forceescape }}'{% endif %}>
-                {% if field.type == 'textarea' %}
-                    <label class="form-label">{{ field.label }}{% if field.required %}<span class="text-danger">*</span>{% endif %}</label>
-                    <textarea class="form-control" rows="2" maxlength="{{ field.maxlength if field.maxlength is defined else 200 }}" name="{{ field.key }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.required %}required{% endif %}>{{ extra_value(field.key) }}</textarea>
-                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
-                {% elif field.type == 'select' %}
-                    <label class="form-label">{{ field.label }}{% if field.required %}<span class="text-danger">*</span>{% endif %}</label>
-                    <select class="form-select" name="{{ field.key }}">
-                        <option value="">请选择</option>
-                        {% set cur = extra_value(field.key) %}
-                        {% for opt in field.options %}
-                        <option value="{{ opt }}" {% if opt == cur %}selected{% endif %}>{{ opt }}</option>
-                        {% endfor %}
-                    </select>
-                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
-                {% elif field.type == 'select_or_text' %}
-                    <label class="form-label">{{ field.label }}{% if field.required %}<span class="text-danger">*</span>{% endif %}</label>
-                    {% set cur = extra_value(field.key) %}
-                    <input class="form-control" list="{{ field.key }}_options" name="{{ field.key }}" value="{{ cur }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.required %}required{% endif %}>
-                    <datalist id="{{ field.key }}_options">
-                        {% for opt in field.options %}
-                        <option value="{{ opt }}"></option>
-                        {% endfor %}
-                    </datalist>
-                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
-                {% elif field.type == 'radio_group' %}
-                    <label class="form-label d-block">{{ field.label }}</label>
-                    {% set cur = extra_value(field.key) %}
-                    <div class="d-flex flex-wrap gap-3">
-                        {% for opt in field.options %}
-                        <div class="form-check">
-                            <input class="form-check-input" type="radio" id="{{ field.key }}_{{ loop.index }}" name="{{ field.key }}" value="{{ opt }}" {% if opt == cur %}checked{% endif %} {% if field.required and loop.first %}required{% endif %}>
-                            <label class="form-check-label" for="{{ field.key }}_{{ loop.index }}">{{ opt }}</label>
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
-                {% elif field.type == 'checkbox_group' %}
-                    <label class="form-label d-block">{{ field.label }}</label>
-                    {% set selected_values = request.form.getlist(field.key) if request.method == 'POST' else (企业扩展字段 or {}).get(field.key, []) %}
-                    <div class="row g-2">
-                        {% for opt in field.options %}
-                        <div class="col-lg-2 col-md-3 col-6">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="{{ field.key }}_{{ loop.index }}" name="{{ field.key }}" value="{{ opt }}" {% if opt in selected_values %}checked{% endif %}>
-                                <label class="form-check-label" for="{{ field.key }}_{{ loop.index }}">{{ opt }}</label>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
-                {% elif field.type == 'checkbox_tags' %}
-                    <label class="form-label d-block">{{ field.label }}{% if field.required %}<span class="text-danger">*</span>{% endif %}</label>
-                    {% set selected_values = request.form.getlist(field.key) if request.method == 'POST' else (企业扩展字段 or {}).get(field.key, []) %}
-                    <div class="row g-2">
-                        {% for opt in field.options %}
-                        <div class="col-lg-2 col-md-3 col-6">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="{{ field.key }}_{{ loop.index }}" name="{{ field.key }}" value="{{ opt }}" {% if opt in selected_values %}checked{% endif %}>
-                                <label class="form-check-label" for="{{ field.key }}_{{ loop.index }}">{{ opt }}</label>
-                            </div>
-                        </div>
-                        {% endfor %}
-                    </div>
-                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
-                {% elif field.type == 'dynamic_contacts' %}
-                    <label class="form-label d-block">{{ field.label }}</label>
-                    {% set contacts = request.form.getlist('dynamic_contacts_name[]') if request.method == 'POST' else [] %}
-                    <div id="dynamicContactsContainer" class="vstack gap-2">
-                        {% if request.method == 'POST' %}
-                            {% set primary_idx = request.form.get('dynamic_contacts_primary_index', '') %}
-                            {% for _ in contacts %}
-                            {% set idx = loop.index0 %}
-                            <div class="card card-body dynamic-contact-row py-2">
-                                <div class="row g-2 align-items-start">
-                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名" value="{{ request.form.getlist('dynamic_contacts_name[]')[idx] }}"></div>
-                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_department[]" placeholder="部门" value="{{ request.form.getlist('dynamic_contacts_department[]')[idx] }}"></div>
-                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位" value="{{ request.form.getlist('dynamic_contacts_position[]')[idx] }}"></div>
-                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机" value="{{ request.form.getlist('dynamic_contacts_mobile[]')[idx] }}"></div>
-                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱" value="{{ request.form.getlist('dynamic_contacts_email[]')[idx] }}"></div>
-                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_wechat[]" placeholder="微信" value="{{ request.form.getlist('dynamic_contacts_wechat[]')[idx] }}"></div>
-                                    <div class="col-md-8"><input class="form-control form-control-sm" name="dynamic_contacts_responsibility[]" placeholder="负责内容" value="{{ request.form.getlist('dynamic_contacts_responsibility[]')[idx] }}"></div>
-                                    <div class="col-md-2">
-                                        <div class="form-check mt-1">
-                                            <input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value="{{ idx }}" {% if primary_idx == idx|string %}checked{% endif %}>
-                                            <label class="form-check-label">主联系人</label>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-2 text-end"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div>
-                                </div>
-                            </div>
-                            {% endfor %}
-                        {% else %}
-                            {% set existing_contacts = (企业扩展字段 or {}).get('dynamic_contacts', []) %}
-                            {% for row in existing_contacts %}
-                            <div class="card card-body dynamic-contact-row py-2">
-                                <div class="row g-2 align-items-start">
-                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名" value="{{ row.get('name', '') }}"></div>
-                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_department[]" placeholder="部门" value="{{ row.get('department', '') }}"></div>
-                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位" value="{{ row.get('position', '') }}"></div>
-                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机" value="{{ row.get('mobile', '') }}"></div>
-                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱" value="{{ row.get('email', '') }}"></div>
-                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_wechat[]" placeholder="微信" value="{{ row.get('wechat', '') }}"></div>
-                                    <div class="col-md-8"><input class="form-control form-control-sm" name="dynamic_contacts_responsibility[]" placeholder="负责内容" value="{{ row.get('responsibility', '') }}"></div>
-                                    <div class="col-md-2">
-                                        <div class="form-check mt-1">
-                                            <input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value="{{ loop.index0 }}" {% if row.get('is_primary_contact') %}checked{% endif %}>
-                                            <label class="form-check-label">主联系人</label>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-2 text-end"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div>
-                                </div>
-                            </div>
-                            {% endfor %}
-                        {% endif %}
-                    </div>
-                    <button class="btn btn-sm btn-outline-secondary mt-2" type="button" id="dynamicContactAddBtn">+ 新增联系人</button>
-                    <div class="form-text">支持新增多行、删除行；“主联系人”只能选择一个。</div>
-                {% else %}
-                    <label class="form-label">{{ field.label }}{% if field.required %}<span class="text-danger">*</span>{% endif %}</label>
-                    <input class="form-control" type="{{ field.type if field.type in ['date','number','email','url'] else 'text' }}" name="{{ field.key }}" value="{{ extra_value(field.key) }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.key in ['primary_contact_mobile'] %}pattern="^1[3-9]\d{9}$"{% endif %} {% if field.type == 'year' %}inputmode="numeric" pattern="^\d{4}$" maxlength="4"{% endif %} {% if field.required %}required{% endif %}>
-                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
-                {% endif %}
+        <div class="accordion-item shadow-sm border-0 mb-2" data-module-key="ENTRY">
+            <h2 class="accordion-header" id="heading_entry">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_entry">入库信息 <span class="ms-2 text-muted small" data-module-progress></span></button>
+            </h2>
+            <div id="collapse_entry" class="accordion-collapse collapse show" data-bs-parent="#enterpriseAccordion">
+                <div class="accordion-body row g-3">
+                    <div class="col-md-3"><label class="form-label">企业编号</label><input class="form-control" value="{{ 企业.enterprise_code if 企业 else '自动生成（保存后可见）' }}" disabled></div>
+                    <div class="col-md-3"><label class="form-label">入库状态</label><select class="form-select" name="status">{% set 状态值 = request.form.get('status') if request.method == 'POST' else (企业.status if 企业 else '草稿') %}{% for s in ['草稿','待审核','已入库','跟进中','冻结'] %}<option value="{{ s }}" {% if s == 状态值 %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
+                    <div class="col-md-3"><label class="form-label">项目负责人</label><input class="form-control" name="project_owner" value="{{ request.form.get('project_owner') if request.method == 'POST' else (企业.project_owner if 企业 else '') }}"></div>
+                    <div class="col-md-3"><label class="form-label field-required">行业分类</label><select class="form-select" id="industryCode" name="industry_code" required><option value="">请选择行业分类</option>{% set 当前行业代码 = request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '') %}{% for item in 行业列表 %}<option value="{{ item.code }}" data-name="{{ item.name }}" {% if item.code == 当前行业代码 %}selected{% endif %}>{{ item.code }} {{ item.name }}</option>{% endfor %}</select></div>
+                    <div class="col-md-3"><label class="form-label">行业名称</label><input id="industryName" class="form-control" value="{{ request.form.get('industry_category') if request.method == 'POST' else (企业.industry_category if 企业 else '') }}" readonly><input type="hidden" name="industry_category" id="industryNameHidden"></div>
+                    <div class="col-md-3"><label class="form-label field-required">省份</label><input class="form-control" name="province" value="{{ request.form.get('province') if request.method == 'POST' else (企业.province if 企业 else '') }}"></div>
+                    <div class="col-md-3"><label class="form-label field-required">城市</label><input class="form-control" name="city" value="{{ request.form.get('city') if request.method == 'POST' else (企业.city if 企业 else '') }}"></div>
+                    <div class="col-md-3"><label class="form-label">区县</label><input class="form-control" name="district" value="{{ request.form.get('district') if request.method == 'POST' else (企业.district if 企业 else '') }}"></div>
                 </div>
-            {% endfor %}
+            </div>
         </div>
-    </div>
-    </div>
-    {% endfor %}
-    </div>
 
-    <div id="industryExtraContainer">
-        {% for industry_code, groups in 行业字段配置.items() %}
-            {% for group in groups %}
-            <div class="card shadow-sm industry-extra-group" data-industry="{{ industry_code }}" style="display:none;">
-                <div class="card-header fw-bold">{{ group.title }}</div>
-                <div class="card-body row g-3">
+        {% for group in 通用字段组 %}
+        <div class="accordion-item shadow-sm border-0 mb-2" data-module-key="{{ group.key }}">
+            <h2 class="accordion-header" id="heading_{{ group.key }}">
+                <button class="accordion-button {% if group.key not in ['A'] %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_{{ group.key }}">
+                    {{ group.title }} <span class="ms-2 text-muted small" data-module-progress></span>
+                </button>
+            </h2>
+            <div id="collapse_{{ group.key }}" class="accordion-collapse collapse {% if group.key in ['A'] %}show{% endif %}" data-bs-parent="#enterpriseAccordion">
+                <div class="accordion-body row g-3">
                     {% for field in group.fields %}
-                    <div class="col-md-4">
-                        <label class="form-label">{{ field.label }}</label>
+                        {% set show_when = field.show_when if field.show_when is defined else None %}
+                        {% set show_when_any = field.show_when_any if field.show_when_any is defined else None %}
+                        {% set col_class = 'col-12' if field.type in ['checkbox_group', 'checkbox_tags', 'radio_group', 'dynamic_contacts'] else ('col-lg-6' if field.type == 'textarea' else 'col-lg-3 col-md-4') %}
+                        <div class="{{ col_class }}" data-module-field {% if show_when %}data-show-when='{{ show_when|tojson|forceescape }}'{% endif %}{% if show_when_any %} data-show-when-any='{{ show_when_any|tojson|forceescape }}'{% endif %}>
                         {% if field.type == 'textarea' %}
-                        <textarea class="form-control" rows="2" name="{{ field.key }}">{{ extra_value(field.key) }}</textarea>
+                            <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
+                            <textarea class="form-control js-char-count" rows="2" maxlength="{{ field.maxlength if field.maxlength is defined else 200 }}" data-maxlength="{{ field.maxlength if field.maxlength is defined else 200 }}" name="{{ field.key }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>{{ extra_value(field.key) }}</textarea>
+                            <div class="form-text"><span class="js-char-counter">0</span>/{{ field.maxlength if field.maxlength is defined else 200 }}</div>
+                        {% elif field.type == 'select' %}
+                            <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
+                            <select class="form-select" name="{{ field.key }}">
+                                <option value="">请选择</option>
+                                {% set cur = extra_value(field.key) %}
+                                {% for opt in field.options %}<option value="{{ opt }}" {% if opt == cur %}selected{% endif %}>{{ opt }}</option>{% endfor %}
+                            </select>
+                        {% elif field.type == 'radio_group' %}
+                            <label class="form-label d-block {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
+                            {% set cur = extra_value(field.key) %}
+                            <div class="btn-group btn-group-sm flex-wrap" role="group">
+                                {% for opt in field.options %}
+                                <input class="btn-check" type="radio" id="{{ field.key }}_{{ loop.index }}" name="{{ field.key }}" value="{{ opt }}" {% if opt == cur %}checked{% endif %}>
+                                <label class="btn btn-outline-primary" for="{{ field.key }}_{{ loop.index }}">{{ opt }}</label>
+                                {% endfor %}
+                            </div>
+                        {% elif field.type == 'checkbox_tags' or field.type == 'checkbox_group' %}
+                            <label class="form-label d-block {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
+                            {% set selected_values = request.form.getlist(field.key) if request.method == 'POST' else (企业扩展字段 or {}).get(field.key, []) %}
+                            <div class="d-flex flex-wrap gap-2">
+                                {% for opt in field.options %}
+                                <div>
+                                    <input class="tag-check" type="checkbox" id="{{ field.key }}_{{ loop.index }}" name="{{ field.key }}" value="{{ opt }}" {% if opt in selected_values %}checked{% endif %}>
+                                    <label class="tag-label" for="{{ field.key }}_{{ loop.index }}">{{ opt }}</label>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        {% elif field.type == 'dynamic_contacts' %}
+                            <label class="form-label d-block">{{ field.label }}</label>
+                            {% set contacts = request.form.getlist('dynamic_contacts_name[]') if request.method == 'POST' else [] %}
+                            <div id="dynamicContactsContainer" class="vstack gap-2">
+                                {% if request.method == 'POST' %}
+                                    {% set primary_idx = request.form.get('dynamic_contacts_primary_index', '') %}
+                                    {% for _ in contacts %}
+                                    {% set idx = loop.index0 %}
+                                    <div class="card card-body dynamic-contact-row py-2"><div class="row g-2 align-items-start"><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名" value="{{ request.form.getlist('dynamic_contacts_name[]')[idx] }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机" value="{{ request.form.getlist('dynamic_contacts_mobile[]')[idx] }}"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位" value="{{ request.form.getlist('dynamic_contacts_position[]')[idx] }}"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱" value="{{ request.form.getlist('dynamic_contacts_email[]')[idx] }}"></div><div class="col-md-2"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div><div class="col-md-2"><div class="form-check mt-1"><input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value="{{ idx }}" {% if primary_idx == idx|string %}checked{% endif %}><label class="form-check-label">主联系人</label></div></div></div></div>
+                                    {% endfor %}
+                                {% else %}
+                                    {% for row in (企业扩展字段 or {}).get('dynamic_contacts', []) %}
+                                    <div class="card card-body dynamic-contact-row py-2"><div class="row g-2 align-items-start"><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名" value="{{ row.get('name', '') }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机" value="{{ row.get('mobile', '') }}"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位" value="{{ row.get('position', '') }}"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱" value="{{ row.get('email', '') }}"></div><div class="col-md-2"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div><div class="col-md-2"><div class="form-check mt-1"><input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value="{{ loop.index0 }}" {% if row.get('is_primary_contact') %}checked{% endif %}><label class="form-check-label">主联系人</label></div></div></div></div>
+                                    {% endfor %}
+                                {% endif %}
+                            </div>
+                            <button class="btn btn-sm btn-outline-secondary mt-2" type="button" id="dynamicContactAddBtn">+ 新增联系人</button>
                         {% else %}
-                        <input class="form-control" name="{{ field.key }}" value="{{ extra_value(field.key) }}">
+                            <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
+                            <input class="form-control" type="{{ field.type if field.type in ['date','number','email','url'] else 'text' }}" name="{{ field.key }}" value="{{ extra_value(field.key) }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>
                         {% endif %}
-                    </div>
+                        </div>
                     {% endfor %}
                 </div>
             </div>
-            {% endfor %}
+        </div>
         {% endfor %}
-    </div>
 
-    <div class="card shadow-sm">
-        <div class="card-header fw-bold">企业资料上传</div>
-        <div class="card-body">
-            <div id="enterpriseUploadRows" class="vstack gap-2">
-                <div class="row g-2 enterprise-upload-row">
-                    <div class="col-md-3">
-                        <select class="form-select" name="enterprise_upload_type">
-                            <option value="">请选择文件类型</option>
-                            {% for t in 企业文件类型选项 %}
-                            <option value="{{ t }}">{{ t }}</option>
-                            {% endfor %}
-                        </select>
+        <div class="accordion-item shadow-sm border-0 mb-2" data-module-key="J">
+            <h2 class="accordion-header" id="heading_J">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_J">J. 附件资料 <span class="ms-2 text-muted small" data-module-progress></span></button>
+            </h2>
+            <div id="collapse_J" class="accordion-collapse collapse" data-bs-parent="#enterpriseAccordion">
+                <div class="accordion-body">
+                    <div id="enterpriseUploadRows" class="vstack gap-2">
+                        <div class="row g-2 enterprise-upload-row" data-module-field>
+                            <div class="col-md-3"><select class="form-select" name="enterprise_upload_type"><option value="">请选择文件类型</option>{% for t in 企业文件类型选项 %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></div>
+                            <div class="col-md-4"><input class="form-control" name="enterprise_upload_name" placeholder="文件名称（可选）"></div>
+                            <div class="col-md-5"><input class="form-control" type="file" name="enterprise_upload_file"></div>
+                        </div>
                     </div>
-                    <div class="col-md-4">
-                        <input class="form-control" name="enterprise_upload_name" placeholder="文件名称（可选）">
-                    </div>
-                    <div class="col-md-5">
-                        <input class="form-control" type="file" name="enterprise_upload_file">
-                    </div>
+                    <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="addEnterpriseUploadRow">+ 添加文件</button>
                 </div>
             </div>
-            <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="addEnterpriseUploadRow">+ 添加文件</button>
-            <div class="form-text">禁止上传 exe / bat / sh / js。系统会自动清理非法字符并避免重名覆盖。</div>
         </div>
     </div>
 
-    <div class="d-flex gap-2">
-        <button class="btn btn-primary" type="submit">保存</button>
-        <a href="{{ url_for('enterprise_list') }}" class="btn btn-outline-secondary">取消</a>
+    <div class="card shadow-sm enterprise-action-sticky">
+        <div class="card-body d-flex flex-wrap gap-2 justify-content-end">
+            <button class="btn btn-outline-secondary" type="submit" data-action="save_draft">保存草稿</button>
+            <button class="btn btn-outline-primary" type="submit" data-action="save_next">保存并下一模块</button>
+            <button class="btn btn-primary" type="submit" data-action="save_return">保存并返回列表</button>
+            <button class="btn btn-danger" type="button" id="submitReviewBtn">提交审核</button>
+        </div>
     </div>
 </form>
 
+<div class="modal fade" id="missingFieldsModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">提交审核前请完善以下字段</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><ul id="missingFieldsList" class="mb-0"></ul></div></div></div>
+</div>
+
 <script>
 (() => {
+    const form = document.getElementById('enterpriseForm');
+    const actionInput = document.getElementById('formAction');
+    const submitReviewBtn = document.getElementById('submitReviewBtn');
     const industrySelect = document.getElementById('industryCode');
     const industryName = document.getElementById('industryName');
     const hiddenName = document.getElementById('industryNameHidden');
-    const groups = document.querySelectorAll('.industry-extra-group');
-    if (!industrySelect) return;
 
-    const sync = () => {
-        const option = industrySelect.options[industrySelect.selectedIndex];
-        const code = industrySelect.value;
-        const name = option ? (option.dataset.name || '') : '';
-        industryName.value = name;
-        hiddenName.value = name;
-        groups.forEach((g) => {
-            g.style.display = g.dataset.industry === code ? 'block' : 'none';
-        });
-    };
-
-    industrySelect.addEventListener('change', sync);
-    sync();
-
-    const uploadRows = document.getElementById('enterpriseUploadRows');
-    const addBtn = document.getElementById('addEnterpriseUploadRow');
-    if (uploadRows && addBtn) {
-        addBtn.addEventListener('click', () => {
-            const firstRow = uploadRows.querySelector('.enterprise-upload-row');
-            if (!firstRow) return;
-            const cloned = firstRow.cloneNode(true);
-            cloned.querySelectorAll('input').forEach((input) => input.value = '');
-            cloned.querySelectorAll('select').forEach((select) => select.value = '');
-            uploadRows.appendChild(cloned);
-        });
-    }
-
-    const showWhenBlocks = document.querySelectorAll('[data-show-when], [data-show-when-any]');
-    const parseConditions = (rawValue) => {
-        if (!rawValue) return [];
-        try {
-            const parsed = JSON.parse(rawValue);
-            return Array.isArray(parsed) ? parsed : [parsed];
-        } catch (_err) {
-            return [];
-        }
-    };
-    const ensureArray = (value) => {
-        if (Array.isArray(value)) return value;
-        if (value === null || value === undefined || value === '') return [];
-        return [value];
-    };
     const getFieldValues = (fieldName) => {
         const elements = Array.from(document.querySelectorAll(`[name="${fieldName}"]`));
-        if (elements.length === 0) return [];
-        const radioElements = elements.filter((el) => el.type === 'radio');
-        if (radioElements.length > 0) {
-            const checked = radioElements.find((el) => el.checked);
-            return checked ? [checked.value] : [];
-        }
-        const checkboxElements = elements.filter((el) => el.type === 'checkbox');
-        if (checkboxElements.length > 0) {
-            return checkboxElements.filter((el) => el.checked).map((el) => el.value);
-        }
+        if (!elements.length) return [];
+        const radios = elements.filter((el) => el.type === 'radio');
+        if (radios.length) return radios.find((el) => el.checked)?.value ? [radios.find((el) => el.checked).value] : [];
+        const checks = elements.filter((el) => el.type === 'checkbox');
+        if (checks.length) return checks.filter((el) => el.checked).map((el) => el.value);
+        if (elements[0].type === 'file') return Array.from(elements[0].files || []);
         return [(elements[0].value || '').trim()].filter(Boolean);
     };
-    const isConditionMatched = (condition) => {
-        if (!condition || !condition.field) return true;
-        const currentValues = getFieldValues(condition.field);
-        const expectedValues = ensureArray(condition.value);
-        if (expectedValues.length === 0) return currentValues.length > 0;
-        return currentValues.some((item) => expectedValues.includes(item));
-    };
+
+    form.querySelectorAll('button[type="submit"][data-action]').forEach((btn) => {
+        btn.addEventListener('click', () => { actionInput.value = btn.dataset.action; });
+    });
+
+    const requiredForReview = [
+        ['company_full_name', '企业全称'], ['unified_social_credit_code', '统一社会信用代码'], ['industry_code', '行业大类'],
+        ['province', '省份'], ['city', '城市'], ['enterprise_natures', '企业角色'], ['primary_contact_name', '主联系人姓名'],
+        ['primary_contact_mobile', '手机'], ['has_overseas_business', '是否已有海外业务'], ['has_own_factory', '是否自有工厂'],
+        ['recommended_for_pool', '是否建议入库']
+    ];
+
+    submitReviewBtn?.addEventListener('click', () => {
+        const missing = requiredForReview.filter(([key]) => getFieldValues(key).length === 0).map(([, label]) => label);
+        const typeValues = Array.from(document.querySelectorAll('select[name="enterprise_upload_type"]')).map((el) => el.value);
+        const fileValues = Array.from(document.querySelectorAll('input[name="enterprise_upload_file"]')).some((el) => (el.files || []).length > 0);
+        if (!(typeValues.includes('营业执照') && fileValues)) missing.push('营业执照附件（若历史已上传可忽略本提示）');
+        if (missing.length) {
+            const ul = document.getElementById('missingFieldsList');
+            ul.innerHTML = missing.map((item) => `<li>${item}</li>`).join('');
+            new bootstrap.Modal(document.getElementById('missingFieldsModal')).show();
+            return;
+        }
+        actionInput.value = 'submit_review';
+        form.submit();
+    });
+
+    const parseConditions = (rawValue) => { try { const v = JSON.parse(rawValue || '[]'); return Array.isArray(v) ? v : [v]; } catch { return []; } };
+    const ensureArray = (v) => Array.isArray(v) ? v : (v ? [v] : []);
+    const matched = (c) => { const cur = getFieldValues(c.field); const exp = ensureArray(c.value); return exp.length ? cur.some((x) => exp.includes(x)) : cur.length > 0; };
     const syncShowWhen = () => {
-        showWhenBlocks.forEach((block) => {
-            const allConditions = parseConditions(block.dataset.showWhen);
-            const anyConditions = parseConditions(block.dataset.showWhenAny);
-            const showByAll = allConditions.length === 0 ? true : allConditions.every((condition) => isConditionMatched(condition));
-            const showByAny = anyConditions.length === 0 ? false : anyConditions.some((condition) => isConditionMatched(condition));
-            const shouldShow = showByAll || showByAny;
-            block.style.display = shouldShow ? '' : 'none';
+        document.querySelectorAll('[data-show-when], [data-show-when-any]').forEach((el) => {
+            const allC = parseConditions(el.dataset.showWhen);
+            const anyC = parseConditions(el.dataset.showWhenAny);
+            const ok = (allC.length ? allC.every(matched) : true) || (anyC.length ? anyC.some(matched) : false);
+            el.style.display = ok ? '' : 'none';
         });
     };
-    document.addEventListener('change', (event) => {
-        if (!event.target || !event.target.name) return;
-        syncShowWhen();
+
+    const syncProgress = () => {
+        document.querySelectorAll('#enterpriseAccordion .accordion-item').forEach((item) => {
+            const fields = item.querySelectorAll('[data-module-field] input:not([type="hidden"]), [data-module-field] textarea, [data-module-field] select');
+            let total = 0, done = 0;
+            const seen = new Set();
+            fields.forEach((el) => {
+                if (el.closest('[style*="display: none"]')) return;
+                const key = el.name + ':' + el.type;
+                if (['radio','checkbox'].includes(el.type) && seen.has(el.name)) return;
+                total += 1;
+                let filled = false;
+                if (el.type === 'radio' || el.type === 'checkbox') filled = !!document.querySelector(`[name="${el.name}"]:checked`);
+                else if (el.type === 'file') filled = (el.files || []).length > 0;
+                else filled = !!(el.value || '').trim();
+                if (filled) done += 1;
+                seen.add(el.name);
+            });
+            const tag = item.querySelector('[data-module-progress]');
+            if (tag) tag.textContent = `（已完成 ${done}/${total}）`;
+        });
+    };
+
+    const syncIndustry = () => {
+        const option = industrySelect?.options[industrySelect.selectedIndex];
+        const name = option ? (option.dataset.name || '') : '';
+        if (industryName) industryName.value = name;
+        if (hiddenName) hiddenName.value = name;
+    };
+
+    const updateCounters = () => {
+        document.querySelectorAll('.js-char-count').forEach((el) => {
+            const counter = el.parentElement.querySelector('.js-char-counter');
+            if (counter) counter.textContent = String((el.value || '').length);
+        });
+    };
+
+    document.getElementById('addEnterpriseUploadRow')?.addEventListener('click', () => {
+        const container = document.getElementById('enterpriseUploadRows');
+        const first = container.querySelector('.enterprise-upload-row');
+        const cloned = first.cloneNode(true);
+        cloned.querySelectorAll('input').forEach((el) => el.value = '');
+        cloned.querySelectorAll('select').forEach((el) => el.value = '');
+        container.appendChild(cloned);
+        syncProgress();
     });
-    syncShowWhen();
 
     const contactsContainer = document.getElementById('dynamicContactsContainer');
-    const contactsAddBtn = document.getElementById('dynamicContactAddBtn');
-    const contactRowTemplate = () => `
-        <div class="card card-body dynamic-contact-row py-2">
-            <div class="row g-2 align-items-start">
-                <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名"></div>
-                <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_department[]" placeholder="部门"></div>
-                <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位"></div>
-                <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机"></div>
-                <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱"></div>
-                <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_wechat[]" placeholder="微信"></div>
-                <div class="col-md-8"><input class="form-control form-control-sm" name="dynamic_contacts_responsibility[]" placeholder="负责内容"></div>
-                <div class="col-md-2">
-                    <div class="form-check mt-1">
-                        <input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value="">
-                        <label class="form-check-label">主联系人</label>
-                    </div>
-                </div>
-                <div class="col-md-2 text-end"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div>
-            </div>
-        </div>`;
-    const syncPrimaryIndex = () => {
-        if (!contactsContainer) return;
-        contactsContainer.querySelectorAll('.dynamic-contact-row').forEach((row, idx) => {
-            const radio = row.querySelector('.dynamic-contacts-primary-radio');
-            if (radio) radio.value = String(idx);
-        });
-    };
-    if (contactsContainer && contactsAddBtn) {
-        contactsAddBtn.addEventListener('click', () => {
-            contactsContainer.insertAdjacentHTML('beforeend', contactRowTemplate());
-            syncPrimaryIndex();
-        });
-        contactsContainer.addEventListener('click', (event) => {
-            const button = event.target.closest('.dynamic-contact-remove');
-            if (!button) return;
-            const row = button.closest('.dynamic-contact-row');
-            if (row) row.remove();
-            syncPrimaryIndex();
-        });
-        syncPrimaryIndex();
-    }
-
-    const autoTipsContainer = document.getElementById('entryAutoTips');
-    const getSingleValue = (fieldName) => {
-        const values = getFieldValues(fieldName);
-        return values.length ? values[0] : '';
-    };
-    const ensureRiskTag = (tagName, shouldCheck) => {
-        const target = document.querySelector(`input[name="risk_tags"][value="${tagName}"]`);
-        if (!target) return;
-        if (shouldCheck) target.checked = true;
-    };
-    const renderAutoTips = () => {
-        if (!autoTipsContainer) return;
-        const blocks = [];
-        const certificateStatus = getSingleValue('certificate_validity_status');
-        const certificateCompleteness = getSingleValue('certificate_completeness');
-        const hasDishonestRecord = getSingleValue('has_dishonest_record');
-        const hasMajorLitigation = getSingleValue('has_major_litigation');
-
-        ensureRiskTag('诉讼风险', hasMajorLitigation === '是');
-
-        if (certificateStatus === '部分临期') {
-            blocks.push('<div class="alert alert-warning py-2 mb-0">⚠️ 证书有效期状态为“部分临期”，请优先安排复核与续期计划。</div>');
-        } else if (certificateStatus === '部分过期') {
-            blocks.push('<div class="alert alert-danger py-2 mb-0">⛔ 证书有效期状态为“部分过期”，当前合规风险较高，请先完成补证再推进。</div>');
-        }
-
-        if (certificateCompleteness === '待补充') {
-            blocks.push('<div class="alert alert-warning py-2 mb-0">📄 证书是否齐全为“待补充”，资料完整度应扣分并补齐关键资质。</div>');
-            const materialCompleteness = document.querySelector('select[name="material_completeness"]');
-            if (materialCompleteness) materialCompleteness.value = '待补充';
-        }
-
-        if (hasDishonestRecord === '是') {
-            blocks.push('<div class="alert alert-warning py-2 mb-0">⚠️ 检测到“存在失信记录”，推荐等级建议谨慎评估。</div>');
-        }
-
-        autoTipsContainer.innerHTML = blocks.join('');
-    };
-
-    document.addEventListener('change', (event) => {
-        if (!event.target || !event.target.name) return;
-        if (['has_major_litigation', 'has_dishonest_record', 'certificate_validity_status', 'certificate_completeness', 'risk_tags'].includes(event.target.name)) {
-            renderAutoTips();
-        }
+    document.getElementById('dynamicContactAddBtn')?.addEventListener('click', () => {
+        contactsContainer?.insertAdjacentHTML('beforeend', '<div class="card card-body dynamic-contact-row py-2"><div class="row g-2 align-items-start"><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱"></div><div class="col-md-2"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div><div class="col-md-2"><div class="form-check mt-1"><input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value=""><label class="form-check-label">主联系人</label></div></div></div></div>');
     });
-    renderAutoTips();
+    contactsContainer?.addEventListener('click', (e) => { if (e.target.closest('.dynamic-contact-remove')) e.target.closest('.dynamic-contact-row')?.remove(); });
+
+    document.addEventListener('input', () => { updateCounters(); syncProgress(); });
+    document.addEventListener('change', () => { syncShowWhen(); syncProgress(); syncIndustry(); });
+
+    syncIndustry();
+    syncShowWhen();
+    updateCounters();
+    syncProgress();
 })();
 </script>
 {% endblock %}
