@@ -60,6 +60,7 @@ class Enterprise(db.Model):
     export_revenue = db.Column(db.Numeric(18, 2))
     service_needs = db.Column(db.Text)
     risk_notes = db.Column(db.Text)
+    enterprise_extra_fields = db.Column(db.JSON)
     status = db.Column(db.String(50), default="draft", nullable=False, index=True)
     project_owner = db.Column(db.String(100))
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

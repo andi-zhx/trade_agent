@@ -13,6 +13,7 @@ from sqlalchemy import func, inspect, or_, text
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
+from config.enterprise_form_config import COMMON_ENTERPRISE_FIELD_GROUPS, INDUSTRY_EXTRA_FIELD_CONFIG
 from config.industry_config import INDUSTRY_MAP, INDUSTRY_OPTIONS
 from models import (
     Contact,
@@ -244,6 +245,34 @@ def create_app():
             return None, None
         return item["code"], item["name"]
 
+    def 行业专项字段组(行业代码):
+        return INDUSTRY_EXTRA_FIELD_CONFIG.get((行业代码 or "").strip(), [])
+
+    def 提取字段配置(行业代码):
+        配置 = []
+        for 分组 in COMMON_ENTERPRISE_FIELD_GROUPS:
+            配置.extend(分组.get("fields", []))
+        for 分组 in 行业专项字段组(行业代码):
+            配置.extend(分组.get("fields", []))
+        return 配置
+
+    def 读取多选值(form, key):
+        return [item.strip() for item in form.getlist(key) if item and item.strip()]
+
+    def 提取企业扩展字段(form, 行业代码):
+        数据 = {}
+        for 字段 in 提取字段配置(行业代码):
+            键名 = 字段["key"]
+            if 字段.get("type") == "checkbox_group":
+                值 = 读取多选值(form, 键名)
+            else:
+                原值 = form.get(键名, "")
+                值 = 原值.strip() if isinstance(原值, str) else 原值
+            if 值 in (None, "", []):
+                continue
+            数据[键名] = 值
+        return 数据
+
     @app.route("/")
     def dashboard():
         企业数量 = Enterprise.query.count()
@@ -425,15 +454,18 @@ def create_app():
     def enterprise_new():
         if request.method == "POST":
             行业代码, 行业名称 = 解析行业(request.form.get("industry_code"))
+            扩展字段 = 提取企业扩展字段(request.form, 行业代码)
+            企业性质列表 = 扩展字段.get("enterprise_natures", [])
+            出口经验 = 扩展字段.get("export_experience")
             企业 = Enterprise(
                 enterprise_code=生成企业编号(),
-                company_name=request.form.get("company_name", "").strip(),
-                english_name=request.form.get("english_name", "").strip() or None,
-                unified_social_credit_code=request.form.get("unified_social_credit_code", "").strip() or None,
-                founded_date=读取日期(request.form.get("founded_date")),
-                registered_capital=request.form.get("registered_capital", "").strip() or None,
-                registered_address=request.form.get("registered_address", "").strip() or None,
-                business_address=request.form.get("business_address", "").strip() or None,
+                company_name=(扩展字段.get("company_full_name") or "").strip(),
+                english_name=扩展字段.get("english_name") or None,
+                unified_social_credit_code=扩展字段.get("unified_social_credit_code") or None,
+                founded_date=读取日期(扩展字段.get("founded_date")),
+                registered_capital=扩展字段.get("registered_capital") or None,
+                registered_address=扩展字段.get("registered_address") or None,
+                business_address=扩展字段.get("business_address") or None,
                 province=request.form.get("province", "").strip() or None,
                 city=request.form.get("city", "").strip() or None,
                 district=request.form.get("district", "").strip() or None,
@@ -441,39 +473,40 @@ def create_app():
                 industry_code=行业代码,
                 industry_category=行业名称,
                 sub_industry=request.form.get("sub_industry", "").strip() or None,
-                main_products=request.form.get("main_products", "").strip() or None,
-                main_business=request.form.get("main_business", "").strip() or None,
-                is_manufacturer=读取布尔(request.form, "is_manufacturer"),
-                is_trader=读取布尔(request.form, "is_trader"),
-                is_brand_owner=读取布尔(request.form, "is_brand_owner"),
-                is_oem_odm=读取布尔(request.form, "is_oem_odm"),
-                is_service_provider=读取布尔(request.form, "is_service_provider"),
+                main_products=扩展字段.get("core_products") or None,
+                main_business=扩展字段.get("main_business") or None,
+                is_manufacturer="制造商" in 企业性质列表,
+                is_trader="贸易商" in 企业性质列表,
+                is_brand_owner="品牌商" in 企业性质列表,
+                is_oem_odm="OEM/ODM工厂" in 企业性质列表,
+                is_service_provider="服务商" in 企业性质列表,
                 is_high_tech=读取布尔(request.form, "is_high_tech"),
                 is_specialized_new=读取布尔(request.form, "is_specialized_new"),
                 is_listed_or_pre_ipo=读取布尔(request.form, "is_listed_or_pre_ipo"),
-                has_foreign_trade_experience=读取布尔(request.form, "has_foreign_trade_experience"),
-                export_countries=request.form.get("export_countries", "").strip() or None,
-                target_markets=request.form.get("target_markets", "").strip() or None,
-                annual_capacity=request.form.get("annual_capacity", "").strip() or None,
+                has_foreign_trade_experience=出口经验 == "是",
+                export_countries=扩展字段.get("export_countries") or None,
+                target_markets=扩展字段.get("target_countries") or None,
+                annual_capacity=扩展字段.get("annual_capacity_level") or None,
                 employee_count=读取整数(request.form.get("employee_count")),
-                factory_area=request.form.get("factory_area", "").strip() or None,
+                factory_area=扩展字段.get("factory_area_range") or None,
                 main_equipment=request.form.get("main_equipment", "").strip() or None,
-                annual_revenue=读取金额(request.form.get("annual_revenue")),
-                export_revenue=读取金额(request.form.get("export_revenue")),
+                annual_revenue=读取金额(扩展字段.get("annual_sales")),
+                export_revenue=读取金额(扩展字段.get("annual_exports")),
                 service_needs=request.form.get("service_needs", "").strip() or None,
                 risk_notes=request.form.get("risk_notes", "").strip() or None,
+                enterprise_extra_fields=扩展字段,
                 status=request.form.get("status", "草稿").strip() or "草稿",
                 project_owner=request.form.get("project_owner", "").strip() or None,
             )
 
-            外贸负责人 = request.form.get("trade_owner", "").strip()
+            外贸负责人 = (扩展字段.get("trade_lead") or "").strip()
 
             if not 企业.company_name:
                 flash("企业名称为必填项", "danger")
-                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项())
+                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={})
             if not 行业代码:
                 flash("行业分类必须从下拉框选择。", "danger")
-                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项())
+                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={})
 
             db.session.add(企业)
             db.session.flush()
@@ -491,7 +524,7 @@ def create_app():
             flash(f"企业 {企业.company_name} 新增成功", "success")
             return redirect(url_for("enterprise_detail", id=企业.id))
 
-        return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项())
+        return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={})
 
     @app.route("/enterprises/<int:id>")
     def enterprise_detail(id):
@@ -507,6 +540,8 @@ def create_app():
         return render_template(
             "enterprise_detail.html",
             企业=企业,
+            通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS,
+            行业专项字段组=行业专项字段组(企业.industry_code),
             联系人列表=联系人列表,
             产品列表=产品列表,
             资质列表=资质列表,
@@ -536,13 +571,15 @@ def create_app():
 
         if request.method == "POST":
             行业代码, 行业名称 = 解析行业(request.form.get("industry_code"))
-            企业.company_name = request.form.get("company_name", "").strip()
-            企业.english_name = request.form.get("english_name", "").strip() or None
-            企业.unified_social_credit_code = request.form.get("unified_social_credit_code", "").strip() or None
-            企业.founded_date = 读取日期(request.form.get("founded_date"))
-            企业.registered_capital = request.form.get("registered_capital", "").strip() or None
-            企业.registered_address = request.form.get("registered_address", "").strip() or None
-            企业.business_address = request.form.get("business_address", "").strip() or None
+            扩展字段 = 提取企业扩展字段(request.form, 行业代码)
+            企业性质列表 = 扩展字段.get("enterprise_natures", [])
+            企业.company_name = (扩展字段.get("company_full_name") or "").strip()
+            企业.english_name = 扩展字段.get("english_name") or None
+            企业.unified_social_credit_code = 扩展字段.get("unified_social_credit_code") or None
+            企业.founded_date = 读取日期(扩展字段.get("founded_date"))
+            企业.registered_capital = 扩展字段.get("registered_capital") or None
+            企业.registered_address = 扩展字段.get("registered_address") or None
+            企业.business_address = 扩展字段.get("business_address") or None
             企业.province = request.form.get("province", "").strip() or None
             企业.city = request.form.get("city", "").strip() or None
             企业.district = request.form.get("district", "").strip() or None
@@ -550,32 +587,33 @@ def create_app():
             企业.industry_code = 行业代码
             企业.industry_category = 行业名称
             企业.sub_industry = request.form.get("sub_industry", "").strip() or None
-            企业.main_products = request.form.get("main_products", "").strip() or None
-            企业.main_business = request.form.get("main_business", "").strip() or None
-            企业.is_manufacturer = 读取布尔(request.form, "is_manufacturer")
-            企业.is_trader = 读取布尔(request.form, "is_trader")
-            企业.is_brand_owner = 读取布尔(request.form, "is_brand_owner")
-            企业.is_oem_odm = 读取布尔(request.form, "is_oem_odm")
-            企业.is_service_provider = 读取布尔(request.form, "is_service_provider")
+            企业.main_products = 扩展字段.get("core_products") or None
+            企业.main_business = 扩展字段.get("main_business") or None
+            企业.is_manufacturer = "制造商" in 企业性质列表
+            企业.is_trader = "贸易商" in 企业性质列表
+            企业.is_brand_owner = "品牌商" in 企业性质列表
+            企业.is_oem_odm = "OEM/ODM工厂" in 企业性质列表
+            企业.is_service_provider = "服务商" in 企业性质列表
             企业.is_high_tech = 读取布尔(request.form, "is_high_tech")
             企业.is_specialized_new = 读取布尔(request.form, "is_specialized_new")
             企业.is_listed_or_pre_ipo = 读取布尔(request.form, "is_listed_or_pre_ipo")
-            企业.has_foreign_trade_experience = 读取布尔(request.form, "has_foreign_trade_experience")
-            企业.export_countries = request.form.get("export_countries", "").strip() or None
-            企业.target_markets = request.form.get("target_markets", "").strip() or None
-            企业.annual_capacity = request.form.get("annual_capacity", "").strip() or None
+            企业.has_foreign_trade_experience = 扩展字段.get("export_experience") == "是"
+            企业.export_countries = 扩展字段.get("export_countries") or None
+            企业.target_markets = 扩展字段.get("target_countries") or None
+            企业.annual_capacity = 扩展字段.get("annual_capacity_level") or None
             企业.employee_count = 读取整数(request.form.get("employee_count"))
-            企业.factory_area = request.form.get("factory_area", "").strip() or None
+            企业.factory_area = 扩展字段.get("factory_area_range") or None
             企业.main_equipment = request.form.get("main_equipment", "").strip() or None
-            企业.annual_revenue = 读取金额(request.form.get("annual_revenue"))
-            企业.export_revenue = 读取金额(request.form.get("export_revenue"))
+            企业.annual_revenue = 读取金额(扩展字段.get("annual_sales"))
+            企业.export_revenue = 读取金额(扩展字段.get("annual_exports"))
             企业.service_needs = request.form.get("service_needs", "").strip() or None
             企业.risk_notes = request.form.get("risk_notes", "").strip() or None
+            企业.enterprise_extra_fields = 扩展字段
             企业.status = request.form.get("status", "草稿").strip() or "草稿"
             企业.project_owner = request.form.get("project_owner", "").strip() or None
             企业.updated_at = datetime.utcnow()
 
-            外贸负责人 = request.form.get("trade_owner", "").strip()
+            外贸负责人 = (扩展字段.get("trade_lead") or "").strip()
             if 外贸负责人 and not 外贸联系人:
                 外贸联系人 = Contact(
                     enterprise_id=企业.id,
@@ -592,10 +630,10 @@ def create_app():
 
             if not 企业.company_name:
                 flash("企业名称为必填项", "danger")
-                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项())
+                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {})
             if not 行业代码:
                 flash("行业分类必须从下拉框选择。", "danger")
-                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项())
+                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {})
 
             记录审计日志("编辑企业", "enterprise", target_id=企业.id, detail=企业.company_name)
             db.session.commit()
@@ -608,6 +646,9 @@ def create_app():
             企业=企业,
             外贸负责人=外贸联系人.name if 外贸联系人 else "",
             行业列表=行业下拉选项(),
+            通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS,
+            行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG,
+            企业扩展字段=企业.enterprise_extra_fields or {},
         )
 
     @app.route("/enterprises/<int:id>/delete", methods=["POST"])
@@ -2290,6 +2331,9 @@ def init_db(app):
         db.create_all()
         inspector = inspect(db.engine)
         product_columns = {col["name"] for col in inspector.get_columns("products")}
+        enterprise_columns = {col["name"] for col in inspector.get_columns("enterprises")}
+        if "enterprise_extra_fields" not in enterprise_columns:
+            db.session.execute(text("ALTER TABLE enterprises ADD COLUMN enterprise_extra_fields JSON"))
         if "industry_code" not in product_columns:
             db.session.execute(text("ALTER TABLE products ADD COLUMN industry_code VARCHAR(50)"))
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_products_industry_code ON products (industry_code)"))
