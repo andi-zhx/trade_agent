@@ -3,7 +3,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 import re
 
-from flask import Flask, flash, redirect, render_template, request, session, url_for
+from flask import Flask, flash, redirect, render_template, request, send_from_directory, session, url_for
 from sqlalchemy import or_
 
 from models import (
@@ -35,12 +35,51 @@ PRODUCT_FORM_SECTIONS = [
     ("I", "售后与备注"),
 ]
 
+DOCUMENT_TYPE_OPTIONS = [
+    ("BASE", "BASE 企业基础信息"),
+    ("CERT", "CERT 资质证照"),
+    ("FIN", "FIN 经营财务"),
+    ("TRADE", "TRADE 外贸能力"),
+    ("PROD", "PROD 产品信息"),
+    ("SPEC", "SPEC 产品规格书"),
+    ("IMG", "IMG 图片"),
+    ("VIDEO", "VIDEO 视频"),
+    ("PPT", "PPT 宣传PPT"),
+    ("MIN", "MIN 会议纪要"),
+    ("CONTRACT", "CONTRACT 合同协议"),
+    ("AUTH", "AUTH 授权文件"),
+    ("REVIEW", "REVIEW 审核归档"),
+    ("QUOTE", "QUOTE 报价单"),
+    ("SAMPLE", "SAMPLE 样品资料"),
+    ("OTHER", "OTHER 其他"),
+]
+
+DOCUMENT_FOLDER_MAPPING = {
+    "BASE": "01_企业基础信息",
+    "CERT": "02_企业资质证照",
+    "FIN": "03_经营财务资料",
+    "TRADE": "04_外贸能力与交易记录",
+    "PROD": "05_产品资料",
+    "SPEC": "05_产品资料",
+    "PPT": "06_宣传展示材料",
+    "MIN": "07_项目沟通与会议记录",
+    "IMG": "08_影像资料",
+    "VIDEO": "08_影像资料",
+    "CONTRACT": "09_合同协议与授权文件",
+    "AUTH": "09_合同协议与授权文件",
+    "REVIEW": "10_审核归档文件",
+    "QUOTE": "10_审核归档文件",
+    "SAMPLE": "10_审核归档文件",
+    "OTHER": "11_其他资料",
+}
+
 
 def create_app():
     app = Flask(__name__)
     app.config["SECRET_KEY"] = "replace-with-a-secure-secret-key"
     app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{BASE_DIR / 'trade_agent.db'}"
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+    app.config["UPLOAD_ROOT"] = BASE_DIR / "uploads" / "企业库"
 
     db.init_app(app)
 
@@ -66,7 +105,7 @@ def create_app():
             {"名称": "资质证照", "说明": "维护企业相关资质证照、编号和有效期。", "链接": url_for("qualification_list")},
             {"名称": "外资客户需求", "说明": "记录海外客户需求与目标采购方向。", "链接": "#"},
             {"名称": "撮合进展", "说明": "跟踪撮合过程、阶段状态与跟进记录。", "链接": "#"},
-            {"名称": "归档文件", "说明": "统一存放项目过程文档与归档资料。", "链接": "#"},
+            {"名称": "归档文件", "说明": "统一存放项目过程文档与归档资料。", "链接": url_for("document_list")},
         ]
 
         return render_template(
@@ -585,6 +624,213 @@ def create_app():
         flash("产品已删除。", "info")
         return redirect(url_for("product_list"))
 
+    @app.route("/documents")
+    def document_list():
+        enterprise_id = request.args.get("enterprise_id", type=int)
+        product_id = request.args.get("product_id", type=int)
+        document_type = request.args.get("document_type", "", type=str).strip()
+        upload_date = request.args.get("upload_date", "", type=str).strip()
+        keyword = request.args.get("keyword", "", type=str).strip()
+
+        query = Document.query
+        if enterprise_id:
+            query = query.filter(Document.enterprise_id == enterprise_id)
+        if product_id:
+            query = query.filter(Document.product_id == product_id)
+        if document_type:
+            query = query.filter(Document.document_type == document_type)
+        if upload_date:
+            日期 = 读取日期(upload_date)
+            if 日期:
+                query = query.filter(db.func.date(Document.uploaded_at) == 日期)
+            else:
+                flash("上传日期格式无效，已忽略该筛选。", "warning")
+        if keyword:
+            query = query.filter(Document.document_name.ilike(f"%{keyword}%"))
+
+        documents = query.order_by(Document.uploaded_at.desc(), Document.id.desc()).all()
+        enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
+        products = Product.query.filter_by(enterprise_id=enterprise_id).order_by(Product.product_name_cn.asc()).all() if enterprise_id else Product.query.order_by(Product.product_name_cn.asc()).all()
+        enterprise_map = {item.id: item for item in Enterprise.query.filter(Enterprise.id.in_({d.enterprise_id for d in documents if d.enterprise_id})).all()} if documents else {}
+        product_map = {item.id: item for item in Product.query.filter(Product.id.in_({d.product_id for d in documents if d.product_id})).all()} if documents else {}
+
+        return render_template(
+            "documents/list.html",
+            documents=documents,
+            enterprises=enterprises,
+            products=products,
+            enterprise_map=enterprise_map,
+            product_map=product_map,
+            filters={
+                "enterprise_id": enterprise_id,
+                "product_id": product_id,
+                "document_type": document_type,
+                "upload_date": upload_date,
+                "keyword": keyword,
+            },
+            document_types=DOCUMENT_TYPE_OPTIONS,
+        )
+
+    @app.route("/documents/upload", methods=["GET", "POST"])
+    def document_upload():
+        enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
+        projects = ProjectProgress.query.order_by(ProjectProgress.updated_at.desc()).all()
+
+        if request.method == "POST":
+            enterprise_id = request.form.get("enterprise_id", type=int)
+            enterprise = Enterprise.query.get(enterprise_id) if enterprise_id else None
+            if not enterprise:
+                flash("所属企业为必填项。", "danger")
+                return render_template(
+                    "documents/upload.html",
+                    enterprises=enterprises,
+                    products=[],
+                    projects=projects,
+                    document_types=DOCUMENT_TYPE_OPTIONS,
+                    form_data=request.form,
+                )
+
+            product_id = request.form.get("product_id", type=int)
+            product = Product.query.filter_by(id=product_id, enterprise_id=enterprise.id).first() if product_id else None
+            if product_id and not product:
+                flash("所属产品不属于当前企业，请重新选择。", "danger")
+                return render_template(
+                    "documents/upload.html",
+                    enterprises=enterprises,
+                    products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
+                    projects=projects,
+                    document_types=DOCUMENT_TYPE_OPTIONS,
+                    form_data=request.form,
+                )
+
+            document_type = request.form.get("document_type", "").strip().upper()
+            document_name = request.form.get("document_name", "").strip()
+            version = request.form.get("version", "").strip() or "V01"
+            uploaded_by = request.form.get("uploaded_by", "").strip() or "未署名"
+            notes = request.form.get("notes", "").strip() or None
+            related_project_id = request.form.get("related_project_id", type=int)
+
+            if not document_type:
+                flash("文件类型为必填项。", "danger")
+                return render_template(
+                    "documents/upload.html",
+                    enterprises=enterprises,
+                    products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
+                    projects=projects,
+                    document_types=DOCUMENT_TYPE_OPTIONS,
+                    form_data=request.form,
+                )
+            if document_type not in {code for code, _ in DOCUMENT_TYPE_OPTIONS}:
+                flash("文件类型不在允许范围内。", "danger")
+                return render_template(
+                    "documents/upload.html",
+                    enterprises=enterprises,
+                    products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
+                    projects=projects,
+                    document_types=DOCUMENT_TYPE_OPTIONS,
+                    form_data=request.form,
+                )
+            if not document_name:
+                flash("文件名称为必填项。", "danger")
+                return render_template(
+                    "documents/upload.html",
+                    enterprises=enterprises,
+                    products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
+                    projects=projects,
+                    document_types=DOCUMENT_TYPE_OPTIONS,
+                    form_data=request.form,
+                )
+            if 包含非法文件名字符(document_name):
+                flash("文件名称不能包含以下字符：\\ / : * ? \" < > |", "danger")
+                return render_template(
+                    "documents/upload.html",
+                    enterprises=enterprises,
+                    products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
+                    projects=projects,
+                    document_types=DOCUMENT_TYPE_OPTIONS,
+                    form_data=request.form,
+                )
+
+            上传文件 = request.files.get("file")
+            if not 上传文件 or not 上传文件.filename:
+                flash("请选择需要上传的文件。", "danger")
+                return render_template(
+                    "documents/upload.html",
+                    enterprises=enterprises,
+                    products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
+                    projects=projects,
+                    document_types=DOCUMENT_TYPE_OPTIONS,
+                    form_data=request.form,
+                )
+
+            企业目录 = app.config["UPLOAD_ROOT"] / f"{enterprise.enterprise_code}_{清洗路径片段(enterprise.company_name)}"
+            if product:
+                归档目录 = 企业目录 / "05_产品资料" / f"{enterprise.enterprise_code}_{product.product_code}_{清洗路径片段(product.product_name_cn)}"
+            else:
+                归档目录 = 企业目录 / 获取文件分类目录(document_type)
+            归档目录.mkdir(parents=True, exist_ok=True)
+
+            扩展名 = Path(上传文件.filename).suffix.lower()
+            日期文本 = datetime.now().strftime("%Y%m%d")
+            标准文件名 = 构建标准文件名(
+                enterprise_code=enterprise.enterprise_code,
+                product_code=product.product_code if product else None,
+                document_type=document_type,
+                document_name=document_name,
+                version=version,
+                date_text=日期文本,
+                uploaded_by=uploaded_by,
+                extension=扩展名,
+            )
+            存储路径 = 生成不覆盖文件路径(归档目录 / 标准文件名)
+            上传文件.save(存储路径)
+
+            document = Document(
+                enterprise_id=enterprise.id,
+                product_id=product.id if product else None,
+                related_project_id=related_project_id,
+                document_type=document_type,
+                document_name=document_name,
+                version=version,
+                file_path=str(存储路径.relative_to(BASE_DIR)),
+                original_filename=上传文件.filename,
+                uploaded_by=uploaded_by,
+                notes=notes,
+            )
+            db.session.add(document)
+            db.session.commit()
+            flash("文件上传并归档成功。", "success")
+            return redirect(url_for("document_list"))
+
+        default_enterprise_id = request.args.get("enterprise_id", type=int)
+        default_product_id = request.args.get("product_id", type=int)
+        products = Product.query.filter_by(enterprise_id=default_enterprise_id).order_by(Product.product_name_cn.asc()).all() if default_enterprise_id else []
+        return render_template(
+            "documents/upload.html",
+            enterprises=enterprises,
+            products=products,
+            projects=projects,
+            document_types=DOCUMENT_TYPE_OPTIONS,
+            form_data={
+                "enterprise_id": default_enterprise_id,
+                "product_id": default_product_id,
+            } if default_enterprise_id else {},
+        )
+
+    @app.route("/documents/<int:document_id>/download")
+    def document_download(document_id):
+        document = Document.query.get_or_404(document_id)
+        文件路径 = BASE_DIR / document.file_path
+        if not 文件路径.exists():
+            flash("文件不存在，可能已被移动或删除。", "danger")
+            return redirect(url_for("document_list"))
+        return send_from_directory(
+            文件路径.parent,
+            文件路径.name,
+            as_attachment=True,
+            download_name=document.original_filename or 文件路径.name,
+        )
+
     @app.cli.command("init-db")
     def init_db_command():
         """初始化数据库（可选：flask init-db）。"""
@@ -677,6 +923,35 @@ def 构建证照展示项(资质):
         "剩余天数": 剩余天数,
         "状态样式": 状态样式.get(证书状态, "secondary"),
     }
+
+
+def 包含非法文件名字符(名称):
+    return bool(re.search(r'[\\/:*?"<>|]', 名称 or ""))
+
+
+def 清洗路径片段(名称):
+    return re.sub(r'[\\/:*?"<>|]+', "_", (名称 or "").strip())
+
+
+def 获取文件分类目录(document_type):
+    return DOCUMENT_FOLDER_MAPPING.get((document_type or "").upper(), DOCUMENT_FOLDER_MAPPING["OTHER"])
+
+
+def 构建标准文件名(enterprise_code, product_code, document_type, document_name, version, date_text, uploaded_by, extension):
+    安全文件名 = 清洗路径片段(document_name)
+    安全上传人 = 清洗路径片段(uploaded_by)
+    片段 = [enterprise_code]
+    if product_code:
+        片段.append(product_code)
+    片段.extend([document_type, 安全文件名, version, date_text, 安全上传人])
+    return "_".join(片段) + extension
+
+
+def 生成不覆盖文件路径(目标路径):
+    if not 目标路径.exists():
+        return 目标路径
+    时间戳 = datetime.now().strftime("%H%M%S")
+    return 目标路径.with_name(f"{目标路径.stem}_{时间戳}{目标路径.suffix}")
 
 
 def 生成出海建议(企业):
