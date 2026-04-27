@@ -418,6 +418,89 @@ def create_app():
             缺失.append("营业执照附件")
         return 缺失
 
+    def 字段已填写(值):
+        if 值 is None:
+            return False
+        if isinstance(值, str):
+            return bool(值.strip())
+        if isinstance(值, (list, tuple, set, dict)):
+            return len(值) > 0
+        return True
+
+    def 提取本次上传文件类型():
+        类型列表 = request.form.getlist("enterprise_upload_type")
+        文件列表 = request.files.getlist("enterprise_upload_file")
+        已上传类型 = set()
+        for idx, 上传文件 in enumerate(文件列表):
+            文件类型 = (类型列表[idx] if idx < len(类型列表) else "").strip()
+            if 文件类型 and 上传文件 and 上传文件.filename:
+                已上传类型.add(文件类型)
+        return 已上传类型
+
+    def 计算企业资料完整度(企业, 扩展字段, 本次上传类型=None):
+        扩展字段 = 扩展字段 or {}
+        本次上传类型 = 本次上传类型 or set()
+        历史文件类型 = set()
+        if getattr(企业, "id", None):
+            历史文件类型 = {item.document_type for item in Document.query.filter_by(enterprise_id=企业.id).all()}
+        文件类型集合 = 历史文件类型 | 本次上传类型
+
+        最小必填项 = [
+            ("企业全称", 字段已填写(扩展字段.get("company_full_name") or 企业.company_name)),
+            ("统一社会信用代码", 字段已填写(扩展字段.get("unified_social_credit_code") or 企业.unified_social_credit_code)),
+            ("行业大类", 字段已填写(企业.industry_code)),
+            ("省份", 字段已填写(企业.province)),
+            ("城市", 字段已填写(企业.city)),
+            ("企业角色", 字段已填写(扩展字段.get("enterprise_natures"))),
+            ("主联系人姓名", 字段已填写(扩展字段.get("primary_contact_name"))),
+            ("手机", 字段已填写(扩展字段.get("primary_contact_mobile"))),
+            ("是否已有海外业务", 字段已填写(扩展字段.get("has_overseas_business"))),
+            ("是否自有工厂", 字段已填写(扩展字段.get("has_own_factory"))),
+            ("是否建议入库", 字段已填写(扩展字段.get("recommended_for_pool"))),
+            ("营业执照附件", "营业执照" in 文件类型集合),
+        ]
+        建议字段项 = [
+            ("企业性质", 字段已填写(扩展字段.get("company_type") or 扩展字段.get("enterprise_natures"))),
+            ("员工规模", 字段已填写(扩展字段.get("employee_count_range") or 企业.employee_count)),
+            ("主营业务方向", 字段已填写(扩展字段.get("business_directions"))),
+            ("主要客户类型", 字段已填写(扩展字段.get("customer_types"))),
+            ("外贸团队规模", 字段已填写(扩展字段.get("foreign_trade_team_size"))),
+            ("经营模式", 字段已填写(扩展字段.get("production_mode"))),
+            ("推荐合作方向", 字段已填写(扩展字段.get("recommended_cooperation_directions"))),
+            ("风险标签", 字段已填写(扩展字段.get("risk_tags"))),
+            ("证书是否齐全", 字段已填写(扩展字段.get("certificate_completeness"))),
+            ("证书有效期状态", 字段已填写(扩展字段.get("certificate_validity_status"))),
+        ]
+        附件字段项 = [
+            ("营业执照", "营业执照" in 文件类型集合),
+            ("企业宣传册", ("宣传册" in 文件类型集合) or ("企业简介" in 文件类型集合)),
+            ("企业介绍PPT", ("宣传PPT" in 文件类型集合) or ("英文PPT" in 文件类型集合)),
+            ("资质证书包", bool({"企业资质", "产品认证", "合规文件"} & 文件类型集合)),
+            ("工厂/办公照片", ("尽调照片" in 文件类型集合) or ("产品图片" in 文件类型集合)),
+            ("企业名片", "企业名片" in 文件类型集合),
+            ("其他补充资料", "其他文件" in 文件类型集合),
+        ]
+
+        最小得分 = 60 * (sum(1 for _, ok in 最小必填项 if ok) / len(最小必填项))
+        建议得分 = 25 * (sum(1 for _, ok in 建议字段项 if ok) / len(建议字段项))
+        附件得分 = 15 * (sum(1 for _, ok in 附件字段项 if ok) / len(附件字段项))
+        分数 = int(round(最小得分 + 建议得分 + 附件得分))
+
+        if 分数 >= 80:
+            颜色 = "success"
+        elif 分数 >= 50:
+            颜色 = "warning"
+        else:
+            颜色 = "danger"
+
+        缺失项 = [字段名 for 字段名, ok in [*最小必填项, *建议字段项, *附件字段项] if not ok]
+        return {
+            "score": 分数,
+            "label": f"{分数}%",
+            "color": 颜色,
+            "missing_items": 缺失项,
+        }
+
     def 产品行业专项字段组(行业代码):
         return INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG.get((行业代码 or "").strip(), [])
 
@@ -732,7 +815,15 @@ def create_app():
         if export_range:
             查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_exports") == export_range)
         if completeness:
-            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.material_completeness") == completeness)
+            if completeness == "80%以上":
+                查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.material_completeness_score") >= 80)
+            elif completeness == "50%-79%":
+                查询 = 查询.filter(
+                    func.json_extract(Enterprise.enterprise_extra_fields, "$.material_completeness_score") >= 50,
+                    func.json_extract(Enterprise.enterprise_extra_fields, "$.material_completeness_score") < 80,
+                )
+            elif completeness == "50%以下":
+                查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.material_completeness_score") < 50)
 
         分页 = 查询.order_by(Enterprise.updated_at.desc()).paginate(page=page, per_page=PER_PAGE, error_out=False)
 
@@ -741,7 +832,7 @@ def create_app():
         行业列表 = 行业下拉选项()
         年销售额区间选项 = [项[0] for 项 in db.session.query(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_sales")).filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_sales").isnot(None), func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_sales") != "").distinct().order_by(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_sales")).all()]
         年出口额区间选项 = [项[0] for 项 in db.session.query(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_exports")).filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_exports").isnot(None), func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_exports") != "").distinct().order_by(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_exports")).all()]
-        资料完整度选项 = [项[0] for 项 in db.session.query(func.json_extract(Enterprise.enterprise_extra_fields, "$.material_completeness")).filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.material_completeness").isnot(None), func.json_extract(Enterprise.enterprise_extra_fields, "$.material_completeness") != "").distinct().order_by(func.json_extract(Enterprise.enterprise_extra_fields, "$.material_completeness")).all()]
+        资料完整度选项 = ["80%以上", "50%-79%", "50%以下"]
         企业性质选项 = ["制造商", "贸易商", "品牌商", "OEM/ODM工厂", "服务商"]
 
         企业ID列表 = [企业.id for 企业 in 分页.items]
@@ -751,6 +842,17 @@ def create_app():
             for 联系人 in 联系人列表:
                 if 联系人.enterprise_id not in 外贸负责人映射:
                     外贸负责人映射[联系人.enterprise_id] = 联系人.name
+        完整度映射 = {}
+        if 企业ID列表:
+            文件映射 = {}
+            for 文件 in Document.query.filter(Document.enterprise_id.in_(企业ID列表)).all():
+                文件映射.setdefault(文件.enterprise_id, set()).add(文件.document_type)
+            for 企业 in 分页.items:
+                完整度映射[企业.id] = 计算企业资料完整度(
+                    企业,
+                    企业.enterprise_extra_fields or {},
+                    文件映射.get(企业.id, set()),
+                )
 
         return render_template(
             "enterprise_list.html",
@@ -774,6 +876,7 @@ def create_app():
             年出口额区间选项=年出口额区间选项,
             资料完整度选项=资料完整度选项,
             外贸负责人映射=外贸负责人映射,
+            完整度映射=完整度映射,
         )
 
     @app.route("/enterprises/new", methods=["GET", "POST"])
@@ -829,6 +932,11 @@ def create_app():
             )
 
             外贸负责人 = (扩展字段.get("trade_lead") or "").strip()
+            完整度信息 = 计算企业资料完整度(企业, 扩展字段, 提取本次上传文件类型())
+            扩展字段["material_completeness_score"] = 完整度信息["score"]
+            扩展字段["material_completeness"] = 完整度信息["label"]
+            扩展字段["material_missing_items"] = 完整度信息["missing_items"]
+            企业.enterprise_extra_fields = 扩展字段
 
             if 操作动作 == "save_draft" and not (企业.company_name or 企业.unified_social_credit_code):
                 flash("保存草稿时，企业全称或统一社会信用代码至少填写一项。", "danger")
@@ -900,23 +1008,8 @@ def create_app():
         文件列表 = Document.query.filter_by(enterprise_id=id).all()
         文件类型集合 = {item.document_type for item in 文件列表}
         扩展字段 = 企业.enterprise_extra_fields or {}
-        缺失资料提示 = []
-        if "营业执照" not in 文件类型集合:
-            缺失资料提示.append("缺少营业执照")
-        if "产品目录" not in 文件类型集合:
-            缺失资料提示.append("缺少产品目录")
-        if "产品图片" not in 文件类型集合:
-            缺失资料提示.append("缺少产品图片")
-        if "报价单" not in 文件类型集合:
-            缺失资料提示.append("缺少报价单")
-        if not 资质列表 and "企业资质" not in 文件类型集合 and "产品认证" not in 文件类型集合:
-            缺失资料提示.append("缺少主要资质证书")
-        if "检测报告" not in 文件类型集合:
-            缺失资料提示.append("缺少质量检测报告")
-        if not 扩展字段.get("export_experience") and not 企业.export_countries:
-            缺失资料提示.append("缺少外贸经验说明")
-        if not 扩展字段.get("target_countries") and not 扩展字段.get("major_markets") and not 企业.target_markets:
-            缺失资料提示.append("缺少目标市场说明")
+        完整度信息 = 计算企业资料完整度(企业, 扩展字段, 文件类型集合)
+        缺失资料提示 = 完整度信息["missing_items"]
 
         return render_template(
             "enterprise_detail.html",
@@ -930,6 +1023,7 @@ def create_app():
             资质展示列表=资质展示列表,
             文件列表=文件列表,
             缺失资料提示=缺失资料提示,
+            完整度信息=完整度信息,
         )
 
     @app.get("/enterprises/<int:id>/export")
@@ -1064,6 +1158,11 @@ def create_app():
             企业.updated_at = datetime.utcnow()
 
             外贸负责人 = (扩展字段.get("trade_lead") or "").strip()
+            完整度信息 = 计算企业资料完整度(企业, 扩展字段, 提取本次上传文件类型())
+            扩展字段["material_completeness_score"] = 完整度信息["score"]
+            扩展字段["material_completeness"] = 完整度信息["label"]
+            扩展字段["material_missing_items"] = 完整度信息["missing_items"]
+            企业.enterprise_extra_fields = 扩展字段
             if 外贸负责人 and not 外贸联系人:
                 外贸联系人 = Contact(
                     enterprise_id=企业.id,

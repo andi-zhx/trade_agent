@@ -22,9 +22,16 @@
     </div>
 </div>
 
+<div class="card shadow-sm mb-3">
+    <div class="card-body d-flex align-items-center justify-content-between">
+        <div class="fw-bold">资料完整度</div>
+        <span class="badge bg-{% if 完整度信息.color == 'success' %}success{% elif 完整度信息.color == 'warning' %}warning text-dark{% else %}danger{% endif %} fs-6">{{ 完整度信息.label }}</span>
+    </div>
+</div>
+
 {% if 缺失资料提示 %}
 <div class="alert alert-warning shadow-sm">
-    <div class="fw-bold mb-1">资料缺失提示</div>
+    <div class="fw-bold mb-1">缺失项清单</div>
     <ul class="mb-0">
         {% for item in 缺失资料提示 %}
         <li>{{ item }}</li>
