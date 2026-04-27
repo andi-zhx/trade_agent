@@ -17,7 +17,11 @@
 - Flask + SQLAlchemy 项目骨架。
 - SQLite 本地数据库（默认 `trade_agent.db`）。
 - 预留 PostgreSQL 升级能力（替换数据库连接字符串即可）。
-- 简单登录模块（预置 `users` 表，默认账号 `admin/admin123`）。
+- 简单登录模块（`users` 表，内置角色：`管理员`、`普通用户`）。
+- 权限控制：管理员可删除；普通用户仅可新增/编辑，不可删除。
+- 审计日志：对企业/产品/文件增删改、Excel 导入导出操作写入 `audit_logs`。
+- 文件安全：限制扩展名、限制大小（100MB）、危险扩展名拦截、文件名清理。
+- 备份能力：支持手动备份数据库与 uploads，支持启动时自动“每日一次”数据库备份。
 - 中文化 Dashboard 首页，展示系统名称、统计卡片与核心模块入口。
 - `python app.py` 启动时自动初始化数据库并自动建表。
 
@@ -97,7 +101,10 @@ python app.py
 执行 `python app.py` 时会自动执行：
 
 1. `db.create_all()` 创建所有表。
-2. 检查并创建默认管理员账号 `admin/admin123`（仅首次创建）。
+2. 检查并创建默认账号（仅首次创建）：
+   - 管理员：`admin / admin123`
+   - 普通用户：`user / user123`
+3. 启动时检查当天是否已有数据库备份；若没有则自动生成一次 `backup_db_YYYYMMDD_HHMMSS.sqlite`。
 
 ### 手动初始化
 
@@ -109,7 +116,38 @@ flask init-db
 
 > 如使用 Flask CLI，请确保环境变量 `FLASK_APP=app.py`（或等效设置）已配置。
 
-## 七、后续建议迭代
+## 七、数据备份与恢复
+
+### 1) 手动备份（管理员）
+
+登录管理员后访问 `/backup` 页面，可执行：
+
+- 一键备份 SQLite 数据库（输出到 `backups/backup_db_YYYYMMDD_HHMMSS.sqlite`）
+- 一键备份 uploads 目录（输出到 `backups/backup_uploads_YYYYMMDD_HHMMSS.zip`）
+
+### 2) 恢复数据库
+
+1. 停止 Flask 服务。  
+2. 备份当前数据库：`cp trade_agent.db trade_agent.db.bak`  
+3. 选择备份文件并覆盖恢复：`cp backups/backup_db_20260101_120000.sqlite trade_agent.db`  
+4. 重新启动：`python app.py`
+
+### 3) 迁移 uploads 文件夹
+
+1. 在源环境打包（或使用系统备份 zip）。  
+2. 将文件复制到目标环境项目根目录下并解压为 `uploads/`。  
+3. 保持目录结构不变（系统按相对路径读取 `documents.file_path`）。  
+4. 启动后随机抽检文件下载是否正常。
+
+## 八、日常运维注意事项
+
+- 建议每日检查 `backups/` 是否生成当日数据库备份文件。
+- 建议定期将 `backups/` 异地存储（NAS / 对象存储）。
+- 禁止在生产环境使用默认密码，首次部署后请立即修改。
+- 删除企业/产品/文件需二次确认；存在关联数据的企业默认仅允许标记“停用”。
+- 上传失败时优先检查：文件大小是否超过 100MB、扩展名是否在允许列表。
+
+## 九、后续建议迭代
 
 - 增加企业、产品、资质、需求、撮合的增删改查页面。
 - 增加文件上传与归档管理。
