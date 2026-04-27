@@ -11,6 +11,11 @@
 <nav class="navbar navbar-expand-lg navbar-dark bg-primary shadow-sm">
     <div class="container-fluid px-4">
         <a class="navbar-brand fw-bold" href="{{ url_for('dashboard') }}">跨境经贸企业库与产品管理系统</a>
+        <div class="d-none d-lg-flex gap-2">
+            <a class="btn btn-sm btn-outline-light" href="{{ url_for('enterprise_list') }}">企业库</a>
+            <a class="btn btn-sm btn-outline-light" href="{{ url_for('product_list') }}">产品库</a>
+            <a class="btn btn-sm btn-outline-light" href="{{ url_for('qualification_list') }}">资质证照</a>
+        </div>
         <div class="d-flex align-items-center text-white gap-3">
             {% if session.get('用户') %}
                 <span>当前用户：{{ session.get('用户') }}</span>

@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% block title %}新增资质证照{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">新增资质证照</h1>
+    <a class="btn btn-outline-secondary" href="{{ url_for('qualification_list') }}">返回列表</a>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <form method="post" class="row g-3">
+            <div class="col-md-6">
+                <label class="form-label">所属企业 <span class="text-danger">*</span></label>
+                <select name="enterprise_id" class="form-select" required>
+                    <option value="">请选择企业</option>
+                    {% for e in 企业列表 %}
+                    {% set selected_enterprise = 表单.get('enterprise_id')|int if 表单.get('enterprise_id') else request.args.get('enterprise_id', type=int) %}
+                    <option value="{{ e.id }}" {% if selected_enterprise == e.id %}selected{% endif %}>{{ e.enterprise_code }} - {{ e.company_name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">关联产品（可为空）</label>
+                <select name="product_id" class="form-select">
+                    <option value="">无</option>
+                    {% for p in 产品列表 %}
+                    <option value="{{ p.id }}" {% if 表单.get('product_id') and 表单.get('product_id')|int == p.id %}selected{% endif %}>{{ p.product_code }} - {{ p.product_name_cn }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">证书名称 <span class="text-danger">*</span></label>
+                <input name="certificate_name" class="form-control" value="{{ 表单.get('certificate_name', '') }}" required>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">证书类型</label>
+                <select name="certificate_type" class="form-select">
+                    <option value="">请选择</option>
+                    {% for t in 证书类型选项 %}
+                    <option value="{{ t }}" {% if 表单.get('certificate_type') == t %}selected{% endif %}>{{ t }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">证书编号</label>
+                <input name="certificate_no" class="form-control" value="{{ 表单.get('certificate_no', '') }}">
+            </div>
+            <div class="col-md-6">
+                <label class="form-label">覆盖产品</label>
+                <input name="covered_products" class="form-control" value="{{ 表单.get('covered_products', '') }}">
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">发证机构</label>
+                <input name="issuing_authority" class="form-control" value="{{ 表单.get('issuing_authority', '') }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">发证日期</label>
+                <input type="date" name="issue_date" class="form-control" value="{{ 表单.get('issue_date', '') }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">到期日期</label>
+                <input type="date" name="expiry_date" class="form-control" value="{{ 表单.get('expiry_date', '') }}">
+            </div>
+
+            <div class="col-md-6">
+                <label class="form-label">附件路径</label>
+                <input name="file_path" class="form-control" value="{{ 表单.get('file_path', '') }}">
+            </div>
+            <div class="col-md-6 d-flex align-items-end">
+                <div class="form-check">
+                    <input class="form-check-input" type="checkbox" name="affects_recommendation" id="affects_recommendation" {% if 表单.get('affects_recommendation') %}checked{% endif %}>
+                    <label class="form-check-label" for="affects_recommendation">是否影响对外推荐</label>
+                </div>
+            </div>
+
+            <div class="col-12">
+                <label class="form-label">备注</label>
+                <textarea name="notes" class="form-control" rows="3">{{ 表单.get('notes', '') }}</textarea>
+            </div>
+
+            <div class="col-12">
+                <button class="btn btn-primary" type="submit">保存</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
