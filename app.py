@@ -53,15 +53,12 @@ PRODUCT_FORM_SECTIONS = [
 
 ENTERPRISE_UPLOAD_TYPES = [
     "营业执照",
-    "企业简介",
-    "企业资质",
-    "经营资料",
-    "外贸资料",
-    "尽调照片",
-    "尽调视频",
-    "宣传PPT",
-    "合同协议",
-    "其他文件",
+    "企业宣传册",
+    "企业介绍PPT",
+    "资质证书包",
+    "工厂/办公照片",
+    "企业名片",
+    "其他补充资料",
 ]
 
 PRODUCT_UPLOAD_TYPES = [
@@ -116,6 +113,12 @@ ENTERPRISE_SUB_FOLDERS = [
 
 DOCUMENT_FOLDER_MAPPING = {
     "营业执照": "01_企业基础资料",
+    "企业宣传册": "09_宣传展示资料",
+    "企业介绍PPT": "09_宣传展示资料",
+    "资质证书包": "02_企业资质与合规文件",
+    "工厂/办公照片": "10_图片视频与样品资料",
+    "企业名片": "01_企业基础资料",
+    "其他补充资料": "13_风险审核与归档确认",
     "企业简介": "01_企业基础资料",
     "企业资质": "02_企业资质与合规文件",
     "合规文件": "02_企业资质与合规文件",
@@ -149,6 +152,16 @@ DOCUMENT_FOLDER_MAPPING = {
     "风险审核": "13_风险审核与归档确认",
     "归档确认": "13_风险审核与归档确认",
     "其他文件": "13_风险审核与归档确认",
+}
+
+ENTERPRISE_TYPE_ALLOWED_EXTENSIONS = {
+    "营业执照": {".pdf", ".jpg", ".jpeg", ".png"},
+    "企业宣传册": {".pdf", ".ppt", ".pptx", ".jpg", ".jpeg", ".png", ".webp"},
+    "企业介绍PPT": {".ppt", ".pptx", ".pdf"},
+    "资质证书包": {".pdf", ".jpg", ".jpeg", ".zip"},
+    "工厂/办公照片": {".jpg", ".jpeg", ".png", ".mp4", ".mov", ".avi", ".mkv", ".webm"},
+    "企业名片": {".jpg", ".jpeg", ".png", ".pdf"},
+    "其他补充资料": {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".jpg", ".jpeg", ".png", ".zip", ".rar", ".7z", ".txt", ".csv", ".mp4", ".mov"},
 }
 
 PROJECT_STAGE_OPTIONS = [
@@ -473,12 +486,12 @@ def create_app():
         ]
         附件字段项 = [
             ("营业执照", "营业执照" in 文件类型集合),
-            ("企业宣传册", ("宣传册" in 文件类型集合) or ("企业简介" in 文件类型集合)),
-            ("企业介绍PPT", ("宣传PPT" in 文件类型集合) or ("英文PPT" in 文件类型集合)),
-            ("资质证书包", bool({"企业资质", "产品认证", "合规文件"} & 文件类型集合)),
-            ("工厂/办公照片", ("尽调照片" in 文件类型集合) or ("产品图片" in 文件类型集合)),
+            ("企业宣传册", "企业宣传册" in 文件类型集合),
+            ("企业介绍PPT", "企业介绍PPT" in 文件类型集合),
+            ("资质证书包", "资质证书包" in 文件类型集合),
+            ("工厂/办公照片", "工厂/办公照片" in 文件类型集合),
             ("企业名片", "企业名片" in 文件类型集合),
-            ("其他补充资料", "其他文件" in 文件类型集合),
+            ("其他补充资料", "其他补充资料" in 文件类型集合),
         ]
 
         最小得分 = 60 * (sum(1 for _, ok in 最小必填项 if ok) / len(最小必填项))
@@ -542,7 +555,45 @@ def create_app():
                 分组数据.append({"title": 分组["title"], "fields": 字段列表})
         return 分组数据
 
-    def 处理表单文件上传(enterprise, 类型字段名, 名称字段名, 文件字段名, product=None):
+    def 校验企业附件扩展名(document_type, extension):
+        允许集合 = ENTERPRISE_TYPE_ALLOWED_EXTENSIONS.get((document_type or "").strip())
+        if not 允许集合:
+            return
+        if extension.lower() not in 允许集合:
+            可用列表 = " / ".join(sorted(允许集合))
+            raise ValueError(f"{document_type} 仅支持：{可用列表}")
+
+    def 生成企业附件文件名(enterprise, document_type, extension, 自定义名称, 上传序号):
+        日期文本 = datetime.now().strftime("%Y%m%d")
+        企业编号 = 清洗路径片段(enterprise.enterprise_code or "E000")
+        企业简称 = 清洗路径片段((enterprise.company_name or "").strip() or "未命名企业")
+        说明文本 = 清洗路径片段(自定义名称 or "")
+        if document_type == "营业执照":
+            return f"{企业编号}_{企业简称}_营业执照_{日期文本}{extension}"
+        if document_type == "企业介绍PPT":
+            语言 = "中文"
+            版本日期 = 日期文本
+            if 说明文本:
+                片段 = [item for item in 说明文本.split("_") if item]
+                if len(片段) >= 1:
+                    语言 = 片段[0]
+                if len(片段) >= 2:
+                    版本日期 = 片段[1]
+            return f"{企业编号}_{企业简称}_企业介绍PPT_{语言}_{版本日期}{extension}"
+        if document_type == "资质证书包":
+            证书名称 = 说明文本 or "资质证书"
+            return f"{企业编号}_{企业简称}_{证书名称}_有效期至{日期文本}{extension}"
+        if document_type == "工厂/办公照片":
+            return f"{企业编号}_{企业简称}_工厂照片_{上传序号:02d}_{日期文本}{extension}"
+        if document_type == "企业名片":
+            联系人 = 说明文本 or "联系人"
+            return f"{企业编号}_{联系人}_名片_{日期文本}{extension}"
+        if document_type == "其他补充资料":
+            资料说明 = 说明文本 or "补充资料"
+            return f"{企业编号}_{企业简称}_{资料说明}_{日期文本}{extension}"
+        return None
+
+    def 处理表单文件上传(enterprise, 类型字段名, 名称字段名, 文件字段名, product=None, use_enterprise_naming=False):
         类型列表 = request.form.getlist(类型字段名)
         名称列表 = request.form.getlist(名称字段名)
         文件列表 = request.files.getlist(文件字段名)
@@ -558,6 +609,10 @@ def create_app():
                 raise ValueError("存在未选择文件类型的上传项。")
             原始名称 = Path(上传文件.filename).stem
             文件名称 = 清洗路径片段(自定义名称 or 原始名称) or "未命名文件"
+            扩展名 = Path(上传文件.filename).suffix.lower()
+            if use_enterprise_naming:
+                校验企业附件扩展名(文件类型, 扩展名)
+            目标文件名 = 生成企业附件文件名(enterprise, 文件类型, 扩展名, 文件名称, 上传成功数 + 1) if use_enterprise_naming else None
             保存文件并登记记录(
                 app=app,
                 enterprise=enterprise,
@@ -566,6 +621,7 @@ def create_app():
                 document_type=文件类型,
                 document_name=文件名称,
                 uploaded_by=当前上传人,
+                filename_override=目标文件名,
             )
             上传成功数 += 1
         return 上传成功数
@@ -883,6 +939,7 @@ def create_app():
     def enterprise_new():
         if request.method == "POST":
             操作动作 = (request.form.get("action") or "save_draft").strip()
+            本次有附件上传 = any(文件 and 文件.filename for 文件 in request.files.getlist("enterprise_upload_file"))
             行业代码, 行业名称 = 解析行业(request.form.get("industry_code"))
             扩展字段 = 提取企业扩展字段(request.form, 行业代码)
             企业性质列表 = 扩展字段.get("enterprise_natures", [])
@@ -932,7 +989,7 @@ def create_app():
             )
 
             外贸负责人 = (扩展字段.get("trade_lead") or "").strip()
-            完整度信息 = 计算企业资料完整度(企业, 扩展字段, 提取本次上传文件类型())
+            完整度信息 = 计算企业资料完整度(企业, 扩展字段, set())
             扩展字段["material_completeness_score"] = 完整度信息["score"]
             扩展字段["material_completeness"] = 完整度信息["label"]
             扩展字段["material_missing_items"] = 完整度信息["missing_items"]
@@ -976,12 +1033,17 @@ def create_app():
                     )
                 )
             try:
-                上传数 = 处理表单文件上传(
-                    enterprise=企业,
-                    类型字段名="enterprise_upload_type",
-                    名称字段名="enterprise_upload_name",
-                    文件字段名="enterprise_upload_file",
-                )
+                上传数 = 0
+                if 本次有附件上传:
+                    flash("请先保存草稿后上传附件", "warning")
+                else:
+                    上传数 = 处理表单文件上传(
+                        enterprise=企业,
+                        类型字段名="enterprise_upload_type",
+                        名称字段名="enterprise_upload_name",
+                        文件字段名="enterprise_upload_file",
+                        use_enterprise_naming=True,
+                    )
             except ValueError as exc:
                 flash(str(exc), "danger")
                 return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
@@ -994,7 +1056,7 @@ def create_app():
                 return redirect(url_for("enterprise_edit", id=企业.id) + "#enterpriseAccordion")
             return redirect(url_for("enterprise_detail", id=企业.id))
 
-        return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+        return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 已上传附件列表=[])
 
     @app.route("/enterprises/<int:id>")
     def enterprise_detail(id):
@@ -1208,6 +1270,7 @@ def create_app():
                     类型字段名="enterprise_upload_type",
                     名称字段名="enterprise_upload_name",
                     文件字段名="enterprise_upload_file",
+                    use_enterprise_naming=True,
                 )
             except ValueError as exc:
                 flash(str(exc), "danger")
@@ -1231,6 +1294,7 @@ def create_app():
             行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG,
             企业扩展字段=企业.enterprise_extra_fields or {},
             企业文件类型选项=ENTERPRISE_UPLOAD_TYPES,
+            已上传附件列表=Document.query.filter_by(enterprise_id=企业.id).order_by(Document.uploaded_at.desc(), Document.id.desc()).all(),
         )
 
     @app.route("/enterprises/<int:id>/delete", methods=["POST"])
@@ -2071,9 +2135,10 @@ def create_app():
     @admin_required
     def document_delete(document_id):
         document = Document.query.get_or_404(document_id)
+        返回地址 = request.form.get("next", "").strip()
         if request.form.get("confirm_delete") != "YES":
             flash("请勾选二次确认后再删除文件。", "warning")
-            return redirect(url_for("document_list"))
+            return redirect(返回地址 or url_for("document_list"))
         文件路径 = BASE_DIR / document.file_path
         if 文件路径.exists() and 文件路径.is_file():
             文件路径.unlink()
@@ -2081,7 +2146,7 @@ def create_app():
         db.session.delete(document)
         db.session.commit()
         flash("文件已删除。", "success")
-        return redirect(url_for("document_list"))
+        return redirect(返回地址 or url_for("document_list"))
 
     @app.route("/foreign-clients")
     def foreign_client_list():
@@ -3203,7 +3268,7 @@ def 生成不覆盖文件路径(目标路径):
     return 目标路径.with_name(f"{目标路径.stem}_{时间戳}{目标路径.suffix}")
 
 
-def 保存文件并登记记录(app, enterprise, product, 上传文件, document_type, document_name, uploaded_by, notes=None, related_project_id=None):
+def 保存文件并登记记录(app, enterprise, product, 上传文件, document_type, document_name, uploaded_by, notes=None, related_project_id=None, filename_override=None):
     扩展名 = Path(上传文件.filename).suffix.lower()
     if 扩展名 in BLOCKED_EXTENSIONS:
         raise ValueError("文件类型不允许上传。")
@@ -3219,7 +3284,7 @@ def 保存文件并登记记录(app, enterprise, product, 上传文件, document
     归档目录.mkdir(parents=True, exist_ok=True)
 
     日期文本 = datetime.now().strftime("%Y%m%d")
-    标准文件名 = 构建标准文件名(
+    标准文件名 = filename_override or 构建标准文件名(
         industry_code=enterprise.industry_code or "I00",
         enterprise_code=enterprise.enterprise_code or "E000",
         product_code=product.product_code if product else None,
