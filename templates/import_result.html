@@ -4,7 +4,7 @@
 <h1 class="h3 mb-3">{{ 标题 }}</h1>
 <div class="alert alert-success">导入成功 {{ 成功条数 }} 条</div>
 <div class="alert alert-warning">导入失败 {{ 失败列表|length }} 条</div>
-<a class="btn btn-outline-secondary mb-3" href="{{ url_for('excel_tools') }}">返回 Excel 工具页</a>
+<a class="btn btn-outline-secondary mb-3" href="{{ 返回地址 or url_for('excel_tools') }}">{{ 返回文案 or '返回' }}</a>
 
 {% if 失败列表 %}
 <div class="table-responsive">

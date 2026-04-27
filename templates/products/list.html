@@ -3,7 +3,11 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="h3 mb-0">产品入库管理</h1>
-    <a href="{{ url_for('product_new') }}" class="btn btn-primary">新增产品</a>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('import_products', next=request.path) }}" class="btn btn-outline-success">导入产品</a>
+        <a href="{{ url_for('excel_export', export_key='products') }}" class="btn btn-outline-primary">导出产品</a>
+        <a href="{{ url_for('product_new') }}" class="btn btn-primary">新增产品</a>
+    </div>
 </div>
 
 <div class="card mb-3">
