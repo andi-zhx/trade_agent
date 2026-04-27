@@ -52,13 +52,12 @@
         <div class="accordion-body row g-3">
             {% for field in group.fields %}
                 {% set show_when = field.show_when if field.show_when is defined else None %}
-                {% set show_field = show_when.field if show_when else '' %}
-                {% set show_value = show_when.value if show_when else '' %}
+                {% set show_when_any = field.show_when_any if field.show_when_any is defined else None %}
                 {% set col_class = 'col-12' if field.type in ['checkbox_group', 'checkbox_tags', 'radio_group', 'dynamic_contacts'] else ('col-lg-6' if field.type == 'textarea' else 'col-lg-3 col-md-4') %}
-                <div class="{{ col_class }}" {% if show_when %}data-show-when-field="{{ show_field }}" data-show-when-value="{{ show_value }}"{% endif %}>
+                <div class="{{ col_class }}" {% if show_when %}data-show-when='{{ show_when|tojson|forceescape }}'{% endif %}{% if show_when_any %} data-show-when-any='{{ show_when_any|tojson|forceescape }}'{% endif %}>
                 {% if field.type == 'textarea' %}
                     <label class="form-label">{{ field.label }}{% if field.required %}<span class="text-danger">*</span>{% endif %}</label>
-                    <textarea class="form-control" rows="2" maxlength="200" name="{{ field.key }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.required %}required{% endif %}>{{ extra_value(field.key) }}</textarea>
+                    <textarea class="form-control" rows="2" maxlength="{{ field.maxlength if field.maxlength is defined else 200 }}" name="{{ field.key }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.required %}required{% endif %}>{{ extra_value(field.key) }}</textarea>
                     {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
                 {% elif field.type == 'select' %}
                     <label class="form-label">{{ field.label }}{% if field.required %}<span class="text-danger">*</span>{% endif %}</label>
@@ -86,7 +85,7 @@
                     <div class="d-flex flex-wrap gap-3">
                         {% for opt in field.options %}
                         <div class="form-check">
-                            <input class="form-check-input" type="radio" id="{{ field.key }}_{{ loop.index }}" name="{{ field.key }}" value="{{ opt }}" {% if opt == cur %}checked{% endif %}>
+                            <input class="form-check-input" type="radio" id="{{ field.key }}_{{ loop.index }}" name="{{ field.key }}" value="{{ opt }}" {% if opt == cur %}checked{% endif %} {% if field.required and loop.first %}required{% endif %}>
                             <label class="form-check-label" for="{{ field.key }}_{{ loop.index }}">{{ opt }}</label>
                         </div>
                         {% endfor %}
@@ -175,7 +174,7 @@
                     <div class="form-text">支持新增多行、删除行；“主联系人”只能选择一个。</div>
                 {% else %}
                     <label class="form-label">{{ field.label }}{% if field.required %}<span class="text-danger">*</span>{% endif %}</label>
-                    <input class="form-control" type="{{ field.type if field.type in ['date','number','email','url'] else 'text' }}" name="{{ field.key }}" value="{{ extra_value(field.key) }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.key in ['primary_contact_mobile'] %}pattern="^1[3-9]\d{9}$"{% endif %} {% if field.required %}required{% endif %}>
+                    <input class="form-control" type="{{ field.type if field.type in ['date','number','email','url'] else 'text' }}" name="{{ field.key }}" value="{{ extra_value(field.key) }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.key in ['primary_contact_mobile'] %}pattern="^1[3-9]\d{9}$"{% endif %} {% if field.type == 'year' %}inputmode="numeric" pattern="^\d{4}$" maxlength="4"{% endif %} {% if field.required %}required{% endif %}>
                     {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
                 {% endif %}
                 </div>
@@ -275,21 +274,50 @@
         });
     }
 
-    const showWhenBlocks = document.querySelectorAll('[data-show-when-field]');
+    const showWhenBlocks = document.querySelectorAll('[data-show-when], [data-show-when-any]');
+    const parseConditions = (rawValue) => {
+        if (!rawValue) return [];
+        try {
+            const parsed = JSON.parse(rawValue);
+            return Array.isArray(parsed) ? parsed : [parsed];
+        } catch (_err) {
+            return [];
+        }
+    };
+    const ensureArray = (value) => {
+        if (Array.isArray(value)) return value;
+        if (value === null || value === undefined || value === '') return [];
+        return [value];
+    };
+    const getFieldValues = (fieldName) => {
+        const elements = Array.from(document.querySelectorAll(`[name="${fieldName}"]`));
+        if (elements.length === 0) return [];
+        const radioElements = elements.filter((el) => el.type === 'radio');
+        if (radioElements.length > 0) {
+            const checked = radioElements.find((el) => el.checked);
+            return checked ? [checked.value] : [];
+        }
+        const checkboxElements = elements.filter((el) => el.type === 'checkbox');
+        if (checkboxElements.length > 0) {
+            return checkboxElements.filter((el) => el.checked).map((el) => el.value);
+        }
+        return [(elements[0].value || '').trim()].filter(Boolean);
+    };
+    const isConditionMatched = (condition) => {
+        if (!condition || !condition.field) return true;
+        const currentValues = getFieldValues(condition.field);
+        const expectedValues = ensureArray(condition.value);
+        if (expectedValues.length === 0) return currentValues.length > 0;
+        return currentValues.some((item) => expectedValues.includes(item));
+    };
     const syncShowWhen = () => {
         showWhenBlocks.forEach((block) => {
-            const field = block.dataset.showWhenField;
-            const expectedValue = block.dataset.showWhenValue || '';
-            const target = document.querySelector(`[name="${field}"]`);
-            const radios = document.querySelectorAll(`input[name="${field}"]`);
-            let currentValue = '';
-            if (radios.length > 0) {
-                const checked = Array.from(radios).find((item) => item.checked);
-                currentValue = checked ? checked.value : '';
-            } else if (target) {
-                currentValue = target.value || '';
-            }
-            block.style.display = currentValue === expectedValue ? '' : 'none';
+            const allConditions = parseConditions(block.dataset.showWhen);
+            const anyConditions = parseConditions(block.dataset.showWhenAny);
+            const showByAll = allConditions.length === 0 ? true : allConditions.every((condition) => isConditionMatched(condition));
+            const showByAny = anyConditions.length === 0 ? false : anyConditions.some((condition) => isConditionMatched(condition));
+            const shouldShow = showByAll || showByAny;
+            block.style.display = shouldShow ? '' : 'none';
         });
     };
     document.addEventListener('change', (event) => {
