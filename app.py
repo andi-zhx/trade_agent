@@ -346,8 +346,40 @@ def create_app():
         数据 = {}
         for 字段 in 提取字段配置(行业代码):
             键名 = 字段["key"]
-            if 字段.get("type") == "checkbox_group":
+            if 字段.get("type") in {"checkbox_group", "checkbox_tags"}:
                 值 = 读取多选值(form, 键名)
+            elif 字段.get("type") == "dynamic_contacts":
+                姓名列表 = [item.strip() for item in form.getlist("dynamic_contacts_name[]")]
+                部门列表 = [item.strip() for item in form.getlist("dynamic_contacts_department[]")]
+                职位列表 = [item.strip() for item in form.getlist("dynamic_contacts_position[]")]
+                手机列表 = [item.strip() for item in form.getlist("dynamic_contacts_mobile[]")]
+                邮箱列表 = [item.strip() for item in form.getlist("dynamic_contacts_email[]")]
+                微信列表 = [item.strip() for item in form.getlist("dynamic_contacts_wechat[]")]
+                负责内容列表 = [item.strip() for item in form.getlist("dynamic_contacts_responsibility[]")]
+                主联系人索引 = (form.get("dynamic_contacts_primary_index") or "").strip()
+                值 = []
+                最大长度 = max(
+                    len(姓名列表),
+                    len(部门列表),
+                    len(职位列表),
+                    len(手机列表),
+                    len(邮箱列表),
+                    len(微信列表),
+                    len(负责内容列表),
+                )
+                for idx in range(最大长度):
+                    行 = {
+                        "name": 姓名列表[idx] if idx < len(姓名列表) else "",
+                        "department": 部门列表[idx] if idx < len(部门列表) else "",
+                        "position": 职位列表[idx] if idx < len(职位列表) else "",
+                        "mobile": 手机列表[idx] if idx < len(手机列表) else "",
+                        "email": 邮箱列表[idx] if idx < len(邮箱列表) else "",
+                        "wechat": 微信列表[idx] if idx < len(微信列表) else "",
+                        "responsibility": 负责内容列表[idx] if idx < len(负责内容列表) else "",
+                        "is_primary_contact": str(idx) == 主联系人索引,
+                    }
+                    if any(行.get(k) for k in ("name", "department", "position", "mobile", "email", "wechat", "responsibility")):
+                        值.append(行)
             else:
                 原值 = form.get(键名, "")
                 值 = 原值.strip() if isinstance(原值, str) else 原值
@@ -720,6 +752,8 @@ def create_app():
             行业代码, 行业名称 = 解析行业(request.form.get("industry_code"))
             扩展字段 = 提取企业扩展字段(request.form, 行业代码)
             企业性质列表 = 扩展字段.get("enterprise_natures", [])
+            联系人子表单 = 扩展字段.get("dynamic_contacts", [])
+            主联系人数 = sum(1 for item in 联系人子表单 if item.get("is_primary_contact"))
             出口经验 = 扩展字段.get("export_experience")
             企业 = Enterprise(
                 enterprise_code=生成企业编号(),
@@ -771,6 +805,9 @@ def create_app():
             if not 行业代码:
                 flash("行业分类必须从下拉框选择。", "danger")
                 return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+            if 主联系人数 > 1:
+                flash("联系人子表单中“是否主联系人”只能选择一位。", "danger")
+                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
 
             db.session.add(企业)
             db.session.flush()
@@ -932,6 +969,8 @@ def create_app():
             行业代码, 行业名称 = 解析行业(request.form.get("industry_code"))
             扩展字段 = 提取企业扩展字段(request.form, 行业代码)
             企业性质列表 = 扩展字段.get("enterprise_natures", [])
+            联系人子表单 = 扩展字段.get("dynamic_contacts", [])
+            主联系人数 = sum(1 for item in 联系人子表单 if item.get("is_primary_contact"))
             企业.company_name = (扩展字段.get("company_full_name") or "").strip()
             企业.english_name = 扩展字段.get("english_name") or None
             企业.unified_social_credit_code = 扩展字段.get("unified_social_credit_code") or None
@@ -992,6 +1031,9 @@ def create_app():
                 return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
             if not 行业代码:
                 flash("行业分类必须从下拉框选择。", "danger")
+                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+            if 主联系人数 > 1:
+                flash("联系人子表单中“是否主联系人”只能选择一位。", "danger")
                 return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
 
             try:

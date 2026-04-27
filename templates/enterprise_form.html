@@ -51,14 +51,17 @@
         <div id="collapse_{{ group.key }}" class="accordion-collapse collapse {% if loop.first %}show{% endif %}" data-bs-parent="#enterpriseAccordion">
         <div class="accordion-body row g-3">
             {% for field in group.fields %}
+                {% set show_when = field.show_when if field.show_when is defined else None %}
+                {% set show_field = show_when.field if show_when else '' %}
+                {% set show_value = show_when.value if show_when else '' %}
+                {% set col_class = 'col-12' if field.type in ['checkbox_group', 'checkbox_tags', 'radio_group', 'dynamic_contacts'] else ('col-lg-6' if field.type == 'textarea' else 'col-lg-3 col-md-4') %}
+                <div class="{{ col_class }}" {% if show_when %}data-show-when-field="{{ show_field }}" data-show-when-value="{{ show_value }}"{% endif %}>
                 {% if field.type == 'textarea' %}
-                <div class="col-lg-6">
                     <label class="form-label">{{ field.label }}{% if field.required %}<span class="text-danger">*</span>{% endif %}</label>
-                    <textarea class="form-control" rows="2" name="{{ field.key }}" {% if field.required %}required{% endif %}>{{ extra_value(field.key) }}</textarea>
-                </div>
+                    <textarea class="form-control" rows="2" maxlength="200" name="{{ field.key }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.required %}required{% endif %}>{{ extra_value(field.key) }}</textarea>
+                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
                 {% elif field.type == 'select' %}
-                <div class="col-lg-3 col-md-4">
-                    <label class="form-label">{{ field.label }}</label>
+                    <label class="form-label">{{ field.label }}{% if field.required %}<span class="text-danger">*</span>{% endif %}</label>
                     <select class="form-select" name="{{ field.key }}">
                         <option value="">请选择</option>
                         {% set cur = extra_value(field.key) %}
@@ -66,9 +69,18 @@
                         <option value="{{ opt }}" {% if opt == cur %}selected{% endif %}>{{ opt }}</option>
                         {% endfor %}
                     </select>
-                </div>
+                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                {% elif field.type == 'select_or_text' %}
+                    <label class="form-label">{{ field.label }}{% if field.required %}<span class="text-danger">*</span>{% endif %}</label>
+                    {% set cur = extra_value(field.key) %}
+                    <input class="form-control" list="{{ field.key }}_options" name="{{ field.key }}" value="{{ cur }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.required %}required{% endif %}>
+                    <datalist id="{{ field.key }}_options">
+                        {% for opt in field.options %}
+                        <option value="{{ opt }}"></option>
+                        {% endfor %}
+                    </datalist>
+                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
                 {% elif field.type == 'radio_group' %}
-                <div class="col-12">
                     <label class="form-label d-block">{{ field.label }}</label>
                     {% set cur = extra_value(field.key) %}
                     <div class="d-flex flex-wrap gap-3">
@@ -79,9 +91,8 @@
                         </div>
                         {% endfor %}
                     </div>
-                </div>
+                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
                 {% elif field.type == 'checkbox_group' %}
-                <div class="col-12">
                     <label class="form-label d-block">{{ field.label }}</label>
                     {% set selected_values = request.form.getlist(field.key) if request.method == 'POST' else (企业扩展字段 or {}).get(field.key, []) %}
                     <div class="row g-2">
@@ -94,13 +105,80 @@
                         </div>
                         {% endfor %}
                     </div>
-                </div>
+                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                {% elif field.type == 'checkbox_tags' %}
+                    <label class="form-label d-block">{{ field.label }}{% if field.required %}<span class="text-danger">*</span>{% endif %}</label>
+                    {% set selected_values = request.form.getlist(field.key) if request.method == 'POST' else (企业扩展字段 or {}).get(field.key, []) %}
+                    <div class="row g-2">
+                        {% for opt in field.options %}
+                        <div class="col-lg-2 col-md-3 col-6">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="{{ field.key }}_{{ loop.index }}" name="{{ field.key }}" value="{{ opt }}" {% if opt in selected_values %}checked{% endif %}>
+                                <label class="form-check-label" for="{{ field.key }}_{{ loop.index }}">{{ opt }}</label>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
+                {% elif field.type == 'dynamic_contacts' %}
+                    <label class="form-label d-block">{{ field.label }}</label>
+                    {% set contacts = request.form.getlist('dynamic_contacts_name[]') if request.method == 'POST' else [] %}
+                    <div id="dynamicContactsContainer" class="vstack gap-2">
+                        {% if request.method == 'POST' %}
+                            {% set primary_idx = request.form.get('dynamic_contacts_primary_index', '') %}
+                            {% for _ in contacts %}
+                            {% set idx = loop.index0 %}
+                            <div class="card card-body dynamic-contact-row py-2">
+                                <div class="row g-2 align-items-start">
+                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名" value="{{ request.form.getlist('dynamic_contacts_name[]')[idx] }}"></div>
+                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_department[]" placeholder="部门" value="{{ request.form.getlist('dynamic_contacts_department[]')[idx] }}"></div>
+                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位" value="{{ request.form.getlist('dynamic_contacts_position[]')[idx] }}"></div>
+                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机" value="{{ request.form.getlist('dynamic_contacts_mobile[]')[idx] }}"></div>
+                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱" value="{{ request.form.getlist('dynamic_contacts_email[]')[idx] }}"></div>
+                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_wechat[]" placeholder="微信" value="{{ request.form.getlist('dynamic_contacts_wechat[]')[idx] }}"></div>
+                                    <div class="col-md-8"><input class="form-control form-control-sm" name="dynamic_contacts_responsibility[]" placeholder="负责内容" value="{{ request.form.getlist('dynamic_contacts_responsibility[]')[idx] }}"></div>
+                                    <div class="col-md-2">
+                                        <div class="form-check mt-1">
+                                            <input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value="{{ idx }}" {% if primary_idx == idx|string %}checked{% endif %}>
+                                            <label class="form-check-label">主联系人</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2 text-end"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% else %}
+                            {% set existing_contacts = (企业扩展字段 or {}).get('dynamic_contacts', []) %}
+                            {% for row in existing_contacts %}
+                            <div class="card card-body dynamic-contact-row py-2">
+                                <div class="row g-2 align-items-start">
+                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名" value="{{ row.get('name', '') }}"></div>
+                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_department[]" placeholder="部门" value="{{ row.get('department', '') }}"></div>
+                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位" value="{{ row.get('position', '') }}"></div>
+                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机" value="{{ row.get('mobile', '') }}"></div>
+                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱" value="{{ row.get('email', '') }}"></div>
+                                    <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_wechat[]" placeholder="微信" value="{{ row.get('wechat', '') }}"></div>
+                                    <div class="col-md-8"><input class="form-control form-control-sm" name="dynamic_contacts_responsibility[]" placeholder="负责内容" value="{{ row.get('responsibility', '') }}"></div>
+                                    <div class="col-md-2">
+                                        <div class="form-check mt-1">
+                                            <input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value="{{ loop.index0 }}" {% if row.get('is_primary_contact') %}checked{% endif %}>
+                                            <label class="form-check-label">主联系人</label>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-2 text-end"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        {% endif %}
+                    </div>
+                    <button class="btn btn-sm btn-outline-secondary mt-2" type="button" id="dynamicContactAddBtn">+ 新增联系人</button>
+                    <div class="form-text">支持新增多行、删除行；“主联系人”只能选择一个。</div>
                 {% else %}
-                <div class="col-lg-3 col-md-4">
                     <label class="form-label">{{ field.label }}{% if field.required %}<span class="text-danger">*</span>{% endif %}</label>
-                    <input class="form-control" type="{{ field.type if field.type in ['date','number','email','url'] else 'text' }}" name="{{ field.key }}" value="{{ extra_value(field.key) }}" {% if field.required %}required{% endif %}>
-                </div>
+                    <input class="form-control" type="{{ field.type if field.type in ['date','number','email','url'] else 'text' }}" name="{{ field.key }}" value="{{ extra_value(field.key) }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.key in ['primary_contact_mobile'] %}pattern="^1[3-9]\d{9}$"{% endif %} {% if field.required %}required{% endif %}>
+                    {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
                 {% endif %}
+                </div>
             {% endfor %}
         </div>
     </div>
@@ -195,6 +273,72 @@
             cloned.querySelectorAll('select').forEach((select) => select.value = '');
             uploadRows.appendChild(cloned);
         });
+    }
+
+    const showWhenBlocks = document.querySelectorAll('[data-show-when-field]');
+    const syncShowWhen = () => {
+        showWhenBlocks.forEach((block) => {
+            const field = block.dataset.showWhenField;
+            const expectedValue = block.dataset.showWhenValue || '';
+            const target = document.querySelector(`[name="${field}"]`);
+            const radios = document.querySelectorAll(`input[name="${field}"]`);
+            let currentValue = '';
+            if (radios.length > 0) {
+                const checked = Array.from(radios).find((item) => item.checked);
+                currentValue = checked ? checked.value : '';
+            } else if (target) {
+                currentValue = target.value || '';
+            }
+            block.style.display = currentValue === expectedValue ? '' : 'none';
+        });
+    };
+    document.addEventListener('change', (event) => {
+        if (!event.target || !event.target.name) return;
+        syncShowWhen();
+    });
+    syncShowWhen();
+
+    const contactsContainer = document.getElementById('dynamicContactsContainer');
+    const contactsAddBtn = document.getElementById('dynamicContactAddBtn');
+    const contactRowTemplate = () => `
+        <div class="card card-body dynamic-contact-row py-2">
+            <div class="row g-2 align-items-start">
+                <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名"></div>
+                <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_department[]" placeholder="部门"></div>
+                <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位"></div>
+                <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机"></div>
+                <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱"></div>
+                <div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_wechat[]" placeholder="微信"></div>
+                <div class="col-md-8"><input class="form-control form-control-sm" name="dynamic_contacts_responsibility[]" placeholder="负责内容"></div>
+                <div class="col-md-2">
+                    <div class="form-check mt-1">
+                        <input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value="">
+                        <label class="form-check-label">主联系人</label>
+                    </div>
+                </div>
+                <div class="col-md-2 text-end"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div>
+            </div>
+        </div>`;
+    const syncPrimaryIndex = () => {
+        if (!contactsContainer) return;
+        contactsContainer.querySelectorAll('.dynamic-contact-row').forEach((row, idx) => {
+            const radio = row.querySelector('.dynamic-contacts-primary-radio');
+            if (radio) radio.value = String(idx);
+        });
+    };
+    if (contactsContainer && contactsAddBtn) {
+        contactsAddBtn.addEventListener('click', () => {
+            contactsContainer.insertAdjacentHTML('beforeend', contactRowTemplate());
+            syncPrimaryIndex();
+        });
+        contactsContainer.addEventListener('click', (event) => {
+            const button = event.target.closest('.dynamic-contact-remove');
+            if (!button) return;
+            const row = button.closest('.dynamic-contact-row');
+            if (row) row.remove();
+            syncPrimaryIndex();
+        });
+        syncPrimaryIndex();
     }
 })();
 </script>
