@@ -16,7 +16,8 @@
                     <select name="enterprise_id" class="form-select" required>
                         <option value="">请选择企业</option>
                         {% for e in enterprises %}
-                            <option value="{{ e.id }}" {% if product and product.enterprise_id == e.id %}selected{% endif %}>{{ e.enterprise_code }} - {{ e.company_name }}</option>
+                            {% set current_enterprise_id = request.form.get('enterprise_id') if request.method == 'POST' else (product.enterprise_id if product else None) %}
+                            <option value="{{ e.id }}" data-industry-code="{{ e.industry_code or '' }}" data-industry-name="{{ e.industry_category or '' }}" {% if current_enterprise_id and current_enterprise_id|int == e.id %}selected{% endif %}>{{ e.enterprise_code }} - {{ e.company_name }}</option>
                         {% endfor %}
                     </select>
                 </div>
@@ -32,6 +33,16 @@
             <div id="B" class="accordion-collapse collapse"><div class="accordion-body row g-3">
                 <div class="col-md-4"><label class="form-label">产品中文名</label><input name="product_name_cn" required class="form-control" value="{{ product.product_name_cn if product else '' }}"></div>
                 <div class="col-md-4"><label class="form-label">产品英文名</label><input name="product_name_en" class="form-control" value="{{ product.product_name_en if product else '' }}"></div>
+                <div class="col-md-4">
+                    <label class="form-label">行业分类</label>
+                    {% set current_industry_code = request.form.get('industry_code') if request.method == 'POST' else (product.industry_code if product else '') %}
+                    <select name="industry_code" class="form-select" required>
+                        <option value="">请选择行业分类</option>
+                        {% for item in industries %}
+                        <option value="{{ item.code }}" data-name="{{ item.name }}" {% if item.code == current_industry_code %}selected{% endif %}>{{ item.code }} {{ item.name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
                 <div class="col-md-4"><label class="form-label">产品类别</label><input name="product_category" class="form-control" value="{{ product.product_category if product else '' }}"></div>
                 <div class="col-md-4"><label class="form-label">HS编码</label><input name="hs_code" class="form-control" value="{{ product.hs_code if product else '' }}"></div>
                 <div class="col-md-4"><label class="form-label">型号</label><input name="model" class="form-control" value="{{ product.model if product else '' }}"></div>
@@ -118,4 +129,23 @@
         <button class="btn btn-primary" type="submit">保存产品</button>
     </div>
 </form>
+<script>
+(() => {
+    const enterpriseSelect = document.querySelector('select[name="enterprise_id"]');
+    const industrySelect = document.querySelector('select[name="industry_code"]');
+    if (!enterpriseSelect || !industrySelect) return;
+
+    const syncIndustryFromEnterprise = () => {
+        if (industrySelect.value) return;
+        const selectedEnterprise = enterpriseSelect.options[enterpriseSelect.selectedIndex];
+        if (!selectedEnterprise) return;
+        const enterpriseIndustryCode = selectedEnterprise.dataset.industryCode || '';
+        if (!enterpriseIndustryCode) return;
+        industrySelect.value = enterpriseIndustryCode;
+    };
+
+    enterpriseSelect.addEventListener('change', syncIndustryFromEnterprise);
+    syncIndustryFromEnterprise();
+})();
+</script>
 {% endblock %}

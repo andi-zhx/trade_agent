@@ -112,8 +112,21 @@
     <div class="card shadow-sm">
         <div class="card-header fw-bold">D. 行业与主营业务</div>
         <div class="card-body row g-3">
-            <div class="col-md-4"><label class="form-label">行业代码</label><input class="form-control" name="industry_code" value="{{ value_of('industry_code') }}"></div>
-            <div class="col-md-4"><label class="form-label">行业大类</label><input class="form-control" name="industry_category" value="{{ value_of('industry_category') }}"></div>
+            <div class="col-md-4">
+                <label class="form-label">行业分类</label>
+                <select class="form-select" name="industry_code" required>
+                    <option value="">请选择行业分类</option>
+                    {% set 当前行业代码 = value_of('industry_code') %}
+                    {% for item in 行业列表 %}
+                    <option value="{{ item.code }}" data-name="{{ item.name }}" {% if item.code == 当前行业代码 %}selected{% endif %}>{{ item.code }} {{ item.name }}</option>
+                    {% endfor %}
+                </select>
+                <input type="hidden" name="industry_category" value="{{ value_of('industry_category') }}">
+            </div>
+            <div class="col-md-4">
+                <label class="form-label">行业名称</label>
+                <input id="enterpriseIndustryName" class="form-control" value="{{ value_of('industry_category') }}" readonly>
+            </div>
             <div class="col-md-4"><label class="form-label">细分行业</label><input class="form-control" name="sub_industry" value="{{ value_of('sub_industry') }}"></div>
             <div class="col-12"><label class="form-label">主营产品</label><textarea class="form-control" rows="2" name="main_products">{{ value_of('main_products') }}</textarea></div>
             <div class="col-12"><label class="form-label">主营业务</label><textarea class="form-control" rows="3" name="main_business">{{ value_of('main_business') }}</textarea></div>
@@ -162,4 +175,22 @@
         <a href="{{ url_for('enterprise_list') }}" class="btn btn-outline-secondary">取消</a>
     </div>
 </form>
+<script>
+(() => {
+    const industrySelect = document.querySelector('select[name="industry_code"]');
+    const industryNameInput = document.getElementById('enterpriseIndustryName');
+    const hiddenIndustryName = document.querySelector('input[name="industry_category"]');
+    if (!industrySelect || !industryNameInput || !hiddenIndustryName) return;
+
+    const syncIndustryName = () => {
+        const selected = industrySelect.options[industrySelect.selectedIndex];
+        const name = selected ? (selected.dataset.name || '') : '';
+        industryNameInput.value = name;
+        hiddenIndustryName.value = name;
+    };
+
+    industrySelect.addEventListener('change', syncIndustryName);
+    syncIndustryName();
+})();
+</script>
 {% endblock %}

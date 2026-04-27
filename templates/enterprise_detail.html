@@ -16,7 +16,7 @@
         <div class="col-md-3"><strong>企业编号：</strong>{{ 企业.enterprise_code }}</div>
         <div class="col-md-3"><strong>企业名称：</strong>{{ 企业.company_name }}</div>
         <div class="col-md-3"><strong>城市：</strong>{{ 企业.city or '-' }}</div>
-        <div class="col-md-3"><strong>行业大类：</strong>{{ 企业.industry_category or '-' }}</div>
+        <div class="col-md-3"><strong>行业分类：</strong>{% if 企业.industry_code %}{{ 企业.industry_code }} {{ 企业.industry_category or '' }}{% else %}-{% endif %}</div>
         <div class="col-md-6"><strong>主营产品：</strong>{{ 企业.main_products or '-' }}</div>
         <div class="col-md-6"><strong>入库状态：</strong>{{ 企业.status }}</div>
         <div class="col-md-6"><strong>已出口国家：</strong>{{ 企业.export_countries or '-' }}</div>

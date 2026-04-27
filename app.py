@@ -9,10 +9,11 @@ from functools import wraps
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from flask import Flask, flash, redirect, render_template, request, send_file, send_from_directory, session, url_for
-from sqlalchemy import func, or_
+from sqlalchemy import func, inspect, or_, text
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
+from config.industry_config import INDUSTRY_MAP, INDUSTRY_OPTIONS
 from models import (
     Contact,
     Demand,
@@ -234,6 +235,15 @@ def create_app():
         flash("上传文件过大，单文件限制为 100MB。", "danger")
         return redirect(url_for("document_upload"))
 
+    def 行业下拉选项():
+        return INDUSTRY_OPTIONS
+
+    def 解析行业(行业代码):
+        item = INDUSTRY_MAP.get((行业代码 or "").strip())
+        if not item:
+            return None, None
+        return item["code"], item["name"]
+
     @app.route("/")
     def dashboard():
         企业数量 = Enterprise.query.count()
@@ -381,7 +391,7 @@ def create_app():
         if city:
             查询 = 查询.filter(Enterprise.city == city)
         if industry:
-            查询 = 查询.filter(Enterprise.industry_category == industry)
+            查询 = 查询.filter(Enterprise.industry_code == industry)
         if manufacturer in {"yes", "no"}:
             查询 = 查询.filter(Enterprise.is_manufacturer.is_(manufacturer == "yes"))
         if status:
@@ -390,7 +400,7 @@ def create_app():
         分页 = 查询.order_by(Enterprise.updated_at.desc()).paginate(page=page, per_page=PER_PAGE, error_out=False)
 
         城市列表 = [项[0] for 项 in db.session.query(Enterprise.city).filter(Enterprise.city.isnot(None), Enterprise.city != "").distinct().order_by(Enterprise.city).all()]
-        行业列表 = [项[0] for 项 in db.session.query(Enterprise.industry_category).filter(Enterprise.industry_category.isnot(None), Enterprise.industry_category != "").distinct().order_by(Enterprise.industry_category).all()]
+        行业列表 = 行业下拉选项()
         状态列表 = [项[0] for 项 in db.session.query(Enterprise.status).filter(Enterprise.status.isnot(None), Enterprise.status != "").distinct().order_by(Enterprise.status).all()]
 
         企业ID列表 = [企业.id for 企业 in 分页.items]
@@ -414,6 +424,7 @@ def create_app():
     @app.route("/enterprises/new", methods=["GET", "POST"])
     def enterprise_new():
         if request.method == "POST":
+            行业代码, 行业名称 = 解析行业(request.form.get("industry_code"))
             企业 = Enterprise(
                 enterprise_code=生成企业编号(),
                 company_name=request.form.get("company_name", "").strip(),
@@ -427,8 +438,8 @@ def create_app():
                 city=request.form.get("city", "").strip() or None,
                 district=request.form.get("district", "").strip() or None,
                 company_type=request.form.get("company_type", "").strip() or None,
-                industry_code=request.form.get("industry_code", "").strip() or None,
-                industry_category=request.form.get("industry_category", "").strip() or None,
+                industry_code=行业代码,
+                industry_category=行业名称,
                 sub_industry=request.form.get("sub_industry", "").strip() or None,
                 main_products=request.form.get("main_products", "").strip() or None,
                 main_business=request.form.get("main_business", "").strip() or None,
@@ -459,7 +470,10 @@ def create_app():
 
             if not 企业.company_name:
                 flash("企业名称为必填项", "danger")
-                return render_template("enterprise_form.html", 模式="new", 企业=None)
+                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项())
+            if not 行业代码:
+                flash("行业分类必须从下拉框选择。", "danger")
+                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项())
 
             db.session.add(企业)
             db.session.flush()
@@ -477,7 +491,7 @@ def create_app():
             flash(f"企业 {企业.company_name} 新增成功", "success")
             return redirect(url_for("enterprise_detail", id=企业.id))
 
-        return render_template("enterprise_form.html", 模式="new", 企业=None)
+        return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项())
 
     @app.route("/enterprises/<int:id>")
     def enterprise_detail(id):
@@ -521,6 +535,7 @@ def create_app():
         外贸联系人 = Contact.query.filter_by(enterprise_id=id, contact_type="外贸负责人").first()
 
         if request.method == "POST":
+            行业代码, 行业名称 = 解析行业(request.form.get("industry_code"))
             企业.company_name = request.form.get("company_name", "").strip()
             企业.english_name = request.form.get("english_name", "").strip() or None
             企业.unified_social_credit_code = request.form.get("unified_social_credit_code", "").strip() or None
@@ -532,8 +547,8 @@ def create_app():
             企业.city = request.form.get("city", "").strip() or None
             企业.district = request.form.get("district", "").strip() or None
             企业.company_type = request.form.get("company_type", "").strip() or None
-            企业.industry_code = request.form.get("industry_code", "").strip() or None
-            企业.industry_category = request.form.get("industry_category", "").strip() or None
+            企业.industry_code = 行业代码
+            企业.industry_category = 行业名称
             企业.sub_industry = request.form.get("sub_industry", "").strip() or None
             企业.main_products = request.form.get("main_products", "").strip() or None
             企业.main_business = request.form.get("main_business", "").strip() or None
@@ -577,7 +592,10 @@ def create_app():
 
             if not 企业.company_name:
                 flash("企业名称为必填项", "danger")
-                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人)
+                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项())
+            if not 行业代码:
+                flash("行业分类必须从下拉框选择。", "danger")
+                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项())
 
             记录审计日志("编辑企业", "enterprise", target_id=企业.id, detail=企业.company_name)
             db.session.commit()
@@ -589,6 +607,7 @@ def create_app():
             模式="edit",
             企业=企业,
             外贸负责人=外贸联系人.name if 外贸联系人 else "",
+            行业列表=行业下拉选项(),
         )
 
     @app.route("/enterprises/<int:id>/delete", methods=["POST"])
@@ -752,6 +771,7 @@ def create_app():
         q_hs_code = request.args.get("hs_code", "").strip()
         q_target_market = request.args.get("target_market", "").strip()
         q_certification = request.args.get("certification", "").strip()
+        q_industry = request.args.get("industry", "").strip()
         q_price_min = request.args.get("price_min", "").strip()
         q_price_max = request.args.get("price_max", "").strip()
 
@@ -776,6 +796,8 @@ def create_app():
             query = query.filter(Product.target_market.ilike(f"%{q_target_market}%"))
         if q_certification:
             query = query.filter(Product.certifications.ilike(f"%{q_certification}%"))
+        if q_industry:
+            query = query.filter(Product.industry_code == q_industry)
 
         if q_price_min:
             try:
@@ -798,6 +820,7 @@ def create_app():
             products=products,
             enterprises=enterprises,
             categories=categories,
+            industries=行业下拉选项(),
             filters=request.args,
         )
 
@@ -816,6 +839,7 @@ def create_app():
                     form_title="新增产品",
                     sections=PRODUCT_FORM_SECTIONS,
                     product=None,
+                    industries=行业下拉选项(),
                 )
 
             product = Product(
@@ -833,6 +857,7 @@ def create_app():
                     form_title="新增产品",
                     sections=PRODUCT_FORM_SECTIONS,
                     product=product,
+                    industries=行业下拉选项(),
                 )
             db.session.add(product)
             db.session.flush()
@@ -848,6 +873,7 @@ def create_app():
             form_title="新增产品",
             sections=PRODUCT_FORM_SECTIONS,
             product=None,
+            industries=行业下拉选项(),
         )
 
     @app.route("/products/<int:product_id>")
@@ -895,6 +921,7 @@ def create_app():
                     form_title="编辑产品",
                     sections=PRODUCT_FORM_SECTIONS,
                     product=product,
+                    industries=行业下拉选项(),
                 )
 
             old_enterprise_id = product.enterprise_id
@@ -912,6 +939,7 @@ def create_app():
                     form_title="编辑产品",
                     sections=PRODUCT_FORM_SECTIONS,
                     product=product,
+                    industries=行业下拉选项(),
                 )
             记录审计日志("编辑产品", "product", target_id=product.id, detail=product.product_name_cn)
             db.session.commit()
@@ -925,6 +953,7 @@ def create_app():
             form_title="编辑产品",
             sections=PRODUCT_FORM_SECTIONS,
             product=product,
+            industries=行业下拉选项(),
         )
 
     @app.post("/products/<int:product_id>/delete")
@@ -1562,6 +1591,14 @@ def generate_product_code(enterprise_id):
 
 
 def fill_product_from_form(product, form):
+    enterprise = Enterprise.query.get(product.enterprise_id) if product.enterprise_id else None
+    选中行业代码 = (form.get("industry_code") or "").strip() or (enterprise.industry_code if enterprise else "")
+    行业信息 = INDUSTRY_MAP.get(选中行业代码)
+    if not 行业信息:
+        raise ValueError("产品行业分类必须从下拉框选择。")
+
+    product.industry_code = 行业信息["code"]
+    product.industry_name = 行业信息["name"]
     product.product_name_cn = form.get("product_name_cn", "").strip()
     product.product_name_en = form.get("product_name_en", "").strip() or None
     product.product_category = form.get("product_category", "").strip() or None
@@ -2251,6 +2288,33 @@ def init_db(app):
 
     with app.app_context():
         db.create_all()
+        inspector = inspect(db.engine)
+        product_columns = {col["name"] for col in inspector.get_columns("products")}
+        if "industry_code" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN industry_code VARCHAR(50)"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_products_industry_code ON products (industry_code)"))
+        if "industry_name" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN industry_name VARCHAR(100)"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_products_industry_name ON products (industry_name)"))
+        db.session.commit()
+
+        db.session.execute(
+            text(
+                """
+                UPDATE products
+                SET industry_code = (
+                    SELECT enterprises.industry_code FROM enterprises WHERE enterprises.id = products.enterprise_id
+                ),
+                    industry_name = (
+                    SELECT enterprises.industry_category FROM enterprises WHERE enterprises.id = products.enterprise_id
+                )
+                WHERE (industry_code IS NULL OR industry_code = '')
+                  AND enterprise_id IS NOT NULL
+                """
+            )
+        )
+        db.session.commit()
+
         管理员 = User.query.filter_by(username="admin").first()
         if not 管理员:
             db.session.add(User(username="admin", password=generate_password_hash("admin123"), role="管理员"))

@@ -19,6 +19,7 @@
                     <div class="col-md-6 mb-2"><strong>归档编号：</strong>{{ archive_code }}</div>
                     <div class="col-md-6 mb-2"><strong>中文名：</strong>{{ product.product_name_cn }}</div>
                     <div class="col-md-6 mb-2"><strong>英文名：</strong>{{ product.product_name_en or '-' }}</div>
+                    <div class="col-md-6 mb-2"><strong>行业分类：</strong>{% if product.industry_code %}{{ product.industry_code }} {{ product.industry_name or '' }}{% else %}-{% endif %}</div>
                     <div class="col-md-6 mb-2"><strong>类别：</strong>{{ product.product_category or '-' }}</div>
                     <div class="col-md-6 mb-2"><strong>HS编码：</strong>{{ product.hs_code or '-' }}</div>
                     <div class="col-md-6 mb-2"><strong>型号：</strong>{{ product.model or '-' }}</div>
@@ -43,6 +44,7 @@
                 {% if enterprise %}
                 <p><strong>企业编号：</strong>{{ enterprise.enterprise_code }}</p>
                 <p><strong>企业名称：</strong>{{ enterprise.company_name }}</p>
+                <p><strong>行业分类：</strong>{% if enterprise.industry_code %}{{ enterprise.industry_code }} {{ enterprise.industry_category or '' }}{% else %}-{% endif %}</p>
                 <p><strong>英文名称：</strong>{{ enterprise.english_name or '-' }}</p>
                 <a class="btn btn-sm btn-outline-primary" href="{{ url_for('enterprise_detail', id=enterprise.id) }}">查看企业详情</a>
                 {% else %}<p class="text-muted">未绑定企业信息</p>{% endif %}
