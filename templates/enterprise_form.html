@@ -30,6 +30,18 @@
 
 <form method="post" enctype="multipart/form-data" class="vstack gap-3" id="enterpriseForm">
     <input type="hidden" name="action" id="formAction" value="save_draft">
+    <input type="hidden" name="duplicate_confirmed" id="duplicateConfirmed" value="{{ '1' if request.form.get('duplicate_confirmed') == '1' else '0' }}">
+
+    {% if 重复风险提示 %}
+    <div class="alert alert-warning mb-0">
+        <div class="fw-semibold">检测到重复企业风险：</div>
+        <ul class="mb-0 mt-1">
+            {% for item in 重复风险提示 %}
+            <li>{{ item }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
 
     <div class="card shadow-sm enterprise-overview-sticky">
         <div class="card-body py-2">
@@ -209,12 +221,17 @@
 <div class="modal fade" id="missingFieldsModal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">提交审核前请完善以下字段</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><ul id="missingFieldsList" class="mb-0"></ul></div></div></div>
 </div>
+<div class="modal fade" id="duplicateRiskModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">检测到重复企业风险</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="mb-2">请确认是否继续提交审核：</div><ul id="duplicateRiskList" class="mb-0">{% for item in 重复风险提示 or [] %}<li>{{ item }}</li>{% endfor %}</ul></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">返回修改</button><button type="button" class="btn btn-danger" id="confirmDuplicateSubmitBtn">确认继续提交</button></div></div></div>
+</div>
 
 <script>
 (() => {
     const form = document.getElementById('enterpriseForm');
     const actionInput = document.getElementById('formAction');
+    const duplicateConfirmedInput = document.getElementById('duplicateConfirmed');
     const submitReviewBtn = document.getElementById('submitReviewBtn');
+    const confirmDuplicateSubmitBtn = document.getElementById('confirmDuplicateSubmitBtn');
     const industrySelect = document.getElementById('industryCode');
     const industryName = document.getElementById('industryName');
     const hiddenName = document.getElementById('industryNameHidden');
@@ -253,6 +270,7 @@
     ];
 
     submitReviewBtn?.addEventListener('click', () => {
+        duplicateConfirmedInput.value = '0';
         const missing = requiredForReview.filter(([key]) => getFieldValues(key).length === 0).map(([, label]) => label);
         const hasLicenseInCurrent = Array.from(document.querySelectorAll('.enterprise-upload-row')).some((row) => {
             const type = row.querySelector('select[name="enterprise_upload_type"]')?.value || '';
@@ -266,6 +284,12 @@
             new bootstrap.Modal(document.getElementById('missingFieldsModal')).show();
             return;
         }
+        actionInput.value = 'submit_review';
+        form.submit();
+    });
+
+    confirmDuplicateSubmitBtn?.addEventListener('click', () => {
+        duplicateConfirmedInput.value = '1';
         actionInput.value = 'submit_review';
         form.submit();
     });
@@ -403,6 +427,9 @@
     updateCounters();
     syncProgress();
     syncCompletenessOverview();
+    if ({{ 'true' if 触发重复风险确认|default(false) else 'false' }}) {
+        new bootstrap.Modal(document.getElementById('duplicateRiskModal')).show();
+    }
 })();
 </script>
 {% endblock %}

@@ -431,6 +431,27 @@ def create_app():
             缺失.append("营业执照附件")
         return 缺失
 
+    def 企业重复风险检查(company_name, unified_social_credit_code, exclude_enterprise_id=None):
+        风险提示 = []
+        企业全称 = (company_name or "").strip()
+        统一社会信用代码 = (unified_social_credit_code or "").strip()
+
+        if 企业全称:
+            企业全称查询 = Enterprise.query.filter(Enterprise.company_name == 企业全称)
+            if exclude_enterprise_id:
+                企业全称查询 = 企业全称查询.filter(Enterprise.id != exclude_enterprise_id)
+            if 企业全称查询.first():
+                风险提示.append("企业可能已存在")
+
+        if 统一社会信用代码:
+            信用代码查询 = Enterprise.query.filter(Enterprise.unified_social_credit_code == 统一社会信用代码)
+            if exclude_enterprise_id:
+                信用代码查询 = 信用代码查询.filter(Enterprise.id != exclude_enterprise_id)
+            if 信用代码查询.first():
+                风险提示.append("该统一社会信用代码已存在")
+
+        return 风险提示
+
     def 字段已填写(值):
         if 值 is None:
             return False
@@ -987,6 +1008,7 @@ def create_app():
     def enterprise_new():
         if request.method == "POST":
             操作动作 = (request.form.get("action") or "save_draft").strip()
+            重复确认通过 = (request.form.get("duplicate_confirmed") or "").strip() == "1"
             本次有附件上传 = any(文件 and 文件.filename for 文件 in request.files.getlist("enterprise_upload_file"))
             行业代码, 行业名称 = 解析行业(request.form.get("industry_code"))
             扩展字段 = 提取企业扩展字段(request.form, 行业代码)
@@ -1045,22 +1067,29 @@ def create_app():
 
             if 操作动作 == "save_draft" and not (企业.company_name or 企业.unified_social_credit_code):
                 flash("保存草稿时，企业全称或统一社会信用代码至少填写一项。", "danger")
-                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
             if 操作动作 != "save_draft" and not 企业.company_name:
                 flash("企业名称为必填项", "danger")
-                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
             if not 行业代码:
                 flash("行业分类必须从下拉框选择。", "danger")
-                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
             if 主联系人数 > 1:
                 flash("联系人子表单中“是否主联系人”只能选择一位。", "danger")
-                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
+
+            重复风险提示 = 企业重复风险检查(企业.company_name, 企业.unified_social_credit_code)
+            if 操作动作 == "save_draft" and 重复风险提示:
+                for 提示 in 重复风险提示:
+                    flash(提示, "warning")
 
             if 操作动作 == "submit_review":
                 缺失字段 = 企业提交审核缺失字段(企业, 扩展字段)
                 if 缺失字段:
                     flash(f"提交审核失败，缺失字段：{'、'.join(缺失字段)}", "danger")
-                    return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+                    return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
+                if 重复风险提示 and not 重复确认通过:
+                    return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=重复风险提示, 触发重复风险确认=True)
                 企业.status = "待审核"
             elif 操作动作 == "save_next":
                 企业.status = "跟进中"
@@ -1094,7 +1123,7 @@ def create_app():
                     )
             except ValueError as exc:
                 flash(str(exc), "danger")
-                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
             记录审计日志("新增企业", "enterprise", target_id=企业.id, detail=企业.company_name)
             db.session.commit()
             flash(f"企业 {企业.company_name or 企业.unified_social_credit_code or 企业.enterprise_code} 保存成功，上传文件 {上传数} 个。", "success")
@@ -1104,7 +1133,7 @@ def create_app():
                 return redirect(url_for("enterprise_edit", id=企业.id) + "#enterpriseAccordion")
             return redirect(url_for("enterprise_detail", id=企业.id))
 
-        return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 已上传附件列表=[])
+        return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 已上传附件列表=[], 重复风险提示=[])
 
     @app.route("/enterprises/<int:id>")
     def enterprise_detail(id):
@@ -1222,6 +1251,7 @@ def create_app():
 
         if request.method == "POST":
             操作动作 = (request.form.get("action") or "save_draft").strip()
+            重复确认通过 = (request.form.get("duplicate_confirmed") or "").strip() == "1"
             行业代码, 行业名称 = 解析行业(request.form.get("industry_code"))
             扩展字段 = 提取企业扩展字段(request.form, 行业代码)
             企业性质列表 = 扩展字段.get("enterprise_natures", [])
@@ -1289,21 +1319,27 @@ def create_app():
 
             if 操作动作 == "save_draft" and not (企业.company_name or 企业.unified_social_credit_code):
                 flash("保存草稿时，企业全称或统一社会信用代码至少填写一项。", "danger")
-                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
             if 操作动作 != "save_draft" and not 企业.company_name:
                 flash("企业名称为必填项", "danger")
-                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
             if not 行业代码:
                 flash("行业分类必须从下拉框选择。", "danger")
-                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
             if 主联系人数 > 1:
                 flash("联系人子表单中“是否主联系人”只能选择一位。", "danger")
-                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
+            重复风险提示 = 企业重复风险检查(企业.company_name, 企业.unified_social_credit_code, exclude_enterprise_id=企业.id)
+            if 操作动作 == "save_draft" and 重复风险提示:
+                for 提示 in 重复风险提示:
+                    flash(提示, "warning")
             if 操作动作 == "submit_review":
                 缺失字段 = 企业提交审核缺失字段(企业, 扩展字段)
                 if 缺失字段:
                     flash(f"提交审核失败，缺失字段：{'、'.join(缺失字段)}", "danger")
-                    return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+                    return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
+                if 重复风险提示 and not 重复确认通过:
+                    return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=重复风险提示, 触发重复风险确认=True)
                 企业.status = "待审核"
             elif 操作动作 == "save_next":
                 企业.status = "跟进中"
@@ -1322,7 +1358,7 @@ def create_app():
                 )
             except ValueError as exc:
                 flash(str(exc), "danger")
-                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES)
+                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
             记录审计日志("编辑企业", "enterprise", target_id=企业.id, detail=企业.company_name)
             db.session.commit()
             flash(f"企业信息更新成功，新增上传文件 {上传数} 个。", "success")
@@ -1343,6 +1379,7 @@ def create_app():
             企业扩展字段=企业.enterprise_extra_fields or {},
             企业文件类型选项=ENTERPRISE_UPLOAD_TYPES,
             已上传附件列表=Document.query.filter_by(enterprise_id=企业.id).order_by(Document.uploaded_at.desc(), Document.id.desc()).all(),
+            重复风险提示=[],
         )
 
     @app.route("/enterprises/<int:id>/delete", methods=["POST"])
