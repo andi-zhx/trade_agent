@@ -1,0 +1,21 @@
+{% extends 'base.html' %}
+{% block title %}{{ form_title }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">{{ form_title }}</h1>
+    <a class="btn btn-outline-secondary" href="{{ url_for('foreign_client_list') }}">返回列表</a>
+</div>
+
+<form method="post" class="card">
+    <div class="card-body row g-3">
+        <div class="col-md-6"><label class="form-label">客户名称 *</label><input required class="form-control" name="client_name" value="{{ client.client_name if client else '' }}"></div>
+        <div class="col-md-3"><label class="form-label">国家/地区</label><input class="form-control" name="country_region" value="{{ client.country_region if client else '' }}"></div>
+        <div class="col-md-3"><label class="form-label">公司类型</label><input class="form-control" name="company_type" value="{{ client.company_type if client else '' }}"></div>
+        <div class="col-md-4"><label class="form-label">联系人</label><input class="form-control" name="contact_name" value="{{ client.contact_name if client else '' }}"></div>
+        <div class="col-md-4"><label class="form-label">邮箱</label><input type="email" class="form-control" name="contact_email" value="{{ client.contact_email if client else '' }}"></div>
+        <div class="col-md-4"><label class="form-label">电话</label><input class="form-control" name="contact_phone" value="{{ client.contact_phone if client else '' }}"></div>
+        <div class="col-12"><label class="form-label">备注</label><textarea class="form-control" name="notes" rows="3">{{ client.notes if client else '' }}</textarea></div>
+    </div>
+    <div class="card-footer"><button class="btn btn-primary" type="submit">保存</button></div>
+</form>
+{% endblock %}

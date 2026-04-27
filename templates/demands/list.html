@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block title %}外资需求列表{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">外资需求管理</h1>
+    <a class="btn btn-primary" href="{{ url_for('demand_new') }}">新增需求</a>
+</div>
+
+<div class="card mb-3"><div class="card-body">
+<form method="get" class="row g-2 align-items-end">
+    <div class="col-md-3"><label class="form-label">需求关键字</label><input class="form-control" name="keyword" value="{{ filters.keyword }}" placeholder="编号/品类/关键词"></div>
+    <div class="col-md-3"><label class="form-label">外资客户</label>
+        <select class="form-select" name="foreign_client_id">
+            <option value="">全部</option>
+            {% for c in clients %}<option value="{{ c.id }}" {% if filters.foreign_client_id == c.id %}selected{% endif %}>{{ c.client_name }}</option>{% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3"><label class="form-label">跟进状态</label>
+        <select class="form-select" name="status"><option value="">全部</option>{% for s in status_options %}<option value="{{ s }}" {% if filters.status == s %}selected{% endif %}>{{ s }}</option>{% endfor %}</select>
+    </div>
+    <div class="col-md-1"><button class="btn btn-outline-primary w-100">筛选</button></div>
+    <div class="col-md-1"><a class="btn btn-outline-secondary w-100" href="{{ url_for('demand_list') }}">重置</a></div>
+</form>
+</div></div>
+
+<div class="table-responsive">
+<table class="table table-bordered table-hover align-middle small">
+<thead class="table-light"><tr><th>需求编号</th><th>外资客户</th><th>国家/地区</th><th>采购品类</th><th>产品关键词</th><th>目标价格</th><th>采购量</th><th>认证要求</th><th>交期要求</th><th>贸易条款</th><th>跟进状态</th><th>操作</th></tr></thead>
+<tbody>
+{% for d in demands %}
+<tr>
+    <td>{{ d.demand_code }}</td>
+    <td>{{ client_map.get(d.foreign_client_id).client_name if client_map.get(d.foreign_client_id) else '-' }}</td>
+    <td>{{ client_map.get(d.foreign_client_id).country_region if client_map.get(d.foreign_client_id) else '-' }}</td>
+    <td>{{ d.purchase_category or '-' }}</td>
+    <td>{{ d.product_keywords or '-' }}</td>
+    <td>{{ d.target_price|currency }}</td>
+    <td>{{ d.purchase_quantity or '-' }}</td>
+    <td>{{ d.required_certifications or '-' }}</td>
+    <td>{{ d.delivery_requirement or '-' }}</td>
+    <td>{{ d.trade_terms or '-' }}</td>
+    <td>{{ d.status }}</td>
+    <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('demand_detail', demand_id=d.id) }}">详情</a></td>
+</tr>
+{% else %}
+<tr><td colspan="12" class="text-center text-muted">暂无需求</td></tr>
+{% endfor %}
+</tbody>
+</table>
+</div>
+{% endblock %}

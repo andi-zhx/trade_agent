@@ -49,8 +49,20 @@
             </div>
         </div>
         <div class="card mb-3">
-            <div class="card-header">可匹配的外资需求（预留）</div>
-            <div class="card-body text-muted small">后续将展示与该产品可匹配的外资需求、匹配分数与推荐状态。</div>
+            <div class="card-header">被匹配到的需求</div>
+            <ul class="list-group list-group-flush small">
+                {% for item in 匹配需求列表 %}
+                <li class="list-group-item">
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('demand_detail', demand_id=item.需求.id) if item.需求 else '#' }}">{{ item.需求.demand_code if item.需求 else '-' }}</a>
+                        <span>{{ item.记录.match_score }} 分</span>
+                    </div>
+                    <div class="text-muted">{{ item.记录.recommendation_status or '-' }}</div>
+                </li>
+                {% else %}
+                <li class="list-group-item text-muted">暂无匹配需求</li>
+                {% endfor %}
+            </ul>
         </div>
     </div>
 </div>

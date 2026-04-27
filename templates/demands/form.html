@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+{% block title %}{{ form_title }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">{{ form_title }}</h1>
+    <a class="btn btn-outline-secondary" href="{{ url_for('demand_list') }}">返回需求列表</a>
+</div>
+
+<form method="post" class="card">
+    <div class="card-body row g-3">
+        <div class="col-md-3"><label class="form-label">需求编号</label><input class="form-control" value="{{ demand.demand_code if demand else '自动生成' }}" disabled></div>
+        <div class="col-md-5"><label class="form-label">外资客户 *</label>
+            <select class="form-select" name="foreign_client_id" required>
+                <option value="">请选择</option>
+                {% for c in clients %}<option value="{{ c.id }}" {% if demand and demand.foreign_client_id == c.id %}selected{% endif %}>{{ c.client_name }}{% if c.country_region %}（{{ c.country_region }}）{% endif %}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4"><label class="form-label">采购品类</label><input class="form-control" name="purchase_category" value="{{ demand.purchase_category if demand else '' }}"></div>
+        <div class="col-md-8"><label class="form-label">产品关键词</label><input class="form-control" name="product_keywords" value="{{ demand.product_keywords if demand else '' }}" placeholder="可用空格/逗号分隔"></div>
+        <div class="col-md-4"><label class="form-label">目标价格</label><input type="number" step="0.01" class="form-control" name="target_price" value="{{ demand.target_price if demand and demand.target_price is not none else '' }}"></div>
+        <div class="col-md-4"><label class="form-label">采购量</label><input class="form-control" name="purchase_quantity" value="{{ demand.purchase_quantity if demand else '' }}"></div>
+        <div class="col-md-4"><label class="form-label">认证要求</label><input class="form-control" name="required_certifications" value="{{ demand.required_certifications if demand else '' }}"></div>
+        <div class="col-md-4"><label class="form-label">交期要求</label><input class="form-control" name="delivery_requirement" value="{{ demand.delivery_requirement if demand else '' }}" placeholder="如：30天内"></div>
+        <div class="col-md-4"><label class="form-label">贸易条款</label><input class="form-control" name="trade_terms" value="{{ demand.trade_terms if demand else '' }}"></div>
+        <div class="col-md-4"><label class="form-label">付款条款</label><input class="form-control" name="payment_terms" value="{{ demand.payment_terms if demand else '' }}"></div>
+        <div class="col-md-4"><label class="form-label">目标市场</label><input class="form-control" name="target_market" value="{{ demand.target_market if demand else '' }}"></div>
+        <div class="col-md-4"><label class="form-label">优先级</label><select class="form-select" name="priority">{% for p in ['高','中','低'] %}<option value="{{ p }}" {% if demand and demand.priority == p %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></div>
+        <div class="col-md-4"><label class="form-label">跟进状态</label><input class="form-control" name="status" value="{{ demand.status if demand else '待跟进' }}"></div>
+        <div class="col-12"><label class="form-label">备注</label><textarea class="form-control" name="notes" rows="3">{{ demand.notes if demand else '' }}</textarea></div>
+    </div>
+    <div class="card-footer"><button class="btn btn-primary" type="submit">保存需求</button></div>
+</form>
+{% endblock %}
