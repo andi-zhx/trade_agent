@@ -163,6 +163,7 @@ class Product(db.Model):
     warranty = db.Column(db.String(255))
     product_selling_points = db.Column(db.Text)
     notes = db.Column(db.Text)
+    product_extra_fields = db.Column(db.JSON)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     updated_at = db.Column(
         db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
