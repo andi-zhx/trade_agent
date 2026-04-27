@@ -1,22 +1,137 @@
 {% extends 'base.html' %}
-{% block title %}企业列表{% endblock %}
+{% block title %}企业入库管理{% endblock %}
+
 {% block content %}
-<h1 class="h3 mb-3">企业列表</h1>
-<div class="table-responsive">
-<table class="table table-striped table-bordered">
-    <thead><tr><th>企业编号</th><th>企业名称</th><th>省市</th><th>操作</th></tr></thead>
-    <tbody>
-    {% for e in enterprises %}
-        <tr>
-            <td>{{ e.enterprise_code }}</td>
-            <td>{{ e.company_name }}</td>
-            <td>{{ e.province or '' }} {{ e.city or '' }}</td>
-            <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('enterprise_detail', enterprise_id=e.id) }}">查看详情</a></td>
-        </tr>
-    {% else %}
-        <tr><td colspan="4" class="text-center text-muted">暂无企业数据</td></tr>
-    {% endfor %}
-    </tbody>
-</table>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-sm">返回首页</a>
+    </div>
+    <a href="{{ url_for('enterprise_new') }}" class="btn btn-primary">+ 新增企业</a>
+</div>
+
+<div class="card shadow-sm mb-3">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-3">
+                <label class="form-label">企业名称</label>
+                <input type="text" class="form-control" name="q" value="{{ 筛选.q }}" placeholder="请输入企业名称关键字">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">城市</label>
+                <select class="form-select" name="city">
+                    <option value="">全部</option>
+                    {% for c in 城市列表 %}
+                    <option value="{{ c }}" {% if c == 筛选.city %}selected{% endif %}>{{ c }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">行业大类</label>
+                <select class="form-select" name="industry">
+                    <option value="">全部</option>
+                    {% for i in 行业列表 %}
+                    <option value="{{ i }}" {% if i == 筛选.industry %}selected{% endif %}>{{ i }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">是否制造商</label>
+                <select class="form-select" name="manufacturer">
+                    <option value="">全部</option>
+                    <option value="yes" {% if 筛选.manufacturer == 'yes' %}selected{% endif %}>是</option>
+                    <option value="no" {% if 筛选.manufacturer == 'no' %}selected{% endif %}>否</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">入库状态</label>
+                <select class="form-select" name="status">
+                    <option value="">全部</option>
+                    {% for s in 状态列表 %}
+                    <option value="{{ s }}" {% if s == 筛选.status %}selected{% endif %}>{{ s }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-1 d-grid">
+                <button class="btn btn-primary">筛选</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="table-responsive">
+        <table class="table table-striped table-hover align-middle mb-0">
+            <thead class="table-light">
+            <tr>
+                <th>企业编号</th>
+                <th>企业名称</th>
+                <th>所属城市</th>
+                <th>行业大类</th>
+                <th>主营产品</th>
+                <th>是否制造商</th>
+                <th>已出口国家</th>
+                <th>外贸负责人</th>
+                <th>项目负责人</th>
+                <th>入库状态</th>
+                <th>最近更新时间</th>
+                <th>操作</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for 企业 in 分页.items %}
+            <tr>
+                <td>{{ 企业.enterprise_code }}</td>
+                <td>{{ 企业.company_name }}</td>
+                <td>{{ 企业.city or '-' }}</td>
+                <td>{{ 企业.industry_category or '-' }}</td>
+                <td class="text-truncate" style="max-width: 180px;">{{ 企业.main_products or '-' }}</td>
+                <td>{{ '是' if 企业.is_manufacturer else '否' }}</td>
+                <td class="text-truncate" style="max-width: 160px;">{{ 企业.export_countries or '-' }}</td>
+                <td>{{ 外贸负责人映射.get(企业.id, '-') }}</td>
+                <td>{{ 企业.project_owner or '-' }}</td>
+                <td><span class="badge text-bg-secondary">{{ 企业.status }}</span></td>
+                <td>{{ 企业.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <a class="btn btn-outline-primary" href="{{ url_for('enterprise_detail', id=企业.id) }}">查看</a>
+                        <a class="btn btn-outline-warning" href="{{ url_for('enterprise_edit', id=企业.id) }}">编辑</a>
+                        <form method="post" action="{{ url_for('enterprise_delete', id=企业.id) }}" onsubmit="return confirm('确定删除企业【{{ 企业.company_name }}】吗？此操作不可恢复。');" class="d-inline">
+                            <button type="submit" class="btn btn-outline-danger">删除</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="12" class="text-center text-muted py-4">暂无数据</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if 分页.pages > 1 %}
+    <div class="card-footer bg-white">
+        <nav>
+            <ul class="pagination mb-0 justify-content-center">
+                <li class="page-item {% if not 分页.has_prev %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('enterprise_list', page=分页.prev_num, q=筛选.q, city=筛选.city, industry=筛选.industry, manufacturer=筛选.manufacturer, status=筛选.status) }}">上一页</a>
+                </li>
+                {% for p in 分页.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
+                    {% if p %}
+                    <li class="page-item {% if p == 分页.page %}active{% endif %}">
+                        <a class="page-link" href="{{ url_for('enterprise_list', page=p, q=筛选.q, city=筛选.city, industry=筛选.industry, manufacturer=筛选.manufacturer, status=筛选.status) }}">{{ p }}</a>
+                    </li>
+                    {% else %}
+                    <li class="page-item disabled"><span class="page-link">…</span></li>
+                    {% endif %}
+                {% endfor %}
+                <li class="page-item {% if not 分页.has_next %}disabled{% endif %}">
+                    <a class="page-link" href="{{ url_for('enterprise_list', page=分页.next_num, q=筛选.q, city=筛选.city, industry=筛选.industry, manufacturer=筛选.manufacturer, status=筛选.status) }}">下一页</a>
+                </li>
+            </ul>
+        </nav>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

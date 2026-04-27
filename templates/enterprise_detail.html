@@ -1,42 +1,118 @@
 {% extends 'base.html' %}
-{% block title %}企业详情 - {{ enterprise.company_name }}{% endblock %}
+{% block title %}企业详情 - {{ 企业.company_name }}{% endblock %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 mb-0">企业详情：{{ enterprise.company_name }}</h1>
-    <a class="btn btn-outline-secondary" href="{{ url_for('enterprise_list') }}">返回企业列表</a>
-</div>
-
-<div class="card mb-3">
-    <div class="card-body small row">
-        <div class="col-md-4"><strong>企业编号：</strong>{{ enterprise.enterprise_code }}</div>
-        <div class="col-md-4"><strong>企业中文名：</strong>{{ enterprise.company_name }}</div>
-        <div class="col-md-4"><strong>企业英文名：</strong>{{ enterprise.english_name or '-' }}</div>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-secondary btn-sm">返回首页</a>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('enterprise_list') }}" class="btn btn-outline-primary btn-sm">返回企业列表</a>
+        <a href="{{ url_for('enterprise_edit', id=企业.id) }}" class="btn btn-warning btn-sm">编辑</a>
     </div>
 </div>
 
-<div class="card">
-    <div class="card-header d-flex justify-content-between align-items-center">
-        <span>该企业产品列表</span>
-        <a class="btn btn-sm btn-primary" href="{{ url_for('product_new') }}">新增产品</a>
+<div class="card shadow-sm mb-3">
+    <div class="card-header fw-bold">企业基础信息</div>
+    <div class="card-body row g-3">
+        <div class="col-md-3"><strong>企业编号：</strong>{{ 企业.enterprise_code }}</div>
+        <div class="col-md-3"><strong>企业名称：</strong>{{ 企业.company_name }}</div>
+        <div class="col-md-3"><strong>城市：</strong>{{ 企业.city or '-' }}</div>
+        <div class="col-md-3"><strong>行业大类：</strong>{{ 企业.industry_category or '-' }}</div>
+        <div class="col-md-6"><strong>主营产品：</strong>{{ 企业.main_products or '-' }}</div>
+        <div class="col-md-6"><strong>入库状态：</strong>{{ 企业.status }}</div>
+        <div class="col-md-6"><strong>已出口国家：</strong>{{ 企业.export_countries or '-' }}</div>
+        <div class="col-md-6"><strong>项目负责人：</strong>{{ 企业.project_owner or '-' }}</div>
     </div>
-    <div class="table-responsive">
-        <table class="table table-bordered mb-0">
-            <thead><tr><th>产品编号</th><th>产品中文名</th><th>类别</th><th>HS编码</th><th>目标市场</th><th>操作</th></tr></thead>
-            <tbody>
-            {% for p in products %}
-                <tr>
-                    <td>{{ p.product_code }}</td>
-                    <td>{{ p.product_name_cn }}</td>
-                    <td>{{ p.product_category or '-' }}</td>
-                    <td>{{ p.hs_code or '-' }}</td>
-                    <td>{{ p.target_market or '-' }}</td>
-                    <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('product_detail', product_id=p.id) }}">查看</a></td>
-                </tr>
-            {% else %}
-                <tr><td colspan="6" class="text-center text-muted">该企业暂无产品</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header fw-bold">联系人信息</div>
+            <ul class="list-group list-group-flush">
+                {% for c in 联系人列表 %}
+                <li class="list-group-item">
+                    <div><strong>{{ c.contact_type }}</strong> - {{ c.name }}</div>
+                    <small class="text-muted">{{ c.position or '-' }} / {{ c.phone or '-' }} / {{ c.email or '-' }}</small>
+                </li>
+                {% else %}
+                <li class="list-group-item text-muted">暂无联系人</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header fw-bold">产品列表</div>
+            <ul class="list-group list-group-flush">
+                {% for p in 产品列表 %}
+                <li class="list-group-item">{{ p.product_name_cn }}{% if p.product_category %}（{{ p.product_category }}）{% endif %}</li>
+                {% else %}
+                <li class="list-group-item text-muted">暂无产品</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header fw-bold">资质证照列表</div>
+            <ul class="list-group list-group-flush">
+                {% for q in 资质列表 %}
+                <li class="list-group-item">{{ q.certificate_name }}{% if q.certificate_no %}（{{ q.certificate_no }}）{% endif %}</li>
+                {% else %}
+                <li class="list-group-item text-muted">暂无资质证照</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    <div class="col-lg-6">
+        <div class="card shadow-sm h-100">
+            <div class="card-header fw-bold">已上传文件</div>
+            <ul class="list-group list-group-flush">
+                {% for d in 文件列表 %}
+                <li class="list-group-item">{{ d.document_name }} <small class="text-muted">({{ d.document_type }})</small></li>
+                {% else %}
+                <li class="list-group-item text-muted">暂无文件</li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header fw-bold">项目进展</div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead>
+                    <tr><th>阶段</th><th>样品状态</th><th>报价状态</th><th>下一步动作</th><th>更新时间</th></tr>
+                    </thead>
+                    <tbody>
+                    {% for p in 进展列表 %}
+                    <tr>
+                        <td>{{ p.current_stage or '-' }}</td>
+                        <td>{{ p.sample_status or '-' }}</td>
+                        <td>{{ p.quotation_status or '-' }}</td>
+                        <td>{{ p.next_action or '-' }}</td>
+                        <td>{{ p.updated_at.strftime('%Y-%m-%d') }}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="5" class="text-center text-muted">暂无项目进展</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
+        <div class="card border-primary shadow-sm">
+            <div class="card-header bg-primary-subtle fw-bold">出海服务建议（规则生成）</div>
+            <ul class="list-group list-group-flush">
+                {% for item in 建议 %}
+                <li class="list-group-item">{{ loop.index }}. {{ item }}</li>
+                {% endfor %}
+            </ul>
+        </div>
     </div>
 </div>
 {% endblock %}
