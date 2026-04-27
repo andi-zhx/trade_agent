@@ -1,0 +1,42 @@
+{% extends 'base.html' %}
+{% block title %}企业详情 - {{ enterprise.company_name }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">企业详情：{{ enterprise.company_name }}</h1>
+    <a class="btn btn-outline-secondary" href="{{ url_for('enterprise_list') }}">返回企业列表</a>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body small row">
+        <div class="col-md-4"><strong>企业编号：</strong>{{ enterprise.enterprise_code }}</div>
+        <div class="col-md-4"><strong>企业中文名：</strong>{{ enterprise.company_name }}</div>
+        <div class="col-md-4"><strong>企业英文名：</strong>{{ enterprise.english_name or '-' }}</div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <span>该企业产品列表</span>
+        <a class="btn btn-sm btn-primary" href="{{ url_for('product_new') }}">新增产品</a>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-bordered mb-0">
+            <thead><tr><th>产品编号</th><th>产品中文名</th><th>类别</th><th>HS编码</th><th>目标市场</th><th>操作</th></tr></thead>
+            <tbody>
+            {% for p in products %}
+                <tr>
+                    <td>{{ p.product_code }}</td>
+                    <td>{{ p.product_name_cn }}</td>
+                    <td>{{ p.product_category or '-' }}</td>
+                    <td>{{ p.hs_code or '-' }}</td>
+                    <td>{{ p.target_market or '-' }}</td>
+                    <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('product_detail', product_id=p.id) }}">查看</a></td>
+                </tr>
+            {% else %}
+                <tr><td colspan="6" class="text-center text-muted">该企业暂无产品</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

@@ -67,6 +67,8 @@ class Enterprise(db.Model):
         db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
+    products = db.relationship('Product', back_populates='enterprise', lazy='dynamic')
+
 
 class Contact(db.Model):
     """企业联系人表。"""
@@ -138,6 +140,8 @@ class Product(db.Model):
     updated_at = db.Column(
         db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
+
+    enterprise = db.relationship('Enterprise', back_populates='products')
 
 
 class Qualification(db.Model):

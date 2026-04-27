@@ -1,0 +1,121 @@
+{% extends 'base.html' %}
+{% block title %}{{ form_title }} - 产品管理{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">{{ form_title }}</h1>
+    <a class="btn btn-outline-secondary" href="{{ url_for('product_list') }}">返回列表</a>
+</div>
+
+<form method="post" action="{{ form_action }}">
+    <div class="accordion" id="productAccordion">
+        <div class="accordion-item">
+            <h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#A">A. 所属企业</button></h2>
+            <div id="A" class="accordion-collapse collapse show"><div class="accordion-body row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">所属企业</label>
+                    <select name="enterprise_id" class="form-select" required>
+                        <option value="">请选择企业</option>
+                        {% for e in enterprises %}
+                            <option value="{{ e.id }}" {% if product and product.enterprise_id == e.id %}selected{% endif %}>{{ e.enterprise_code }} - {{ e.company_name }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">产品编号</label>
+                    <input class="form-control" value="{{ product.product_code if product else '自动生成（示例：P001）' }}" disabled>
+                </div>
+            </div></div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#B">B. 产品基础信息</button></h2>
+            <div id="B" class="accordion-collapse collapse"><div class="accordion-body row g-3">
+                <div class="col-md-4"><label class="form-label">产品中文名</label><input name="product_name_cn" required class="form-control" value="{{ product.product_name_cn if product else '' }}"></div>
+                <div class="col-md-4"><label class="form-label">产品英文名</label><input name="product_name_en" class="form-control" value="{{ product.product_name_en if product else '' }}"></div>
+                <div class="col-md-4"><label class="form-label">产品类别</label><input name="product_category" class="form-control" value="{{ product.product_category if product else '' }}"></div>
+                <div class="col-md-4"><label class="form-label">HS编码</label><input name="hs_code" class="form-control" value="{{ product.hs_code if product else '' }}"></div>
+                <div class="col-md-4"><label class="form-label">型号</label><input name="model" class="form-control" value="{{ product.model if product else '' }}"></div>
+                <div class="col-md-4"><label class="form-label">品牌</label><input name="brand" class="form-control" value="{{ product.brand if product else '' }}"></div>
+            </div></div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#C">C. 规格参数</button></h2>
+            <div id="C" class="accordion-collapse collapse"><div class="accordion-body row g-3">
+                <div class="col-md-4"><label class="form-label">材质</label><input name="material" class="form-control" value="{{ product.material if product else '' }}"></div>
+                <div class="col-md-4"><label class="form-label">尺寸</label><input name="size" class="form-control" value="{{ product.size if product else '' }}"></div>
+                <div class="col-md-4"><label class="form-label">重量</label><input name="weight" class="form-control" value="{{ product.weight if product else '' }}"></div>
+                <div class="col-md-4"><label class="form-label">颜色</label><input name="color" class="form-control" value="{{ product.color if product else '' }}"></div>
+                <div class="col-md-8"><label class="form-label">规格描述</label><textarea name="specification" class="form-control">{{ product.specification if product else '' }}</textarea></div>
+                <div class="col-md-6"><label class="form-label">功能说明</label><textarea name="function_description" class="form-control">{{ product.function_description if product else '' }}</textarea></div>
+                <div class="col-md-6"><label class="form-label">应用场景</label><textarea name="application_scenario" class="form-control">{{ product.application_scenario if product else '' }}</textarea></div>
+            </div></div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#D">D. 生产与供货能力</button></h2>
+            <div id="D" class="accordion-collapse collapse"><div class="accordion-body row g-3">
+                <div class="col-md-3"><label class="form-label">计量单位</label><input name="unit" class="form-control" value="{{ product.unit if product else '' }}"></div>
+                <div class="col-md-3"><label class="form-label">MOQ</label><input name="moq" class="form-control" value="{{ product.moq if product else '' }}"></div>
+                <div class="col-md-3"><label class="form-label">生产周期</label><input name="production_cycle" class="form-control" placeholder="如：15天/30-45天" value="{{ product.production_cycle if product else '' }}"></div>
+                <div class="col-md-3"><label class="form-label">打样周期</label><input name="sample_cycle" class="form-control" value="{{ product.sample_cycle if product else '' }}"></div>
+                <div class="col-md-6"><label class="form-label">月产能</label><input name="monthly_capacity" class="form-control" value="{{ product.monthly_capacity if product else '' }}"></div>
+                <div class="col-md-6 d-flex align-items-end"><div class="form-check"><input class="form-check-input" type="checkbox" name="customization_supported" {% if product and product.customization_supported %}checked{% endif %}><label class="form-check-label">支持定制/OEM/ODM</label></div></div>
+            </div></div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#E">E. 价格与贸易条款</button></h2>
+            <div id="E" class="accordion-collapse collapse"><div class="accordion-body row g-3">
+                <div class="col-md-3"><label class="form-label">币种</label><input name="currency" class="form-control" value="{{ product.currency if product else 'USD' }}"></div>
+                <div class="col-md-3"><label class="form-label">EXW价格</label><input type="number" step="0.01" name="exw_price" class="form-control" value="{{ product.exw_price if product else '' }}"></div>
+                <div class="col-md-3"><label class="form-label">FOB价格</label><input type="number" step="0.01" name="fob_price" class="form-control" value="{{ product.fob_price if product else '' }}"></div>
+                <div class="col-md-3"><label class="form-label">CIF价格</label><input type="number" step="0.01" name="cif_price" class="form-control" value="{{ product.cif_price if product else '' }}"></div>
+                <div class="col-md-3"><label class="form-label">DDP价格</label><input type="number" step="0.01" name="ddp_price" class="form-control" value="{{ product.ddp_price if product else '' }}"></div>
+                <div class="col-md-3"><label class="form-label">报价日期</label><input type="date" name="quote_date" class="form-control" value="{{ product.quote_date if product and product.quote_date else '' }}"></div>
+                <div class="col-md-3"><label class="form-label">报价有效期</label><input type="date" name="quote_valid_until" class="form-control" value="{{ product.quote_valid_until if product and product.quote_valid_until else '' }}"></div>
+                <div class="col-md-12"><label class="form-label">样品政策</label><textarea name="sample_policy" class="form-control">{{ product.sample_policy if product else '' }}</textarea></div>
+            </div></div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#F">F. 认证与合规</button></h2>
+            <div id="F" class="accordion-collapse collapse"><div class="accordion-body row g-3">
+                <div class="col-md-12"><label class="form-label">认证类型</label><input name="certifications" class="form-control" placeholder="如：CE、RoHS、ISO9001" value="{{ product.certifications if product else '' }}"></div>
+            </div></div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#G">G. 包装与物流</button></h2>
+            <div id="G" class="accordion-collapse collapse"><div class="accordion-body row g-3">
+                <div class="col-md-6"><label class="form-label">包装信息</label><textarea name="packaging" class="form-control">{{ product.packaging if product else '' }}</textarea></div>
+                <div class="col-md-3"><label class="form-label">外箱尺寸</label><input name="carton_size" class="form-control" value="{{ product.carton_size if product else '' }}"></div>
+                <div class="col-md-3"><label class="form-label">毛重</label><input name="gross_weight" class="form-control" value="{{ product.gross_weight if product else '' }}"></div>
+                <div class="col-md-3"><label class="form-label">净重</label><input name="net_weight" class="form-control" value="{{ product.net_weight if product else '' }}"></div>
+                <div class="col-md-3"><label class="form-label">装柜量</label><input name="loading_quantity" class="form-control" value="{{ product.loading_quantity if product else '' }}"></div>
+            </div></div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#H">H. 市场与卖点</button></h2>
+            <div id="H" class="accordion-collapse collapse"><div class="accordion-body row g-3">
+                <div class="col-md-6"><label class="form-label">目标市场</label><input name="target_market" class="form-control" value="{{ product.target_market if product else '' }}"></div>
+                <div class="col-md-6"><label class="form-label">现有销售国家</label><input name="existing_sales_countries" class="form-control" value="{{ product.existing_sales_countries if product else '' }}"></div>
+                <div class="col-md-12"><label class="form-label">产品卖点</label><textarea name="product_selling_points" class="form-control">{{ product.product_selling_points if product else '' }}</textarea></div>
+            </div></div>
+        </div>
+
+        <div class="accordion-item">
+            <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#I">I. 售后与备注</button></h2>
+            <div id="I" class="accordion-collapse collapse"><div class="accordion-body row g-3">
+                <div class="col-md-4"><label class="form-label">质保</label><input name="warranty" class="form-control" value="{{ product.warranty if product else '' }}"></div>
+                <div class="col-md-8"><label class="form-label">备注</label><textarea name="notes" class="form-control">{{ product.notes if product else '' }}</textarea></div>
+            </div></div>
+        </div>
+    </div>
+
+    <div class="mt-3">
+        <button class="btn btn-primary" type="submit">保存产品</button>
+    </div>
+</form>
+{% endblock %}

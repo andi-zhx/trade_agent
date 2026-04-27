@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}产品列表 - 跨境经贸企业库与产品管理系统{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">产品入库管理</h1>
+    <a href="{{ url_for('product_new') }}" class="btn btn-primary">新增产品</a>
+</div>
+
+<div class="card mb-3">
+    <div class="card-body">
+        <form class="row g-2" method="get">
+            <div class="col-md-3"><input name="enterprise" class="form-control" placeholder="企业名称" value="{{ filters.get('enterprise','') }}"></div>
+            <div class="col-md-3"><input name="keyword" class="form-control" placeholder="产品关键词" value="{{ filters.get('keyword','') }}"></div>
+            <div class="col-md-2"><input name="category" class="form-control" placeholder="产品类别" value="{{ filters.get('category','') }}"></div>
+            <div class="col-md-2"><input name="hs_code" class="form-control" placeholder="HS编码" value="{{ filters.get('hs_code','') }}"></div>
+            <div class="col-md-2"><input name="target_market" class="form-control" placeholder="目标市场" value="{{ filters.get('target_market','') }}"></div>
+            <div class="col-md-3"><input name="certification" class="form-control" placeholder="认证类型" value="{{ filters.get('certification','') }}"></div>
+            <div class="col-md-2"><input type="number" step="0.01" name="price_min" class="form-control" placeholder="最低价格" value="{{ filters.get('price_min','') }}"></div>
+            <div class="col-md-2"><input type="number" step="0.01" name="price_max" class="form-control" placeholder="最高价格" value="{{ filters.get('price_max','') }}"></div>
+            <div class="col-md-2">
+                <button class="btn btn-outline-primary w-100">筛选</button>
+            </div>
+            <div class="col-md-1">
+                <a href="{{ url_for('product_list') }}" class="btn btn-outline-secondary w-100">重置</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="table-responsive">
+<table class="table table-bordered table-hover align-middle small">
+    <thead class="table-light">
+    <tr>
+        <th>企业编号</th><th>企业名称</th><th>产品编号</th><th>产品中文名</th><th>产品英文名</th><th>产品类别</th><th>HS编码</th><th>型号</th><th>MOQ</th><th>生产周期</th><th>FOB价格</th><th>CIF价格</th><th>DDP价格</th><th>报价有效期</th><th>目标市场</th><th>认证类型</th><th>操作</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for p in products %}
+    <tr>
+        <td>{{ p.enterprise.enterprise_code if p.enterprise else '-' }}</td>
+        <td>{{ p.enterprise.company_name if p.enterprise else '-' }}</td>
+        <td>{{ p.product_code }}</td>
+        <td>{{ p.product_name_cn }}</td>
+        <td>{{ p.product_name_en or '-' }}</td>
+        <td>{{ p.product_category or '-' }}</td>
+        <td>{{ p.hs_code or '-' }}</td>
+        <td>{{ p.model or '-' }}</td>
+        <td>{{ p.moq or '-' }}</td>
+        <td>{{ p.production_cycle or '-' }}</td>
+        <td>{{ p.fob_price|currency(p.currency) }}</td>
+        <td>{{ p.cif_price|currency(p.currency) }}</td>
+        <td>{{ p.ddp_price|currency(p.currency) }}</td>
+        <td>{{ p.quote_valid_until or '-' }}</td>
+        <td>{{ p.target_market or '-' }}</td>
+        <td>{{ p.certifications or '-' }}</td>
+        <td>
+            <a class="btn btn-sm btn-outline-primary" href="{{ url_for('product_detail', product_id=p.id) }}">查看</a>
+            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('product_edit', product_id=p.id) }}">编辑</a>
+            <form method="post" action="{{ url_for('product_delete', product_id=p.id) }}" class="d-inline" onsubmit="return confirm('确认删除该产品？');">
+                <button class="btn btn-sm btn-outline-danger" type="submit">删除</button>
+            </form>
+        </td>
+    </tr>
+    {% else %}
+    <tr><td colspan="17" class="text-center text-muted">暂无产品数据</td></tr>
+    {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}

@@ -1,0 +1,88 @@
+{% extends 'base.html' %}
+{% block title %}产品详情 - {{ product.product_name_cn }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">产品详情：{{ product.product_name_cn }}</h1>
+    <div class="d-flex gap-2">
+        <a class="btn btn-outline-secondary" href="{{ url_for('product_list') }}">返回列表</a>
+        <a class="btn btn-primary" href="{{ url_for('product_edit', product_id=product.id) }}">编辑产品</a>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-8">
+        <div class="card h-100">
+            <div class="card-header">产品完整信息</div>
+            <div class="card-body">
+                <div class="row small">
+                    <div class="col-md-6 mb-2"><strong>产品编号：</strong>{{ product.product_code }}</div>
+                    <div class="col-md-6 mb-2"><strong>归档编号：</strong>{{ archive_code }}</div>
+                    <div class="col-md-6 mb-2"><strong>中文名：</strong>{{ product.product_name_cn }}</div>
+                    <div class="col-md-6 mb-2"><strong>英文名：</strong>{{ product.product_name_en or '-' }}</div>
+                    <div class="col-md-6 mb-2"><strong>类别：</strong>{{ product.product_category or '-' }}</div>
+                    <div class="col-md-6 mb-2"><strong>HS编码：</strong>{{ product.hs_code or '-' }}</div>
+                    <div class="col-md-6 mb-2"><strong>型号：</strong>{{ product.model or '-' }}</div>
+                    <div class="col-md-6 mb-2"><strong>MOQ：</strong>{{ product.moq or '-' }}</div>
+                    <div class="col-md-6 mb-2"><strong>生产周期：</strong>{{ product.production_cycle or '-' }}</div>
+                    <div class="col-md-6 mb-2"><strong>目标市场：</strong>{{ product.target_market or '-' }}</div>
+                    <div class="col-md-4 mb-2"><strong>FOB：</strong>{{ product.fob_price|currency(product.currency) }}</div>
+                    <div class="col-md-4 mb-2"><strong>CIF：</strong>{{ product.cif_price|currency(product.currency) }}</div>
+                    <div class="col-md-4 mb-2"><strong>DDP：</strong>{{ product.ddp_price|currency(product.currency) }}</div>
+                    <div class="col-md-12 mb-2"><strong>认证：</strong>{{ product.certifications or '-' }}</div>
+                    <div class="col-md-12 mb-2"><strong>卖点：</strong>{{ product.product_selling_points or '-' }}</div>
+                    <div class="col-md-12 mb-2"><strong>备注：</strong>{{ product.notes or '-' }}</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4">
+        <div class="card mb-3">
+            <div class="card-header">所属企业信息</div>
+            <div class="card-body small">
+                {% if enterprise %}
+                <p><strong>企业编号：</strong>{{ enterprise.enterprise_code }}</p>
+                <p><strong>企业名称：</strong>{{ enterprise.company_name }}</p>
+                <p><strong>英文名称：</strong>{{ enterprise.english_name or '-' }}</p>
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('enterprise_detail', enterprise_id=enterprise.id) }}">查看企业详情</a>
+                {% else %}<p class="text-muted">未绑定企业信息</p>{% endif %}
+            </div>
+        </div>
+        <div class="card mb-3">
+            <div class="card-header">可匹配的外资需求（预留）</div>
+            <div class="card-body text-muted small">后续将展示与该产品可匹配的外资需求、匹配分数与推荐状态。</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mt-1">
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">产品相关证书</div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush small">
+                    {% for c in certificates %}
+                    <li class="list-group-item px-0">{{ c.certificate_name }}（{{ c.certificate_no or '无证书编号' }}）</li>
+                    {% else %}
+                    <li class="list-group-item px-0 text-muted">暂无产品证书</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-6">
+        <div class="card h-100">
+            <div class="card-header">产品相关文件</div>
+            <div class="card-body">
+                <ul class="list-group list-group-flush small">
+                    {% for f in product_files %}
+                    <li class="list-group-item px-0">{{ f.document_name }}（{{ f.document_type }}）- {{ f.file_path }}</li>
+                    {% else %}
+                    <li class="list-group-item px-0 text-muted">暂无相关文件</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
