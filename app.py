@@ -8,7 +8,7 @@ import re
 from functools import wraps
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from flask import Flask, flash, redirect, render_template, request, send_file, send_from_directory, session, url_for
+from flask import Flask, abort, flash, redirect, render_template, request, send_file, send_from_directory, session, url_for
 from openpyxl import Workbook, load_workbook
 from sqlalchemy import func, inspect, or_, text
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -79,6 +79,24 @@ PRODUCT_UPLOAD_TYPES = [
 ]
 
 DOCUMENT_TYPE_OPTIONS = [(item, item) for item in ENTERPRISE_UPLOAD_TYPES + PRODUCT_UPLOAD_TYPES]
+DISABLED_ENDPOINTS = {
+    "qualification_list",
+    "qualification_new",
+    "qualification_delete",
+    "project_list",
+    "project_new",
+    "project_detail",
+    "foreign_client_list",
+    "foreign_client_new",
+    "foreign_client_detail",
+    "foreign_client_edit",
+    "demand_list",
+    "demand_new",
+    "demand_detail",
+    "generate_demand_matches",
+    "global_search",
+    "excel_tools",
+}
 
 ENTERPRISE_SUB_FOLDERS = [
     "01_企业基础资料",
@@ -292,6 +310,8 @@ def create_app():
             return None
         if not session.get("用户"):
             return redirect(url_for("登录"))
+        if request.endpoint in DISABLED_ENDPOINTS:
+            abort(404)
         return None
 
     @app.errorhandler(413)
@@ -1692,7 +1712,6 @@ def create_app():
     @app.route("/documents/upload", methods=["GET", "POST"])
     def document_upload():
         enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
-        projects = ProjectProgress.query.order_by(ProjectProgress.updated_at.desc()).all()
 
         if request.method == "POST":
             enterprise_id = request.form.get("enterprise_id", type=int)
@@ -1703,7 +1722,6 @@ def create_app():
                     "documents/upload.html",
                     enterprises=enterprises,
                     products=[],
-                    projects=projects,
                     document_types=DOCUMENT_TYPE_OPTIONS,
                     form_data=request.form,
                 )
@@ -1716,7 +1734,6 @@ def create_app():
                     "documents/upload.html",
                     enterprises=enterprises,
                     products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
-                    projects=projects,
                     document_types=DOCUMENT_TYPE_OPTIONS,
                     form_data=request.form,
                 )
@@ -1726,15 +1743,12 @@ def create_app():
             version = request.form.get("version", "").strip() or "V01"
             uploaded_by = request.form.get("uploaded_by", "").strip() or "未署名"
             notes = request.form.get("notes", "").strip() or None
-            related_project_id = request.form.get("related_project_id", type=int)
-
             if not document_type:
                 flash("文件类型为必填项。", "danger")
                 return render_template(
                     "documents/upload.html",
                     enterprises=enterprises,
                     products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
-                    projects=projects,
                     document_types=DOCUMENT_TYPE_OPTIONS,
                     form_data=request.form,
                 )
@@ -1744,7 +1758,6 @@ def create_app():
                     "documents/upload.html",
                     enterprises=enterprises,
                     products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
-                    projects=projects,
                     document_types=DOCUMENT_TYPE_OPTIONS,
                     form_data=request.form,
                 )
@@ -1754,7 +1767,6 @@ def create_app():
                     "documents/upload.html",
                     enterprises=enterprises,
                     products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
-                    projects=projects,
                     document_types=DOCUMENT_TYPE_OPTIONS,
                     form_data=request.form,
                 )
@@ -1765,7 +1777,6 @@ def create_app():
                     "documents/upload.html",
                     enterprises=enterprises,
                     products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
-                    projects=projects,
                     document_types=DOCUMENT_TYPE_OPTIONS,
                     form_data=request.form,
                 )
@@ -1777,7 +1788,6 @@ def create_app():
                     "documents/upload.html",
                     enterprises=enterprises,
                     products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
-                    projects=projects,
                     document_types=DOCUMENT_TYPE_OPTIONS,
                     form_data=request.form,
                 )
@@ -1787,7 +1797,6 @@ def create_app():
                     "documents/upload.html",
                     enterprises=enterprises,
                     products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
-                    projects=projects,
                     document_types=DOCUMENT_TYPE_OPTIONS,
                     form_data=request.form,
                 )
@@ -1802,7 +1811,6 @@ def create_app():
                     document_name=清洗路径片段(document_name),
                     uploaded_by=uploaded_by,
                     notes=notes,
-                    related_project_id=related_project_id,
                 )
             except ValueError as exc:
                 flash(str(exc), "danger")
@@ -1810,7 +1818,6 @@ def create_app():
                     "documents/upload.html",
                     enterprises=enterprises,
                     products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
-                    projects=projects,
                     document_types=DOCUMENT_TYPE_OPTIONS,
                     form_data=request.form,
                 )
@@ -1827,7 +1834,6 @@ def create_app():
             "documents/upload.html",
             enterprises=enterprises,
             products=products,
-            projects=projects,
             document_types=DOCUMENT_TYPE_OPTIONS,
             form_data={
                 "enterprise_id": default_enterprise_id,
