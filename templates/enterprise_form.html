@@ -40,18 +40,24 @@
         </div>
     </div>
 
+    <div class="accordion" id="enterpriseAccordion">
     {% for group in 通用字段组 %}
-    <div class="card shadow-sm">
-        <div class="card-header fw-bold">{{ group.title }}</div>
-        <div class="card-body row g-3">
+    <div class="accordion-item shadow-sm border-0 mb-2">
+        <h2 class="accordion-header" id="heading_{{ group.key }}">
+            <button class="accordion-button {% if not loop.first %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_{{ group.key }}">
+                {{ group.title }}
+            </button>
+        </h2>
+        <div id="collapse_{{ group.key }}" class="accordion-collapse collapse {% if loop.first %}show{% endif %}" data-bs-parent="#enterpriseAccordion">
+        <div class="accordion-body row g-3">
             {% for field in group.fields %}
                 {% if field.type == 'textarea' %}
-                <div class="col-md-6">
+                <div class="col-lg-6">
                     <label class="form-label">{{ field.label }}{% if field.required %}<span class="text-danger">*</span>{% endif %}</label>
                     <textarea class="form-control" rows="2" name="{{ field.key }}" {% if field.required %}required{% endif %}>{{ extra_value(field.key) }}</textarea>
                 </div>
                 {% elif field.type == 'select' %}
-                <div class="col-md-4">
+                <div class="col-lg-3 col-md-4">
                     <label class="form-label">{{ field.label }}</label>
                     <select class="form-select" name="{{ field.key }}">
                         <option value="">请选择</option>
@@ -61,13 +67,26 @@
                         {% endfor %}
                     </select>
                 </div>
+                {% elif field.type == 'radio_group' %}
+                <div class="col-12">
+                    <label class="form-label d-block">{{ field.label }}</label>
+                    {% set cur = extra_value(field.key) %}
+                    <div class="d-flex flex-wrap gap-3">
+                        {% for opt in field.options %}
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" id="{{ field.key }}_{{ loop.index }}" name="{{ field.key }}" value="{{ opt }}" {% if opt == cur %}checked{% endif %}>
+                            <label class="form-check-label" for="{{ field.key }}_{{ loop.index }}">{{ opt }}</label>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
                 {% elif field.type == 'checkbox_group' %}
                 <div class="col-12">
                     <label class="form-label d-block">{{ field.label }}</label>
                     {% set selected_values = request.form.getlist(field.key) if request.method == 'POST' else (企业扩展字段 or {}).get(field.key, []) %}
                     <div class="row g-2">
                         {% for opt in field.options %}
-                        <div class="col-md-3 col-6">
+                        <div class="col-lg-2 col-md-3 col-6">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="{{ field.key }}_{{ loop.index }}" name="{{ field.key }}" value="{{ opt }}" {% if opt in selected_values %}checked{% endif %}>
                                 <label class="form-check-label" for="{{ field.key }}_{{ loop.index }}">{{ opt }}</label>
@@ -77,7 +96,7 @@
                     </div>
                 </div>
                 {% else %}
-                <div class="col-md-4">
+                <div class="col-lg-3 col-md-4">
                     <label class="form-label">{{ field.label }}{% if field.required %}<span class="text-danger">*</span>{% endif %}</label>
                     <input class="form-control" type="{{ field.type if field.type in ['date','number','email','url'] else 'text' }}" name="{{ field.key }}" value="{{ extra_value(field.key) }}" {% if field.required %}required{% endif %}>
                 </div>
@@ -85,7 +104,9 @@
             {% endfor %}
         </div>
     </div>
+    </div>
     {% endfor %}
+    </div>
 
     <div id="industryExtraContainer">
         {% for industry_code, groups in 行业字段配置.items() %}

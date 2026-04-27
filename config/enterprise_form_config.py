@@ -48,8 +48,8 @@ COMMON_ENTERPRISE_FIELD_GROUPS = [
         "fields": [
             {"key": "main_business", "label": "主营业务", "type": "textarea"},
             {"key": "core_products", "label": "核心产品", "type": "textarea"},
-            {"key": "annual_sales", "label": "年销售额", "type": "text"},
-            {"key": "annual_exports", "label": "年出口额", "type": "text"},
+            {"key": "annual_sales", "label": "年销售额", "type": "select", "options": ["500万以下", "500万-2000万", "2000万-5000万", "5000万-1亿", "1亿-5亿", "5亿以上", "暂未提供"]},
+            {"key": "annual_exports", "label": "年出口额", "type": "select", "options": ["无出口", "100万以下", "100万-500万", "500万-2000万", "2000万-1亿", "1亿以上", "暂未提供"]},
             {"key": "major_clients", "label": "主要客户", "type": "textarea"},
             {"key": "major_markets", "label": "主要市场", "type": "textarea"},
         ],
@@ -96,6 +96,8 @@ COMMON_ENTERPRISE_FIELD_GROUPS = [
             {"key": "cooperation_models", "label": "可接受合作模式", "type": "checkbox_group", "options": ["批发", "代理", "OEM", "ODM", "项目制", "跨境电商", "联合品牌", "其他"]},
             {"key": "minimum_order_quantity", "label": "最低订单量", "type": "text"},
             {"key": "price_flexibility", "label": "价格弹性", "type": "select", "options": ["强", "中", "弱", "暂未确认"]},
+            {"key": "material_completeness", "label": "资料完整度", "type": "select", "options": ["A类资料完整", "B类资料较完整", "资料缺失较多", "待补充"]},
+            {"key": "other_notes", "label": "其他说明", "type": "textarea"},
         ],
     },
 ]
@@ -127,4 +129,3 @@ INDUSTRY_EXTRA_FIELD_CONFIG = {
     "I19": [{"key": "I19A", "title": "游戏动漫专项", "fields": _industry_fields("自有IP", "授权IP", "版权证明", "用户规模", "粉丝画像", "商业化数据")}],
     "I20": [{"key": "I20A", "title": "数字科技服务专项", "fields": _industry_fields("核心技术栈", "交付团队规模", "项目管理体系", "数据安全合规能力", "SaaS/平台化能力", "行业解决方案案例")}],
 }
-
