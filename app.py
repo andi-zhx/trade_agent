@@ -837,24 +837,28 @@ def create_app():
     def enterprise_list():
         page = request.args.get("page", 1, type=int)
         q = request.args.get("q", "", type=str).strip()
+        industry = request.args.get("industry", "", type=str).strip()
         province = request.args.get("province", "", type=str).strip()
         city = request.args.get("city", "", type=str).strip()
-        industry = request.args.get("industry", "", type=str).strip()
         company_nature = request.args.get("company_nature", "", type=str).strip()
+        enterprise_size = request.args.get("enterprise_size", "", type=str).strip()
+        has_overseas_business = request.args.get("has_overseas_business", "", type=str).strip()
+        has_own_factory = request.args.get("has_own_factory", "", type=str).strip()
         has_export = request.args.get("has_export", "", type=str).strip()
-        sales_range = request.args.get("sales_range", "", type=str).strip()
-        export_range = request.args.get("export_range", "", type=str).strip()
+        recommendation_level = request.args.get("recommendation_level", "", type=str).strip()
+        recommended_for_pool = request.args.get("recommended_for_pool", "", type=str).strip()
+        status = request.args.get("status", "", type=str).strip()
         completeness = request.args.get("completeness", "", type=str).strip()
 
         查询 = Enterprise.query
         if q:
             查询 = 查询.filter(Enterprise.company_name.ilike(f"%{q}%"))
+        if industry:
+            查询 = 查询.filter(Enterprise.industry_code == industry)
         if province:
             查询 = 查询.filter(Enterprise.province == province)
         if city:
             查询 = 查询.filter(Enterprise.city == city)
-        if industry:
-            查询 = 查询.filter(Enterprise.industry_code == industry)
         if company_nature:
             nature_filter_map = {
                 "制造商": Enterprise.is_manufacturer.is_(True),
@@ -863,13 +867,26 @@ def create_app():
                 "OEM/ODM工厂": Enterprise.is_oem_odm.is_(True),
                 "服务商": Enterprise.is_service_provider.is_(True),
             }
-            查询 = 查询.filter(nature_filter_map.get(company_nature, Enterprise.company_type == company_nature))
-        if has_export in {"yes", "no"}:
-            查询 = 查询.filter(Enterprise.has_foreign_trade_experience.is_(has_export == "yes"))
-        if sales_range:
-            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_sales") == sales_range)
-        if export_range:
-            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_exports") == export_range)
+            查询 = 查询.filter(
+                or_(
+                    nature_filter_map.get(company_nature, text("0=1")),
+                    func.json_extract(Enterprise.enterprise_extra_fields, "$.enterprise_natures").like(f'%"{company_nature}"%'),
+                )
+            )
+        if enterprise_size:
+            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.employee_count_range") == enterprise_size)
+        if has_overseas_business:
+            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.has_overseas_business") == has_overseas_business)
+        if has_own_factory:
+            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.has_own_factory") == has_own_factory)
+        if has_export:
+            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.export_experience") == has_export)
+        if recommendation_level:
+            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.recommendation_level") == recommendation_level)
+        if recommended_for_pool:
+            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.recommended_for_pool") == recommended_for_pool)
+        if status:
+            查询 = 查询.filter(Enterprise.status == status)
         if completeness:
             if completeness == "80%以上":
                 查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.material_completeness_score") >= 80)
@@ -883,13 +900,35 @@ def create_app():
 
         分页 = 查询.order_by(Enterprise.updated_at.desc()).paginate(page=page, per_page=PER_PAGE, error_out=False)
 
+        def 提取JSON枚举值(json_key):
+            path = f"$.{json_key}"
+            rows = db.session.query(func.json_extract(Enterprise.enterprise_extra_fields, path)).filter(
+                func.json_extract(Enterprise.enterprise_extra_fields, path).isnot(None),
+                func.json_extract(Enterprise.enterprise_extra_fields, path) != "",
+            ).distinct().all()
+            clean_values = []
+            for (raw,) in rows:
+                if raw is None:
+                    continue
+                value = str(raw).strip()
+                if value.startswith('"') and value.endswith('"'):
+                    value = value[1:-1]
+                if value and value not in clean_values:
+                    clean_values.append(value)
+            return sorted(clean_values)
+
         省份列表 = [项[0] for 项 in db.session.query(Enterprise.province).filter(Enterprise.province.isnot(None), Enterprise.province != "").distinct().order_by(Enterprise.province).all()]
         城市列表 = [项[0] for 项 in db.session.query(Enterprise.city).filter(Enterprise.city.isnot(None), Enterprise.city != "").distinct().order_by(Enterprise.city).all()]
         行业列表 = 行业下拉选项()
-        年销售额区间选项 = [项[0] for 项 in db.session.query(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_sales")).filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_sales").isnot(None), func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_sales") != "").distinct().order_by(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_sales")).all()]
-        年出口额区间选项 = [项[0] for 项 in db.session.query(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_exports")).filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_exports").isnot(None), func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_exports") != "").distinct().order_by(func.json_extract(Enterprise.enterprise_extra_fields, "$.annual_exports")).all()]
+        企业规模选项 = 提取JSON枚举值("employee_count_range")
+        海外业务选项 = 提取JSON枚举值("has_overseas_business") or ["是", "否"]
+        自有工厂选项 = 提取JSON枚举值("has_own_factory") or ["是", "否", "部分自有"]
+        出口经验选项 = 提取JSON枚举值("export_experience") or ["是", "否"]
+        推荐等级选项 = 提取JSON枚举值("recommendation_level") or ["A", "B", "C", "D", "待评估"]
+        建议入库选项 = 提取JSON枚举值("recommended_for_pool") or ["是", "否", "待定"]
         资料完整度选项 = ["80%以上", "50%-79%", "50%以下"]
-        企业性质选项 = ["制造商", "贸易商", "品牌商", "OEM/ODM工厂", "服务商"]
+        企业性质选项 = ["制造商", "贸易商", "品牌商", "代理商", "OEM/ODM工厂", "服务商"]
+        入库状态选项 = ["草稿", "待审核", "已入库", "跟进中", "冻结"]
 
         企业ID列表 = [企业.id for 企业 in 分页.items]
         外贸负责人映射 = {}
@@ -919,17 +958,26 @@ def create_app():
                 "city": city,
                 "industry": industry,
                 "company_nature": company_nature,
+                "enterprise_size": enterprise_size,
+                "has_overseas_business": has_overseas_business,
+                "has_own_factory": has_own_factory,
                 "has_export": has_export,
-                "sales_range": sales_range,
-                "export_range": export_range,
+                "recommendation_level": recommendation_level,
+                "recommended_for_pool": recommended_for_pool,
+                "status": status,
                 "completeness": completeness,
             },
             省份列表=省份列表,
             城市列表=城市列表,
             行业列表=行业列表,
             企业性质选项=企业性质选项,
-            年销售额区间选项=年销售额区间选项,
-            年出口额区间选项=年出口额区间选项,
+            企业规模选项=企业规模选项,
+            海外业务选项=海外业务选项,
+            自有工厂选项=自有工厂选项,
+            出口经验选项=出口经验选项,
+            推荐等级选项=推荐等级选项,
+            建议入库选项=建议入库选项,
+            入库状态选项=入库状态选项,
             资料完整度选项=资料完整度选项,
             外贸负责人映射=外贸负责人映射,
             完整度映射=完整度映射,

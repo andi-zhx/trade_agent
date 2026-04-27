@@ -19,6 +19,15 @@
                 <input type="text" class="form-control" name="q" value="{{ 筛选.q }}" placeholder="请输入企业名称关键字">
             </div>
             <div class="col-md-2">
+                <label class="form-label">行业大类</label>
+                <select class="form-select" name="industry">
+                    <option value="">全部</option>
+                    {% for i in 行业列表 %}
+                    <option value="{{ i.code }}" {% if i.code == 筛选.industry %}selected{% endif %}>{{ i.code }} {{ i.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
                 <label class="form-label">省份</label>
                 <select class="form-select" name="province">
                     <option value="">全部</option>
@@ -37,16 +46,7 @@
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label">行业大类</label>
-                <select class="form-select" name="industry">
-                    <option value="">全部</option>
-                    {% for i in 行业列表 %}
-                    <option value="{{ i.code }}" {% if i.code == 筛选.industry %}selected{% endif %}>{{ i.code }} {{ i.name }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">企业性质</label>
+                <label class="form-label">企业角色</label>
                 <select class="form-select" name="company_nature">
                     <option value="">全部</option>
                     {% for nature in 企业性质选项 %}
@@ -55,28 +55,65 @@
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label">是否有出口经验</label>
-                <select class="form-select" name="has_export">
+                <label class="form-label">企业规模</label>
+                <select class="form-select" name="enterprise_size">
                     <option value="">全部</option>
-                    <option value="yes" {% if 筛选.has_export == 'yes' %}selected{% endif %}>是</option>
-                    <option value="no" {% if 筛选.has_export == 'no' %}selected{% endif %}>否</option>
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">年销售额区间</label>
-                <select class="form-select" name="sales_range">
-                    <option value="">全部</option>
-                    {% for item in 年销售额区间选项 %}
-                    <option value="{{ item }}" {% if item == 筛选.sales_range %}selected{% endif %}>{{ item }}</option>
+                    {% for item in 企业规模选项 %}
+                    <option value="{{ item }}" {% if item == 筛选.enterprise_size %}selected{% endif %}>{{ item }}</option>
                     {% endfor %}
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label">年出口额区间</label>
-                <select class="form-select" name="export_range">
+                <label class="form-label">是否已有海外业务</label>
+                <select class="form-select" name="has_overseas_business">
                     <option value="">全部</option>
-                    {% for item in 年出口额区间选项 %}
-                    <option value="{{ item }}" {% if item == 筛选.export_range %}selected{% endif %}>{{ item }}</option>
+                    {% for item in 海外业务选项 %}
+                    <option value="{{ item }}" {% if item == 筛选.has_overseas_business %}selected{% endif %}>{{ item }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">是否自有工厂</label>
+                <select class="form-select" name="has_own_factory">
+                    <option value="">全部</option>
+                    {% for item in 自有工厂选项 %}
+                    <option value="{{ item }}" {% if item == 筛选.has_own_factory %}selected{% endif %}>{{ item }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">是否有出口经验</label>
+                <select class="form-select" name="has_export">
+                    <option value="">全部</option>
+                    {% for item in 出口经验选项 %}
+                    <option value="{{ item }}" {% if item == 筛选.has_export %}selected{% endif %}>{{ item }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">推荐等级</label>
+                <select class="form-select" name="recommendation_level">
+                    <option value="">全部</option>
+                    {% for item in 推荐等级选项 %}
+                    <option value="{{ item }}" {% if item == 筛选.recommendation_level %}selected{% endif %}>{{ item }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">是否建议入库</label>
+                <select class="form-select" name="recommended_for_pool">
+                    <option value="">全部</option>
+                    {% for item in 建议入库选项 %}
+                    <option value="{{ item }}" {% if item == 筛选.recommended_for_pool %}selected{% endif %}>{{ item }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">入库状态</label>
+                <select class="form-select" name="status">
+                    <option value="">全部</option>
+                    {% for item in 入库状态选项 %}
+                    <option value="{{ item }}" {% if item == 筛选.status %}selected{% endif %}>{{ item }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -103,14 +140,17 @@
             <tr>
                 <th>企业编号</th>
                 <th>企业名称</th>
-                <th>行业分类</th>
-                <th>省市</th>
-                <th>企业性质</th>
-                <th>主营产品</th>
+                <th>行业大类</th>
+                <th>省份/城市</th>
+                <th>企业角色</th>
+                <th>企业规模</th>
+                <th>海外业务</th>
+                <th>自有工厂</th>
                 <th>是否有出口经验</th>
-                <th>年销售额区间</th>
-                <th>年出口额区间</th>
+                <th>推荐等级</th>
+                <th>建议入库</th>
                 <th>资料完整度</th>
+                <th>入库状态</th>
                 <th>最近更新时间</th>
                 <th>操作</th>
             </tr>
@@ -127,20 +167,32 @@
             {% if 企业.is_service_provider %}{% set _ = natures.append('服务商') %}{% endif %}
             <tr>
                 <td>{{ 企业.enterprise_code }}</td>
-                <td>{{ 企业.company_name }}</td>
+                <td class="text-truncate" style="max-width: 180px;">{{ 企业.company_name or ext.get('company_full_name') or '-' }}</td>
                 <td>{% if 企业.industry_code %}{{ 企业.industry_code }} {{ 企业.industry_category or '' }}{% else %}-{% endif %}</td>
                 <td>{{ (企业.province or '-') ~ ' / ' ~ (企业.city or '-') }}</td>
-                <td>{{ natures|join('、') if natures else (企业.company_type or '-') }}</td>
-                <td class="text-truncate" style="max-width: 180px;">{{ 企业.main_products or '-' }}</td>
-                <td>{{ '是' if 企业.has_foreign_trade_experience else '否' }}</td>
-                <td>{{ ext.get('annual_sales') or '-' }}</td>
-                <td>{{ ext.get('annual_exports') or '-' }}</td>
+                <td>
+                    {% set role_items = ext.get('enterprise_natures', []) %}
+                    {% if role_items %}
+                        {% for item in role_items[:2] %}<span class="badge bg-light text-dark border me-1">{{ item }}</span>{% endfor %}
+                        {% if role_items|length > 2 %}<span class="badge bg-secondary">+{{ role_items|length - 2 }}</span>{% endif %}
+                    {% elif natures %}
+                        {% for item in natures[:2] %}<span class="badge bg-light text-dark border me-1">{{ item }}</span>{% endfor %}
+                        {% if natures|length > 2 %}<span class="badge bg-secondary">+{{ natures|length - 2 }}</span>{% endif %}
+                    {% else %}-{% endif %}
+                </td>
+                <td>{{ ext.get('employee_count_range') or (企业.employee_count ~ '人' if 企业.employee_count else '-') }}</td>
+                <td><span class="badge bg-light text-dark border">{{ ext.get('has_overseas_business') or '-' }}</span></td>
+                <td><span class="badge bg-light text-dark border">{{ ext.get('has_own_factory') or '-' }}</span></td>
+                <td><span class="badge bg-light text-dark border">{{ ext.get('export_experience') or ('是' if 企业.has_foreign_trade_experience else '否') }}</span></td>
+                <td><span class="badge bg-{% if (ext.get('recommendation_level') or '') == 'A' %}success{% elif (ext.get('recommendation_level') or '') == 'B' %}primary{% elif (ext.get('recommendation_level') or '') == 'C' %}warning text-dark{% else %}secondary{% endif %}">{{ ext.get('recommendation_level') or '-' }}</span></td>
+                <td><span class="badge bg-{% if ext.get('recommended_for_pool') == '是' %}success{% elif ext.get('recommended_for_pool') == '否' %}danger{% else %}secondary{% endif %}">{{ ext.get('recommended_for_pool') or '-' }}</span></td>
                 <td>
                     <span class="badge bg-{% if comp.get('color') == 'success' %}success{% elif comp.get('color') == 'warning' %}warning text-dark{% else %}danger{% endif %}">
                         {{ comp.get('label') or (ext.get('material_completeness') or '-') }}
                     </span>
                 </td>
-                <td>{{ 企业.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                <td><span class="badge bg-light text-dark border">{{ 企业.status or '-' }}</span></td>
+                <td>{{ 企业.updated_at.strftime('%Y-%m-%d %H:%M') if 企业.updated_at else '-' }}</td>
                 <td>
                     <div class="btn-group btn-group-sm">
                         <a class="btn btn-outline-primary" href="{{ url_for('enterprise_detail', id=企业.id) }}">查看</a>
@@ -157,7 +209,7 @@
             </tr>
             {% else %}
             <tr>
-                <td colspan="12" class="text-center text-muted py-4">暂无数据</td>
+                <td colspan="15" class="text-center text-muted py-4">暂无数据</td>
             </tr>
             {% endfor %}
             </tbody>
@@ -169,19 +221,19 @@
         <nav>
             <ul class="pagination mb-0 justify-content-center">
                 <li class="page-item {% if not 分页.has_prev %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('enterprise_list', page=分页.prev_num, q=筛选.q, province=筛选.province, city=筛选.city, industry=筛选.industry, company_nature=筛选.company_nature, has_export=筛选.has_export, sales_range=筛选.sales_range, export_range=筛选.export_range, completeness=筛选.completeness) }}">上一页</a>
+                    <a class="page-link" href="{{ url_for('enterprise_list', page=分页.prev_num, q=筛选.q, industry=筛选.industry, province=筛选.province, city=筛选.city, company_nature=筛选.company_nature, enterprise_size=筛选.enterprise_size, has_overseas_business=筛选.has_overseas_business, has_own_factory=筛选.has_own_factory, has_export=筛选.has_export, recommendation_level=筛选.recommendation_level, recommended_for_pool=筛选.recommended_for_pool, status=筛选.status, completeness=筛选.completeness) }}">上一页</a>
                 </li>
                 {% for p in 分页.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
                     {% if p %}
                     <li class="page-item {% if p == 分页.page %}active{% endif %}">
-                        <a class="page-link" href="{{ url_for('enterprise_list', page=p, q=筛选.q, province=筛选.province, city=筛选.city, industry=筛选.industry, company_nature=筛选.company_nature, has_export=筛选.has_export, sales_range=筛选.sales_range, export_range=筛选.export_range, completeness=筛选.completeness) }}">{{ p }}</a>
+                        <a class="page-link" href="{{ url_for('enterprise_list', page=p, q=筛选.q, industry=筛选.industry, province=筛选.province, city=筛选.city, company_nature=筛选.company_nature, enterprise_size=筛选.enterprise_size, has_overseas_business=筛选.has_overseas_business, has_own_factory=筛选.has_own_factory, has_export=筛选.has_export, recommendation_level=筛选.recommendation_level, recommended_for_pool=筛选.recommended_for_pool, status=筛选.status, completeness=筛选.completeness) }}">{{ p }}</a>
                     </li>
                     {% else %}
                     <li class="page-item disabled"><span class="page-link">…</span></li>
                     {% endif %}
                 {% endfor %}
                 <li class="page-item {% if not 分页.has_next %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('enterprise_list', page=分页.next_num, q=筛选.q, province=筛选.province, city=筛选.city, industry=筛选.industry, company_nature=筛选.company_nature, has_export=筛选.has_export, sales_range=筛选.sales_range, export_range=筛选.export_range, completeness=筛选.completeness) }}">下一页</a>
+                    <a class="page-link" href="{{ url_for('enterprise_list', page=分页.next_num, q=筛选.q, industry=筛选.industry, province=筛选.province, city=筛选.city, company_nature=筛选.company_nature, enterprise_size=筛选.enterprise_size, has_overseas_business=筛选.has_overseas_business, has_own_factory=筛选.has_own_factory, has_export=筛选.has_export, recommendation_level=筛选.recommendation_level, recommended_for_pool=筛选.recommended_for_pool, status=筛选.status, completeness=筛选.completeness) }}">下一页</a>
                 </li>
             </ul>
         </nav>
