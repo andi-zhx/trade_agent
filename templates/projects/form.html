@@ -1,0 +1,68 @@
+{% extends 'base.html' %}
+{% block title %}{{ form_title }}{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">{{ form_title }}</h1>
+    <a class="btn btn-outline-secondary" href="{{ url_for('project_list') }}">返回项目列表</a>
+</div>
+
+<form method="post" class="card">
+    <div class="card-body row g-3">
+        <div class="col-md-3"><label class="form-label">企业 *</label>
+            <select class="form-select" name="enterprise_id" required>
+                <option value="">请选择企业</option>
+                {% for e in enterprises %}<option value="{{ e.id }}" {% if form_data.get('enterprise_id')|string == e.id|string %}selected{% endif %}>{{ e.enterprise_code }} - {{ e.company_name }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3"><label class="form-label">产品</label>
+            <select class="form-select" name="product_id">
+                <option value="">请选择产品</option>
+                {% for p in products %}<option value="{{ p.id }}" {% if form_data.get('product_id')|string == p.id|string %}selected{% endif %}>{{ p.product_code }} - {{ p.product_name_cn }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3"><label class="form-label">外资客户</label>
+            <select class="form-select" name="foreign_client_id">
+                <option value="">请选择客户</option>
+                {% for c in clients %}<option value="{{ c.id }}" {% if form_data.get('foreign_client_id')|string == c.id|string %}selected{% endif %}>{{ c.client_name }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3"><label class="form-label">外资需求</label>
+            <select class="form-select" name="demand_id">
+                <option value="">请选择需求</option>
+                {% for d in demands %}<option value="{{ d.id }}" {% if form_data.get('demand_id')|string == d.id|string %}selected{% endif %}>{{ d.demand_code }} - {{ d.purchase_category or '未填写品类' }}</option>{% endfor %}
+            </select>
+        </div>
+
+        <div class="col-md-3"><label class="form-label">当前阶段</label>
+            <select class="form-select" name="current_stage">
+                {% for s in stage_options %}<option value="{{ s }}" {% if form_data.get('current_stage', '待补充资料') == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3"><label class="form-label">首次对接日期</label><input type="date" class="form-control" name="first_contact_date" value="{{ form_data.get('first_contact_date', '') }}"></div>
+        <div class="col-md-3"><label class="form-label">资料发送日期</label><input type="date" class="form-control" name="material_sent_date" value="{{ form_data.get('material_sent_date', '') }}"></div>
+        <div class="col-md-3"><label class="form-label">项目负责人</label><input class="form-control" name="project_owner" value="{{ form_data.get('project_owner', '') }}"></div>
+
+        <div class="col-md-4"><label class="form-label">样品状态</label>
+            <select class="form-select" name="sample_status">
+                {% for s in sample_status_options %}<option value="{{ s }}" {% if form_data.get('sample_status', '未涉及') == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4"><label class="form-label">报价状态</label>
+            <select class="form-select" name="quotation_status">
+                {% for s in quotation_status_options %}<option value="{{ s }}" {% if form_data.get('quotation_status', '未报价') == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+            </select>
+        </div>
+        <div class="col-md-4"><label class="form-label">合同状态</label>
+            <select class="form-select" name="contract_status">
+                {% for s in contract_status_options %}<option value="{{ s }}" {% if form_data.get('contract_status', '未开始') == s %}selected{% endif %}>{{ s }}</option>{% endfor %}
+            </select>
+        </div>
+
+        <div class="col-md-6"><label class="form-label">谈判状态</label><input class="form-control" name="negotiation_status" value="{{ form_data.get('negotiation_status', '') }}" placeholder="如：商务条款确认中"></div>
+        <div class="col-md-6"><label class="form-label">成交金额</label><input type="number" step="0.01" class="form-control" name="deal_amount" value="{{ form_data.get('deal_amount', '') }}"></div>
+        <div class="col-12"><label class="form-label">下一步动作</label><textarea rows="2" class="form-control" name="next_action">{{ form_data.get('next_action', '') }}</textarea></div>
+        <div class="col-12"><label class="form-label">备注</label><textarea rows="3" class="form-control" name="notes">{{ form_data.get('notes', '') }}</textarea></div>
+    </div>
+    <div class="card-footer"><button class="btn btn-primary" type="submit">保存项目</button></div>
+</form>
+{% endblock %}
