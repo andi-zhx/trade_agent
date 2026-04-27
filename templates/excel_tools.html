@@ -10,9 +10,6 @@
                 <div class="d-grid gap-2">
                     <a class="btn btn-outline-primary" href="{{ url_for('excel_export', export_key='enterprises') }}">导出企业总表</a>
                     <a class="btn btn-outline-primary" href="{{ url_for('excel_export', export_key='products') }}">导出产品总表</a>
-                    <a class="btn btn-outline-primary" href="{{ url_for('excel_export', export_key='qualifications') }}">导出资质有效期管理表</a>
-                    <a class="btn btn-outline-primary" href="{{ url_for('excel_export', export_key='matches') }}">导出外资需求匹配表</a>
-                    <a class="btn btn-outline-primary" href="{{ url_for('excel_export', export_key='projects') }}">导出项目进展跟踪表</a>
                 </div>
             </div>
         </div>
@@ -21,10 +18,10 @@
         <div class="card h-100">
             <div class="card-body">
                 <h2 class="h5">Excel 导入</h2>
-                <p class="text-muted">先支持企业和产品导入，导入逻辑为“编号存在则更新，不存在则新增”。</p>
+                <p class="text-muted">仅支持企业库和产品库导入，导入逻辑为“编号存在则更新，不存在则新增”。</p>
                 <div class="d-grid gap-2">
-                    <a class="btn btn-outline-success" href="{{ url_for('import_enterprises') }}">导入企业 Excel</a>
-                    <a class="btn btn-outline-success" href="{{ url_for('import_products') }}">导入产品 Excel</a>
+                    <a class="btn btn-outline-success" href="{{ url_for('import_enterprises', next=url_for('enterprise_list')) }}">导入企业 Excel</a>
+                    <a class="btn btn-outline-success" href="{{ url_for('import_products', next=url_for('product_list')) }}">导入产品 Excel</a>
                 </div>
             </div>
         </div>

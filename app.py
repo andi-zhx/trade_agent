@@ -9,6 +9,7 @@ from functools import wraps
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from flask import Flask, flash, redirect, render_template, request, send_file, send_from_directory, session, url_for
+from openpyxl import Workbook, load_workbook
 from sqlalchemy import func, inspect, or_, text
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
@@ -536,48 +537,80 @@ def create_app():
             文件名, 表头, 行数据 = 构建导出数据(export_key)
         except ValueError:
             flash("不支持的导出类型。", "danger")
-            return redirect(url_for("excel_tools"))
+            return redirect(url_for("dashboard"))
         缓冲区 = BytesIO()
-        text_buffer = []
-        text_buffer.append(",".join([csv_safe(v) for v in 表头]))
+        workbook = Workbook()
+        worksheet = workbook.active
+        worksheet.title = 文件名
+        worksheet.append(表头)
         for row in 行数据:
-            text_buffer.append(",".join([csv_safe(v) for v in row]))
-        缓冲区.write(("\n".join(text_buffer)).encode("utf-8-sig"))
+            worksheet.append(row)
+        workbook.save(缓冲区)
         缓冲区.seek(0)
         记录审计日志("导出 Excel", "excel", detail=f"export_key={export_key}")
         db.session.commit()
         return send_file(
             缓冲区,
             as_attachment=True,
-            download_name=f"{文件名}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
-            mimetype="text/csv",
+            download_name=f"{文件名}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx",
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
 
     @app.route("/excel/import/enterprises", methods=["GET", "POST"])
     def import_enterprises():
+        返回地址 = request.args.get("next", url_for("enterprise_list"), type=str)
+        if not 返回地址.startswith("/"):
+            返回地址 = url_for("enterprise_list")
         if request.method == "POST":
             上传文件 = request.files.get("file")
             if not 上传文件 or not 上传文件.filename:
                 flash("请先选择企业 Excel 文件。", "danger")
-                return redirect(url_for("import_enterprises"))
-            成功条数, 失败列表 = 导入企业Excel(上传文件)
+                return redirect(url_for("import_enterprises", next=返回地址))
+            try:
+                成功条数, 失败列表 = 导入企业Excel(上传文件)
+            except ValueError as exc:
+                flash(str(exc), "danger")
+                return redirect(url_for("import_enterprises", next=返回地址))
             记录审计日志("导入 Excel", "enterprise", detail=f"success={成功条数}, failed={len(失败列表)}")
             db.session.commit()
-            return render_template("import_result.html", 标题="企业导入结果", 成功条数=成功条数, 失败列表=失败列表)
-        return render_template("import_form.html", 标题="企业 Excel 导入", 提示="支持按企业编号更新或新增企业。")
+            return render_template("import_result.html", 标题="企业导入结果", 成功条数=成功条数, 失败列表=失败列表, 返回地址=返回地址, 返回文案="返回企业库")
+        return render_template(
+            "import_form.html",
+            标题="企业 Excel 导入",
+            提示="支持按企业编号更新或新增企业。",
+            返回地址=返回地址,
+            返回文案="返回企业库",
+            字段提示=企业导入字段提示(),
+            必填字段=["企业全称"],
+        )
 
     @app.route("/excel/import/products", methods=["GET", "POST"])
     def import_products():
+        返回地址 = request.args.get("next", url_for("product_list"), type=str)
+        if not 返回地址.startswith("/"):
+            返回地址 = url_for("product_list")
         if request.method == "POST":
             上传文件 = request.files.get("file")
             if not 上传文件 or not 上传文件.filename:
                 flash("请先选择产品 Excel 文件。", "danger")
-                return redirect(url_for("import_products"))
-            成功条数, 失败列表 = 导入产品Excel(上传文件)
+                return redirect(url_for("import_products", next=返回地址))
+            try:
+                成功条数, 失败列表 = 导入产品Excel(上传文件)
+            except ValueError as exc:
+                flash(str(exc), "danger")
+                return redirect(url_for("import_products", next=返回地址))
             记录审计日志("导入 Excel", "product", detail=f"success={成功条数}, failed={len(失败列表)}")
             db.session.commit()
-            return render_template("import_result.html", 标题="产品导入结果", 成功条数=成功条数, 失败列表=失败列表)
-        return render_template("import_form.html", 标题="产品 Excel 导入", 提示="支持按产品编号更新或新增产品。")
+            return render_template("import_result.html", 标题="产品导入结果", 成功条数=成功条数, 失败列表=失败列表, 返回地址=返回地址, 返回文案="返回产品库")
+        return render_template(
+            "import_form.html",
+            标题="产品 Excel 导入",
+            提示="支持按产品编号更新或新增产品；必须根据企业编号关联企业。",
+            返回地址=返回地址,
+            返回文案="返回产品库",
+            字段提示=产品导入字段提示(),
+            必填字段=["所属企业编号", "产品中文名"],
+        )
 
     @app.route("/enterprises")
     def enterprise_list():
@@ -2219,9 +2252,6 @@ def 构建导出数据(export_key):
     导出映射 = {
         "enterprises": ("企业总表", 导出企业总表),
         "products": ("产品总表", 导出产品总表),
-        "qualifications": ("资质有效期管理表", 导出资质表),
-        "matches": ("外资需求匹配表", 导出匹配表),
-        "projects": ("项目进展跟踪表", 导出项目表),
     }
     if export_key not in 导出映射:
         raise ValueError("unknown export key")
@@ -2231,44 +2261,133 @@ def 构建导出数据(export_key):
 
 
 def 导出企业总表():
-    表头 = ["企业编号", "企业名称", "英文名称", "统一社会信用代码", "行业类别", "主营产品", "已出口国家", "目标市场", "状态", "项目负责人", "更新时间"]
+    表头 = [
+        "企业编号",
+        "行业分类",
+        "企业全称",
+        "英文名称",
+        "统一社会信用代码",
+        "省市",
+        "企业性质",
+        "主营业务",
+        "核心产品",
+        "年销售额",
+        "年出口额",
+        "是否有出口经验",
+        "出口国家",
+        "厂房面积",
+        "员工数量",
+        "产线数量",
+        "产能利用率",
+        "目标市场",
+        "目标客户类型",
+        "可接受合作模式",
+        "资料完整度",
+        "风险备注",
+        "最近更新时间",
+    ]
     rows = []
     for item in Enterprise.query.order_by(Enterprise.updated_at.desc()).all():
+        ext = item.enterprise_extra_fields or {}
+        企业性质 = []
+        if item.is_manufacturer:
+            企业性质.append("制造商")
+        if item.is_trader:
+            企业性质.append("贸易商")
+        if item.is_brand_owner:
+            企业性质.append("品牌商")
+        if item.is_oem_odm:
+            企业性质.append("OEM/ODM工厂")
+        if item.is_service_provider:
+            企业性质.append("服务商")
         rows.append([
             item.enterprise_code,
+            item.industry_category,
             item.company_name,
             item.english_name,
             item.unified_social_credit_code,
-            item.industry_category,
+            f"{item.province or '-'} / {item.city or '-'}",
+            "、".join(企业性质) if 企业性质 else (item.company_type or ""),
+            item.main_business,
             item.main_products,
+            ext.get("annual_sales") or (float(item.annual_revenue) if item.annual_revenue is not None else ""),
+            ext.get("annual_exports") or (float(item.export_revenue) if item.export_revenue is not None else ""),
+            "是" if item.has_foreign_trade_experience else "否",
             item.export_countries,
+            item.factory_area,
+            item.employee_count,
+            ext.get("production_line_count"),
+            ext.get("capacity_utilization"),
             item.target_markets,
-            item.status,
-            item.project_owner,
+            ext.get("target_customer_types"),
+            ext.get("acceptable_cooperation_modes"),
+            ext.get("material_completeness"),
+            item.risk_notes,
             item.updated_at.strftime("%Y-%m-%d %H:%M:%S") if item.updated_at else "",
         ])
     return 表头, rows
 
 
 def 导出产品总表():
-    表头 = ["产品编号", "企业编号", "企业名称", "产品中文名", "产品英文名", "产品类别", "HS编码", "型号", "FOB价格", "币种", "目标市场", "认证", "更新时间"]
+    表头 = [
+        "产品编号",
+        "所属企业编号",
+        "所属企业名称",
+        "行业分类",
+        "产品中文名",
+        "产品英文名",
+        "产品类别",
+        "型号",
+        "SKU",
+        "HS编码",
+        "核心卖点",
+        "MOQ",
+        "样品政策",
+        "样品周期",
+        "批量生产周期",
+        "FOB价",
+        "CIF价",
+        "DDP参考价",
+        "产品认证",
+        "包装方式",
+        "运输方式",
+        "是否支持定制",
+        "是否适合跨境电商",
+        "是否适合工程采购",
+        "是否适合经销代理",
+        "最近更新时间",
+    ]
     enterprise_map = {e.id: e for e in Enterprise.query.all()}
     rows = []
     for item in Product.query.order_by(Product.updated_at.desc()).all():
         enterprise = enterprise_map.get(item.enterprise_id)
+        extra = item.product_extra_fields or {}
         rows.append([
             item.product_code,
             enterprise.enterprise_code if enterprise else "",
             enterprise.company_name if enterprise else "",
+            item.industry_name or (enterprise.industry_category if enterprise else ""),
             item.product_name_cn,
             item.product_name_en,
             item.product_category,
-            item.hs_code,
             item.model,
-            float(item.fob_price) if item.fob_price is not None else None,
-            item.currency,
-            item.target_market,
+            item.brand,
+            item.hs_code,
+            item.product_selling_points,
+            item.moq or extra.get("trade_moq"),
+            item.sample_policy or extra.get("trade_sample_policy"),
+            item.sample_cycle or extra.get("trade_sample_cycle"),
+            item.production_cycle or extra.get("trade_mass_cycle"),
+            float(item.fob_price) if item.fob_price is not None else "",
+            float(item.cif_price) if item.cif_price is not None else "",
+            float(item.ddp_price) if item.ddp_price is not None else "",
             item.certifications,
+            item.packaging,
+            extra.get("shipping_method"),
+            "是" if item.customization_supported else "否",
+            extra.get("fit_cross_border"),
+            extra.get("fit_engineering"),
+            extra.get("fit_distributor"),
             item.updated_at.strftime("%Y-%m-%d %H:%M:%S") if item.updated_at else "",
         ])
     return 表头, rows
@@ -2544,13 +2663,95 @@ def 单元格文本(value):
     return str(value).strip()
 
 
+def 读取导入表格(file_storage):
+    文件名 = (file_storage.filename or "").lower()
+    if 文件名.endswith(".xlsx"):
+        workbook = load_workbook(file_storage.stream, read_only=True, data_only=True)
+        sheet = workbook.active
+        return [[单元格文本(cell) for cell in row] for row in sheet.iter_rows(values_only=True)]
+    if 文件名.endswith(".csv"):
+        内容 = file_storage.stream.read().decode("utf-8-sig")
+        return [[单元格文本(cell) for cell in row] for row in csv.reader(内容.splitlines())]
+    raise ValueError("仅支持 .xlsx 或 .csv 文件")
+
+
+def 企业导入字段提示():
+    return [
+        ("企业编号", "用于更新匹配；留空则新增并自动生成"),
+        ("行业分类", "写入企业行业分类"),
+        ("企业全称", "必填"),
+        ("英文名称", "写入企业英文名称"),
+        ("统一社会信用代码", "可选，建议唯一"),
+        ("省市", "格式建议为“省 / 市”"),
+        ("企业性质", "多个请用“、”分隔"),
+        ("主营业务", "写入主营业务"),
+        ("核心产品", "写入核心产品"),
+        ("年销售额", "写入企业扩展字段"),
+        ("年出口额", "写入企业扩展字段"),
+        ("是否有出口经验", "支持 是/否/true/false"),
+        ("出口国家", "可多值"),
+        ("厂房面积", "写入厂房面积"),
+        ("员工数量", "写入员工数量"),
+        ("产线数量", "写入企业扩展字段"),
+        ("产能利用率", "写入企业扩展字段"),
+        ("目标市场", "写入目标市场"),
+        ("目标客户类型", "写入企业扩展字段"),
+        ("可接受合作模式", "写入企业扩展字段"),
+        ("资料完整度", "写入企业扩展字段"),
+        ("风险备注", "写入风险备注"),
+    ]
+
+
+def 产品导入字段提示():
+    return [
+        ("产品编号", "用于更新匹配；留空则新增并自动生成"),
+        ("所属企业编号", "必填，必须能匹配到企业"),
+        ("所属企业名称", "仅用于提示，系统以企业编号为准"),
+        ("行业分类", "写入产品行业分类"),
+        ("产品中文名", "必填"),
+        ("产品英文名", "写入产品英文名"),
+        ("产品类别", "写入产品类别"),
+        ("型号", "写入型号"),
+        ("SKU", "写入品牌/SKU字段"),
+        ("HS编码", "写入HS编码"),
+        ("核心卖点", "写入核心卖点"),
+        ("MOQ", "写入MOQ"),
+        ("样品政策", "写入样品政策"),
+        ("样品周期", "写入样品周期"),
+        ("批量生产周期", "写入批量生产周期"),
+        ("FOB价", "写入FOB价格"),
+        ("CIF价", "写入CIF价格"),
+        ("DDP参考价", "写入DDP价格"),
+        ("产品认证", "写入产品认证"),
+        ("包装方式", "写入包装方式"),
+        ("运输方式", "写入产品扩展字段"),
+        ("是否支持定制", "支持 是/否/true/false"),
+        ("是否适合跨境电商", "写入产品扩展字段"),
+        ("是否适合工程采购", "写入产品扩展字段"),
+        ("是否适合经销代理", "写入产品扩展字段"),
+    ]
+
+
+def 解析省市(value):
+    text = 单元格文本(value)
+    if not text:
+        return None, None
+    if "/" in text:
+        parts = [p.strip() for p in text.split("/", 1)]
+    elif "／" in text:
+        parts = [p.strip() for p in text.split("／", 1)]
+    else:
+        return text, None
+    return parts[0] or None, parts[1] or None
+
+
 def 导入企业Excel(file_storage):
-    rows = list(csv.reader(file_storage.stream.read().decode("utf-8-sig").splitlines()))
+    rows = 读取导入表格(file_storage)
     if not rows:
         return 0, [{"行号": 1, "原因": "文件为空", "数据": {}}]
     header = [单元格文本(c) for c in rows[0]]
     idx = {name: i for i, name in enumerate(header)}
-    必填 = ["企业名称"]
+    必填 = ["企业全称"]
     缺失 = [f for f in 必填 if f not in idx]
     if 缺失:
         return 0, [{"行号": 1, "原因": f"缺少必填列: {', '.join(缺失)}", "数据": {}}]
@@ -2559,38 +2760,72 @@ def 导入企业Excel(file_storage):
     failed = []
     for row_num, row in enumerate(rows[1:], start=2):
         try:
-            company_name = 单元格文本(row[idx["企业名称"]])
+            company_name = 单元格文本(row[idx["企业全称"]])
             if not company_name:
-                raise ValueError("企业名称不能为空")
+                raise ValueError("企业全称不能为空")
             enterprise_code = 单元格文本(row[idx["企业编号"]]) if "企业编号" in idx else ""
             enterprise = Enterprise.query.filter_by(enterprise_code=enterprise_code).first() if enterprise_code else None
             if not enterprise:
                 enterprise = Enterprise(enterprise_code=enterprise_code or 生成企业编号())
                 db.session.add(enterprise)
 
+            ext = dict(enterprise.enterprise_extra_fields or {})
+            province = city = None
+            if "省市" in idx:
+                province, city = 解析省市(row[idx["省市"]])
             enterprise.company_name = company_name
             enterprise.english_name = 单元格文本(row[idx["英文名称"]]) or None if "英文名称" in idx else None
             enterprise.unified_social_credit_code = 单元格文本(row[idx["统一社会信用代码"]]) or None if "统一社会信用代码" in idx else None
-            enterprise.industry_category = 单元格文本(row[idx["行业类别"]]) or None if "行业类别" in idx else None
-            enterprise.main_products = 单元格文本(row[idx["主营产品"]]) or None if "主营产品" in idx else None
-            enterprise.export_countries = 单元格文本(row[idx["已出口国家"]]) or None if "已出口国家" in idx else None
+            enterprise.industry_category = 单元格文本(row[idx["行业分类"]]) or None if "行业分类" in idx else None
+            enterprise.province = province
+            enterprise.city = city
+            if "企业性质" in idx:
+                企业性质文本 = 单元格文本(row[idx["企业性质"]])
+                enterprise.company_type = 企业性质文本 or None
+                tokens = set(re.split(r"[、,，;/|]+", 企业性质文本))
+                enterprise.is_manufacturer = "制造商" in tokens
+                enterprise.is_trader = "贸易商" in tokens
+                enterprise.is_brand_owner = "品牌商" in tokens
+                enterprise.is_oem_odm = "OEM/ODM工厂" in tokens or "OEM" in tokens or "ODM" in tokens
+                enterprise.is_service_provider = "服务商" in tokens
+            enterprise.main_business = 单元格文本(row[idx["主营业务"]]) or None if "主营业务" in idx else None
+            enterprise.main_products = 单元格文本(row[idx["核心产品"]]) or None if "核心产品" in idx else None
+            enterprise.export_countries = 单元格文本(row[idx["出口国家"]]) or None if "出口国家" in idx else None
             enterprise.target_markets = 单元格文本(row[idx["目标市场"]]) or None if "目标市场" in idx else None
-            enterprise.status = 单元格文本(row[idx["状态"]]) or "草稿" if "状态" in idx else "草稿"
-            enterprise.project_owner = 单元格文本(row[idx["项目负责人"]]) or None if "项目负责人" in idx else None
+            enterprise.factory_area = 单元格文本(row[idx["厂房面积"]]) or None if "厂房面积" in idx else None
+            enterprise.employee_count = 读取整数(单元格文本(row[idx["员工数量"]])) if "员工数量" in idx else None
+            enterprise.risk_notes = 单元格文本(row[idx["风险备注"]]) or None if "风险备注" in idx else None
+            if "是否有出口经验" in idx:
+                enterprise.has_foreign_trade_experience = 读取布尔文本(row[idx["是否有出口经验"]])
+            if "年销售额" in idx:
+                ext["annual_sales"] = 单元格文本(row[idx["年销售额"]]) or None
+            if "年出口额" in idx:
+                ext["annual_exports"] = 单元格文本(row[idx["年出口额"]]) or None
+            if "产线数量" in idx:
+                ext["production_line_count"] = 单元格文本(row[idx["产线数量"]]) or None
+            if "产能利用率" in idx:
+                ext["capacity_utilization"] = 单元格文本(row[idx["产能利用率"]]) or None
+            if "目标客户类型" in idx:
+                ext["target_customer_types"] = 单元格文本(row[idx["目标客户类型"]]) or None
+            if "可接受合作模式" in idx:
+                ext["acceptable_cooperation_modes"] = 单元格文本(row[idx["可接受合作模式"]]) or None
+            if "资料完整度" in idx:
+                ext["material_completeness"] = 单元格文本(row[idx["资料完整度"]]) or None
+            enterprise.enterprise_extra_fields = ext
             success += 1
         except Exception as exc:
-            failed.append({"行号": row_num, "原因": str(exc), "数据": {"企业编号": row[idx["企业编号"]] if "企业编号" in idx else "", "企业名称": row[idx["企业名称"]] if "企业名称" in idx else ""}})
+            failed.append({"行号": row_num, "原因": str(exc), "数据": {"企业编号": row[idx["企业编号"]] if "企业编号" in idx else "", "企业全称": row[idx["企业全称"]] if "企业全称" in idx else ""}})
     db.session.commit()
     return success, failed
 
 
 def 导入产品Excel(file_storage):
-    rows = list(csv.reader(file_storage.stream.read().decode("utf-8-sig").splitlines()))
+    rows = 读取导入表格(file_storage)
     if not rows:
         return 0, [{"行号": 1, "原因": "文件为空", "数据": {}}]
     header = [单元格文本(c) for c in rows[0]]
     idx = {name: i for i, name in enumerate(header)}
-    必填 = ["企业编号", "产品中文名"]
+    必填 = ["所属企业编号", "产品中文名"]
     缺失 = [f for f in 必填 if f not in idx]
     if 缺失:
         return 0, [{"行号": 1, "原因": f"缺少必填列: {', '.join(缺失)}", "数据": {}}]
@@ -2600,9 +2835,9 @@ def 导入产品Excel(file_storage):
     failed = []
     for row_num, row in enumerate(rows[1:], start=2):
         try:
-            enterprise_code = 单元格文本(row[idx["企业编号"]])
+            enterprise_code = 单元格文本(row[idx["所属企业编号"]])
             if not enterprise_code:
-                raise ValueError("企业编号不能为空")
+                raise ValueError("所属企业编号不能为空")
             enterprise = enterprise_map.get(enterprise_code)
             if not enterprise:
                 raise ValueError(f"未找到企业编号 {enterprise_code}")
@@ -2618,22 +2853,45 @@ def 导入产品Excel(file_storage):
                 )
                 db.session.add(product)
 
+            extra = dict(product.product_extra_fields or {})
             product.enterprise_id = enterprise.id
             product.product_name_cn = name_cn
             product.product_name_en = 单元格文本(row[idx["产品英文名"]]) or None if "产品英文名" in idx else None
+            if "行业分类" in idx:
+                product.industry_name = 单元格文本(row[idx["行业分类"]]) or None
+            if not product.industry_name:
+                product.industry_name = enterprise.industry_category
             product.product_category = 单元格文本(row[idx["产品类别"]]) or None if "产品类别" in idx else None
             product.hs_code = 单元格文本(row[idx["HS编码"]]) or None if "HS编码" in idx else None
             product.model = 单元格文本(row[idx["型号"]]) or None if "型号" in idx else None
-            if "FOB价格" in idx:
-                product.fob_price = 读取金额(单元格文本(row[idx["FOB价格"]]))
-            product.currency = 单元格文本(row[idx["币种"]]) or "USD" if "币种" in idx else "USD"
-            product.target_market = 单元格文本(row[idx["目标市场"]]) or None if "目标市场" in idx else None
-            product.certifications = 单元格文本(row[idx["认证"]]) or None if "认证" in idx else None
-            if "支持定制" in idx:
-                product.customization_supported = 读取布尔文本(row[idx["支持定制"]])
+            product.brand = 单元格文本(row[idx["SKU"]]) or None if "SKU" in idx else None
+            product.product_selling_points = 单元格文本(row[idx["核心卖点"]]) or None if "核心卖点" in idx else None
+            product.moq = 单元格文本(row[idx["MOQ"]]) or None if "MOQ" in idx else None
+            product.sample_policy = 单元格文本(row[idx["样品政策"]]) or None if "样品政策" in idx else None
+            product.sample_cycle = 单元格文本(row[idx["样品周期"]]) or None if "样品周期" in idx else None
+            product.production_cycle = 单元格文本(row[idx["批量生产周期"]]) or None if "批量生产周期" in idx else None
+            if "FOB价" in idx:
+                product.fob_price = 读取金额(单元格文本(row[idx["FOB价"]]))
+            if "CIF价" in idx:
+                product.cif_price = 读取金额(单元格文本(row[idx["CIF价"]]))
+            if "DDP参考价" in idx:
+                product.ddp_price = 读取金额(单元格文本(row[idx["DDP参考价"]]))
+            product.certifications = 单元格文本(row[idx["产品认证"]]) or None if "产品认证" in idx else None
+            product.packaging = 单元格文本(row[idx["包装方式"]]) or None if "包装方式" in idx else None
+            if "运输方式" in idx:
+                extra["shipping_method"] = 单元格文本(row[idx["运输方式"]]) or None
+            if "是否支持定制" in idx:
+                product.customization_supported = 读取布尔文本(row[idx["是否支持定制"]])
+            if "是否适合跨境电商" in idx:
+                extra["fit_cross_border"] = 单元格文本(row[idx["是否适合跨境电商"]]) or None
+            if "是否适合工程采购" in idx:
+                extra["fit_engineering"] = 单元格文本(row[idx["是否适合工程采购"]]) or None
+            if "是否适合经销代理" in idx:
+                extra["fit_distributor"] = 单元格文本(row[idx["是否适合经销代理"]]) or None
+            product.product_extra_fields = extra
             success += 1
         except Exception as exc:
-            failed.append({"行号": row_num, "原因": str(exc), "数据": {"企业编号": row[idx["企业编号"]] if "企业编号" in idx else "", "产品中文名": row[idx["产品中文名"]] if "产品中文名" in idx else ""}})
+            failed.append({"行号": row_num, "原因": str(exc), "数据": {"所属企业编号": row[idx["所属企业编号"]] if "所属企业编号" in idx else "", "产品中文名": row[idx["产品中文名"]] if "产品中文名" in idx else ""}})
     db.session.commit()
     return success, failed
 
