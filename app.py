@@ -11,6 +11,7 @@ from models import (
     Demand,
     Document,
     Enterprise,
+    ForeignClient,
     MatchRecord,
     Product,
     ProjectProgress,
@@ -103,7 +104,7 @@ def create_app():
             {"名称": "企业库管理", "说明": "维护国内企业基础信息、联系人及出海目标。", "链接": url_for("enterprise_list")},
             {"名称": "产品管理", "说明": "管理企业产品信息、品类与产品描述。", "链接": "#"},
             {"名称": "资质证照", "说明": "维护企业相关资质证照、编号和有效期。", "链接": url_for("qualification_list")},
-            {"名称": "外资客户需求", "说明": "记录海外客户需求与目标采购方向。", "链接": "#"},
+            {"名称": "外资客户需求", "说明": "记录海外客户需求与目标采购方向。", "链接": url_for("demand_list")},
             {"名称": "撮合进展", "说明": "跟踪撮合过程、阶段状态与跟进记录。", "链接": "#"},
             {"名称": "归档文件", "说明": "统一存放项目过程文档与归档资料。", "链接": url_for("document_list")},
         ]
@@ -243,6 +244,20 @@ def create_app():
         资质展示列表 = [构建证照展示项(资质) for 资质 in 资质列表]
         文件列表 = Document.query.filter_by(enterprise_id=id).all()
         进展列表 = ProjectProgress.query.filter_by(enterprise_id=id).order_by(ProjectProgress.updated_at.desc()).all()
+        匹配记录 = (
+            MatchRecord.query.filter_by(enterprise_id=id)
+            .order_by(MatchRecord.match_score.desc(), MatchRecord.updated_at.desc())
+            .all()
+        )
+        匹配需求列表 = [
+            {
+                "记录": 记录,
+                "需求": Demand.query.get(记录.demand_id),
+                "产品": Product.query.get(记录.product_id) if 记录.product_id else None,
+                "客户": ForeignClient.query.get(Demand.query.get(记录.demand_id).foreign_client_id) if Demand.query.get(记录.demand_id) else None,
+            }
+            for 记录 in 匹配记录
+        ]
 
         建议 = 生成出海建议(企业)
 
@@ -255,6 +270,7 @@ def create_app():
             资质展示列表=资质展示列表,
             文件列表=文件列表,
             进展列表=进展列表,
+            匹配需求列表=匹配需求列表,
             建议=建议,
         )
 
@@ -570,6 +586,18 @@ def create_app():
         enterprise = Enterprise.query.get(product.enterprise_id)
         certificates = Qualification.query.filter_by(product_id=product.id).order_by(Qualification.expiry_date.desc()).all()
         product_files = Document.query.filter_by(product_id=product.id).order_by(Document.uploaded_at.desc()).all()
+        匹配记录 = (
+            MatchRecord.query.filter_by(product_id=product.id)
+            .order_by(MatchRecord.match_score.desc(), MatchRecord.updated_at.desc())
+            .all()
+        )
+        匹配需求列表 = [
+            {
+                "记录": 记录,
+                "需求": Demand.query.get(记录.demand_id),
+            }
+            for 记录 in 匹配记录
+        ]
         archive_code = f"{enterprise.enterprise_code}_{product.product_code}" if enterprise else product.product_code
         return render_template(
             "products/detail.html",
@@ -578,6 +606,7 @@ def create_app():
             certificates=certificates,
             product_files=product_files,
             archive_code=archive_code,
+            匹配需求列表=匹配需求列表,
         )
 
     @app.route("/products/<int:product_id>/edit", methods=["GET", "POST"])
@@ -831,6 +860,169 @@ def create_app():
             download_name=document.original_filename or 文件路径.name,
         )
 
+    @app.route("/foreign-clients")
+    def foreign_client_list():
+        q = request.args.get("q", "", type=str).strip()
+        国家地区 = request.args.get("country_region", "", type=str).strip()
+        query = ForeignClient.query
+        if q:
+            query = query.filter(
+                or_(
+                    ForeignClient.client_name.ilike(f"%{q}%"),
+                    ForeignClient.contact_name.ilike(f"%{q}%"),
+                    ForeignClient.contact_email.ilike(f"%{q}%"),
+                )
+            )
+        if 国家地区:
+            query = query.filter(ForeignClient.country_region == 国家地区)
+        clients = query.order_by(ForeignClient.updated_at.desc()).all()
+        国家地区列表 = [
+            row[0]
+            for row in db.session.query(ForeignClient.country_region)
+            .filter(ForeignClient.country_region.isnot(None), ForeignClient.country_region != "")
+            .distinct()
+            .order_by(ForeignClient.country_region)
+            .all()
+        ]
+        return render_template(
+            "foreign_clients/list.html",
+            clients=clients,
+            filters={"q": q, "country_region": 国家地区},
+            国家地区列表=国家地区列表,
+        )
+
+    @app.route("/foreign-clients/new", methods=["GET", "POST"])
+    def foreign_client_new():
+        if request.method == "POST":
+            client = ForeignClient()
+            填充外资客户字段(client, request.form)
+            if not client.client_name:
+                flash("客户名称为必填项。", "danger")
+                return render_template("foreign_clients/form.html", client=client, form_title="新增外资客户")
+            db.session.add(client)
+            db.session.commit()
+            flash("外资客户创建成功。", "success")
+            return redirect(url_for("foreign_client_detail", client_id=client.id))
+        return render_template("foreign_clients/form.html", client=None, form_title="新增外资客户")
+
+    @app.route("/foreign-clients/<int:client_id>")
+    def foreign_client_detail(client_id):
+        client = ForeignClient.query.get_or_404(client_id)
+        demands = Demand.query.filter_by(foreign_client_id=client.id).order_by(Demand.updated_at.desc()).all()
+        return render_template("foreign_clients/detail.html", client=client, demands=demands)
+
+    @app.route("/foreign-clients/<int:client_id>/edit", methods=["GET", "POST"])
+    def foreign_client_edit(client_id):
+        client = ForeignClient.query.get_or_404(client_id)
+        if request.method == "POST":
+            填充外资客户字段(client, request.form)
+            if not client.client_name:
+                flash("客户名称为必填项。", "danger")
+                return render_template("foreign_clients/form.html", client=client, form_title="编辑外资客户")
+            db.session.commit()
+            flash("外资客户更新成功。", "success")
+            return redirect(url_for("foreign_client_detail", client_id=client.id))
+        return render_template("foreign_clients/form.html", client=client, form_title="编辑外资客户")
+
+    @app.route("/demands")
+    def demand_list():
+        status = request.args.get("status", "", type=str).strip()
+        client_id = request.args.get("foreign_client_id", type=int)
+        keyword = request.args.get("keyword", "", type=str).strip()
+        query = Demand.query
+        if status:
+            query = query.filter(Demand.status == status)
+        if client_id:
+            query = query.filter(Demand.foreign_client_id == client_id)
+        if keyword:
+            query = query.filter(
+                or_(
+                    Demand.demand_code.ilike(f"%{keyword}%"),
+                    Demand.purchase_category.ilike(f"%{keyword}%"),
+                    Demand.product_keywords.ilike(f"%{keyword}%"),
+                )
+            )
+        demands = query.order_by(Demand.updated_at.desc()).all()
+        clients = ForeignClient.query.order_by(ForeignClient.client_name.asc()).all()
+        status_options = [
+            row[0]
+            for row in db.session.query(Demand.status)
+            .filter(Demand.status.isnot(None), Demand.status != "")
+            .distinct()
+            .order_by(Demand.status)
+            .all()
+        ]
+        client_map = {client.id: client for client in clients}
+        return render_template(
+            "demands/list.html",
+            demands=demands,
+            clients=clients,
+            client_map=client_map,
+            filters={"status": status, "foreign_client_id": client_id, "keyword": keyword},
+            status_options=status_options,
+        )
+
+    @app.route("/demands/new", methods=["GET", "POST"])
+    def demand_new():
+        clients = ForeignClient.query.order_by(ForeignClient.client_name.asc()).all()
+        if request.method == "POST":
+            demand = Demand(demand_code=生成需求编号())
+            填充需求字段(demand, request.form)
+            if not demand.foreign_client_id:
+                flash("请选择外资客户。", "danger")
+                return render_template("demands/form.html", demand=demand, clients=clients, form_title="新增外资需求")
+            db.session.add(demand)
+            db.session.commit()
+            flash(f"需求创建成功，编号：{demand.demand_code}。", "success")
+            return redirect(url_for("demand_detail", demand_id=demand.id))
+
+        draft = Demand(demand_code=生成需求编号())
+        return render_template("demands/form.html", demand=draft, clients=clients, form_title="新增外资需求")
+
+    @app.route("/demands/<int:demand_id>")
+    def demand_detail(demand_id):
+        demand = Demand.query.get_or_404(demand_id)
+        client = ForeignClient.query.get(demand.foreign_client_id)
+        匹配记录 = (
+            MatchRecord.query.filter_by(demand_id=demand.id)
+            .order_by(MatchRecord.match_score.desc(), MatchRecord.updated_at.desc())
+            .all()
+        )
+        匹配结果 = [
+            {
+                "记录": 记录,
+                "企业": Enterprise.query.get(记录.enterprise_id),
+                "产品": Product.query.get(记录.product_id) if 记录.product_id else None,
+            }
+            for 记录 in 匹配记录
+        ]
+        return render_template("demands/detail.html", demand=demand, client=client, 匹配结果=匹配结果)
+
+    @app.post("/demands/<int:demand_id>/generate-matches")
+    def generate_demand_matches(demand_id):
+        demand = Demand.query.get_or_404(demand_id)
+        MatchRecord.query.filter_by(demand_id=demand.id).delete()
+        products = Product.query.order_by(Product.updated_at.desc()).all()
+        for product in products:
+            enterprise = Enterprise.query.get(product.enterprise_id)
+            if not enterprise:
+                continue
+            score, reasons, risks = 计算匹配得分(demand, product, enterprise)
+            status = 计算推荐状态(score)
+            记录 = MatchRecord(
+                demand_id=demand.id,
+                enterprise_id=enterprise.id,
+                product_id=product.id,
+                match_score=Decimal(score),
+                match_reason="；".join(reasons) if reasons else "暂无明显匹配点",
+                risk_notes="；".join(risks) if risks else "未发现显著风险",
+                recommendation_status=status,
+            )
+            db.session.add(记录)
+        db.session.commit()
+        flash("匹配结果已生成。", "success")
+        return redirect(url_for("demand_detail", demand_id=demand.id))
+
     @app.cli.command("init-db")
     def init_db_command():
         """初始化数据库（可选：flask init-db）。"""
@@ -851,6 +1043,137 @@ def 生成企业编号():
     except (ValueError, TypeError):
         当前数字 = Enterprise.query.count()
     return f"E{当前数字 + 1:03d}"
+
+
+def 生成需求编号():
+    最新需求 = Demand.query.order_by(Demand.id.desc()).first()
+    if not 最新需求:
+        return "D001"
+    最新编号 = 最新需求.demand_code or "D000"
+    try:
+        当前数字 = int(最新编号[1:])
+    except (ValueError, TypeError):
+        当前数字 = Demand.query.count()
+    return f"D{当前数字 + 1:03d}"
+
+
+def 填充外资客户字段(client, form):
+    client.client_name = form.get("client_name", "").strip()
+    client.country_region = form.get("country_region", "").strip() or None
+    client.company_type = form.get("company_type", "").strip() or None
+    client.contact_name = form.get("contact_name", "").strip() or None
+    client.contact_email = form.get("contact_email", "").strip() or None
+    client.contact_phone = form.get("contact_phone", "").strip() or None
+    client.notes = form.get("notes", "").strip() or None
+
+
+def 填充需求字段(demand, form):
+    demand.foreign_client_id = form.get("foreign_client_id", type=int)
+    demand.purchase_category = form.get("purchase_category", "").strip() or None
+    demand.product_keywords = form.get("product_keywords", "").strip() or None
+    demand.target_price = 读取金额(form.get("target_price"))
+    demand.purchase_quantity = form.get("purchase_quantity", "").strip() or None
+    demand.required_certifications = form.get("required_certifications", "").strip() or None
+    demand.delivery_requirement = form.get("delivery_requirement", "").strip() or None
+    demand.trade_terms = form.get("trade_terms", "").strip() or None
+    demand.payment_terms = form.get("payment_terms", "").strip() or None
+    demand.target_market = form.get("target_market", "").strip() or None
+    demand.priority = form.get("priority", "").strip() or "中"
+    demand.status = form.get("status", "").strip() or "待跟进"
+    demand.notes = form.get("notes", "").strip() or None
+
+
+def 统一关键词集合(text):
+    if not text:
+        return set()
+    return {item.lower() for item in re.split(r"[\s,，;；/|]+", text) if item.strip()}
+
+
+def 文本匹配关键词(tokens, text):
+    值 = (text or "").lower()
+    return any(token in 值 for token in tokens)
+
+
+def 读取生产周期天数(text):
+    if not text:
+        return None
+    match = re.search(r"(\d+)", text)
+    return int(match.group(1)) if match else None
+
+
+def 计算匹配得分(demand, product, enterprise):
+    score = 0
+    reasons = []
+    risks = []
+
+    关键词 = 统一关键词集合(demand.product_keywords)
+    if 关键词 and (
+        文本匹配关键词(关键词, product.product_name_cn)
+        or 文本匹配关键词(关键词, product.product_category)
+        or 文本匹配关键词(关键词, enterprise.main_products)
+    ):
+        score += 30
+        reasons.append("关键词与产品名称/类别/主营产品匹配")
+    else:
+        risks.append("关键词匹配度较弱")
+
+    市场关键词 = 统一关键词集合(demand.target_market)
+    if not 市场关键词:
+        reasons.append("需求未限定目标市场")
+    elif (
+        文本匹配关键词(市场关键词, product.target_market)
+        or 文本匹配关键词(市场关键词, product.existing_sales_countries)
+        or 文本匹配关键词(市场关键词, enterprise.target_markets)
+        or 文本匹配关键词(市场关键词, enterprise.export_countries)
+    ):
+        score += 20
+        reasons.append("目标市场或出口国家匹配")
+    else:
+        risks.append("目标市场匹配不足")
+
+    认证关键词 = 统一关键词集合(demand.required_certifications)
+    if not 认证关键词:
+        reasons.append("需求未要求特定认证")
+    elif all(token in (product.certifications or "").lower() for token in 认证关键词):
+        score += 20
+        reasons.append("认证要求满足")
+    else:
+        risks.append("认证要求可能不完整")
+
+    交期天数 = 读取生产周期天数(demand.delivery_requirement)
+    生产天数 = 读取生产周期天数(product.production_cycle)
+    if 交期天数 is None or 生产天数 is None:
+        risks.append("缺少明确交期/生产周期数据")
+    elif 生产天数 <= 交期天数:
+        score += 10
+        reasons.append("生产周期满足交期要求")
+    else:
+        risks.append("生产周期可能偏长")
+
+    价格候选 = [price for price in [product.exw_price, product.fob_price, product.cif_price, product.ddp_price] if price is not None]
+    if not demand.target_price:
+        reasons.append("需求未提供目标价格")
+    elif 价格候选 and min(价格候选) <= demand.target_price:
+        score += 10
+        reasons.append("报价存在且不高于目标价格")
+    else:
+        risks.append("价格可能高于目标价或缺少报价")
+
+    if enterprise.has_foreign_trade_experience:
+        score += 10
+        reasons.append("企业具备外贸经验")
+    else:
+        risks.append("企业外贸经验有限")
+
+    return min(score, 100), reasons, risks
+
+
+def 计算推荐状态(score):
+    if score >= 80:
+        return "高度匹配"
+    if score >= 60:
+        return "可进一步沟通"
+    return "谨慎推荐"
 
 
 def 读取布尔(form, 字段名):

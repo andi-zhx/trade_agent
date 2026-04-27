@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% block title %}外资客户列表{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">外资客户管理</h1>
+    <a class="btn btn-primary" href="{{ url_for('foreign_client_new') }}">新增外资客户</a>
+</div>
+
+<div class="card mb-3"><div class="card-body">
+    <form method="get" class="row g-2 align-items-end">
+        <div class="col-md-4"><label class="form-label">关键词</label><input class="form-control" name="q" value="{{ filters.q }}" placeholder="客户/联系人/邮箱"></div>
+        <div class="col-md-3">
+            <label class="form-label">国家/地区</label>
+            <select class="form-select" name="country_region">
+                <option value="">全部</option>
+                {% for item in 国家地区列表 %}
+                <option value="{{ item }}" {% if filters.country_region == item %}selected{% endif %}>{{ item }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2"><button class="btn btn-outline-primary w-100">筛选</button></div>
+        <div class="col-md-2"><a class="btn btn-outline-secondary w-100" href="{{ url_for('foreign_client_list') }}">重置</a></div>
+    </form>
+</div></div>
+
+<div class="table-responsive">
+    <table class="table table-bordered table-hover align-middle">
+        <thead class="table-light"><tr><th>客户名称</th><th>国家/地区</th><th>公司类型</th><th>联系人</th><th>邮箱</th><th>电话</th><th>备注</th><th>操作</th></tr></thead>
+        <tbody>
+        {% for c in clients %}
+        <tr>
+            <td>{{ c.client_name }}</td><td>{{ c.country_region or '-' }}</td><td>{{ c.company_type or '-' }}</td><td>{{ c.contact_name or '-' }}</td><td>{{ c.contact_email or '-' }}</td><td>{{ c.contact_phone or '-' }}</td><td>{{ c.notes or '-' }}</td>
+            <td>
+                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('foreign_client_detail', client_id=c.id) }}">详情</a>
+                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('foreign_client_edit', client_id=c.id) }}">编辑</a>
+            </td>
+        </tr>
+        {% else %}
+        <tr><td colspan="8" class="text-center text-muted">暂无外资客户</td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

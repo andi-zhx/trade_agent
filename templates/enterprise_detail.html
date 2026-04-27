@@ -132,6 +132,33 @@
     </div>
 
     <div class="col-12">
+        <div class="card shadow-sm">
+            <div class="card-header fw-bold">被匹配到的需求</div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0 align-middle">
+                    <thead>
+                    <tr><th>需求编号</th><th>需求客户</th><th>匹配产品</th><th>匹配分数</th><th>推荐状态</th><th>操作</th></tr>
+                    </thead>
+                    <tbody>
+                    {% for item in 匹配需求列表 %}
+                    <tr>
+                        <td>{{ item.需求.demand_code if item.需求 else '-' }}</td>
+                        <td>{{ item.客户.client_name if item.客户 else '-' }}</td>
+                        <td>{{ item.产品.product_name_cn if item.产品 else '-' }}</td>
+                        <td>{{ item.记录.match_score or '-' }}</td>
+                        <td>{{ item.记录.recommendation_status or '-' }}</td>
+                        <td>{% if item.需求 %}<a class="btn btn-sm btn-outline-primary" href="{{ url_for('demand_detail', demand_id=item.需求.id) }}">查看需求</a>{% else %}-{% endif %}</td>
+                    </tr>
+                    {% else %}
+                    <tr><td colspan="6" class="text-center text-muted">暂无匹配需求</td></tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12">
         <div class="card border-primary shadow-sm">
             <div class="card-header bg-primary-subtle fw-bold">出海服务建议（规则生成）</div>
             <ul class="list-group list-group-flush">
