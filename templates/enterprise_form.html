@@ -9,7 +9,8 @@
     {%- endif -%}
 {%- endmacro %}
 
-{% set overview_completeness = extra_value('material_completeness', '未评估') %}
+{% set overview_completeness = extra_value('material_completeness', '0%') %}
+{% set overview_score = extra_value('material_completeness_score', '0')|int %}
 {% set overview_recommend = extra_value('recommended_for_pool', '待定') %}
 
 {% block content %}
@@ -37,7 +38,10 @@
                 <div class="col-md-2"><strong>入库状态：</strong>{{ request.form.get('status') if request.method == 'POST' else (企业.status if 企业 else '草稿') }}</div>
                 <div class="col-md-2"><strong>行业大类：</strong>{{ request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '-') }}</div>
                 <div class="col-md-2"><strong>项目负责人：</strong>{{ request.form.get('project_owner') if request.method == 'POST' else (企业.project_owner if 企业 else '-') }}</div>
-                <div class="col-md-2"><strong>资料完整度：</strong>{{ overview_completeness }}</div>
+                <div class="col-md-2">
+                    <strong>资料完整度：</strong>
+                    <span id="overviewCompleteness" class="badge bg-{% if overview_score >= 80 %}success{% elif overview_score >= 50 %}warning text-dark{% else %}danger{% endif %}">{{ overview_completeness }}</span>
+                </div>
                 <div class="col-md-2"><strong>是否建议入库：</strong>{{ overview_recommend }}</div>
             </div>
         </div>
@@ -176,6 +180,7 @@
     const industrySelect = document.getElementById('industryCode');
     const industryName = document.getElementById('industryName');
     const hiddenName = document.getElementById('industryNameHidden');
+    const completenessBadge = document.getElementById('overviewCompleteness');
 
     const getFieldValues = (fieldName) => {
         const elements = Array.from(document.querySelectorAll(`[name="${fieldName}"]`));
@@ -248,6 +253,51 @@
         });
     };
 
+    const calculateCompleteness = () => {
+        const requiredKeys = ['company_full_name','unified_social_credit_code','industry_code','province','city','enterprise_natures','primary_contact_name','primary_contact_mobile','has_overseas_business','has_own_factory','recommended_for_pool'];
+        const suggestedKeys = ['enterprise_natures','employee_count_range','business_directions','customer_types','foreign_trade_team_size','production_mode','recommended_cooperation_directions','risk_tags','certificate_completeness','certificate_validity_status'];
+        const attachmentRules = [
+            ['营业执照'],
+            ['宣传册', '企业简介'],
+            ['宣传PPT', '英文PPT'],
+            ['企业资质', '产品认证', '合规文件'],
+            ['尽调照片', '产品图片'],
+            ['企业名片'],
+            ['其他文件'],
+        ];
+        const hasBusinessLicenseUpload = () => {
+            const rows = Array.from(document.querySelectorAll('.enterprise-upload-row'));
+            return rows.some((row) => {
+                const type = row.querySelector('select[name="enterprise_upload_type"]')?.value || '';
+                const fileInput = row.querySelector('input[name="enterprise_upload_file"]');
+                return type === '营业执照' && (fileInput?.files || []).length > 0;
+            });
+        };
+        const hasAttachmentType = (types) => {
+            const rows = Array.from(document.querySelectorAll('.enterprise-upload-row'));
+            return rows.some((row) => {
+                const type = row.querySelector('select[name="enterprise_upload_type"]')?.value || '';
+                const fileInput = row.querySelector('input[name="enterprise_upload_file"]');
+                if ((fileInput?.files || []).length === 0) return false;
+                return types.includes(type);
+            });
+        };
+        const requiredDone = requiredKeys.reduce((acc, key) => acc + (getFieldValues(key).length > 0 ? 1 : 0), 0) + (hasBusinessLicenseUpload() ? 1 : 0);
+        const suggestedDone = suggestedKeys.reduce((acc, key) => acc + (getFieldValues(key).length > 0 ? 1 : 0), 0);
+        const attachmentDone = attachmentRules.reduce((acc, rule) => acc + (hasAttachmentType(rule) ? 1 : 0), 0);
+        return Math.round((requiredDone / 12) * 60 + (suggestedDone / 10) * 25 + (attachmentDone / 7) * 15);
+    };
+
+    const syncCompletenessOverview = () => {
+        if (!completenessBadge) return;
+        const score = calculateCompleteness();
+        completenessBadge.textContent = `${score}%`;
+        completenessBadge.className = 'badge';
+        if (score >= 80) completenessBadge.classList.add('bg-success');
+        else if (score >= 50) completenessBadge.classList.add('bg-warning', 'text-dark');
+        else completenessBadge.classList.add('bg-danger');
+    };
+
     const syncIndustry = () => {
         const option = industrySelect?.options[industrySelect.selectedIndex];
         const name = option ? (option.dataset.name || '') : '';
@@ -278,13 +328,14 @@
     });
     contactsContainer?.addEventListener('click', (e) => { if (e.target.closest('.dynamic-contact-remove')) e.target.closest('.dynamic-contact-row')?.remove(); });
 
-    document.addEventListener('input', () => { updateCounters(); syncProgress(); });
-    document.addEventListener('change', () => { syncShowWhen(); syncProgress(); syncIndustry(); });
+    document.addEventListener('input', () => { updateCounters(); syncProgress(); syncCompletenessOverview(); });
+    document.addEventListener('change', () => { syncShowWhen(); syncProgress(); syncIndustry(); syncCompletenessOverview(); });
 
     syncIndustry();
     syncShowWhen();
     updateCounters();
     syncProgress();
+    syncCompletenessOverview();
 })();
 </script>
 {% endblock %}

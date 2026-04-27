@@ -118,6 +118,7 @@
             <tbody>
             {% for 企业 in 分页.items %}
             {% set ext = 企业.enterprise_extra_fields or {} %}
+            {% set comp = 完整度映射.get(企业.id, {}) %}
             {% set natures = [] %}
             {% if 企业.is_manufacturer %}{% set _ = natures.append('制造商') %}{% endif %}
             {% if 企业.is_trader %}{% set _ = natures.append('贸易商') %}{% endif %}
@@ -134,7 +135,11 @@
                 <td>{{ '是' if 企业.has_foreign_trade_experience else '否' }}</td>
                 <td>{{ ext.get('annual_sales') or '-' }}</td>
                 <td>{{ ext.get('annual_exports') or '-' }}</td>
-                <td>{{ ext.get('material_completeness') or '-' }}</td>
+                <td>
+                    <span class="badge bg-{% if comp.get('color') == 'success' %}success{% elif comp.get('color') == 'warning' %}warning text-dark{% else %}danger{% endif %}">
+                        {{ comp.get('label') or (ext.get('material_completeness') or '-') }}
+                    </span>
+                </td>
                 <td>{{ 企业.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
                 <td>
                     <div class="btn-group btn-group-sm">
