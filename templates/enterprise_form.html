@@ -9,6 +9,74 @@
     {%- endif -%}
 {%- endmacro %}
 
+{% macro render_field(field) -%}
+    {% set show_when = field.show_when if field.show_when is defined else None %}
+    {% set show_when_any = field.show_when_any if field.show_when_any is defined else None %}
+    {% set col_class = 'col-12' if field.type in ['checkbox_group', 'checkbox_tags', 'radio_group', 'dynamic_contacts'] else ('col-lg-6' if field.type == 'textarea' else 'col-lg-3 col-md-4') %}
+    <div class="{{ col_class }}" data-module-field {% if show_when %}data-show-when='{{ show_when|tojson|forceescape }}'{% endif %}{% if show_when_any %} data-show-when-any='{{ show_when_any|tojson|forceescape }}'{% endif %}>
+    {% if field.type == 'textarea' %}
+        <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
+        <textarea class="form-control js-char-count" rows="2" maxlength="{{ field.maxlength if field.maxlength is defined else 200 }}" data-maxlength="{{ field.maxlength if field.maxlength is defined else 200 }}" name="{{ field.key }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>{{ extra_value(field.key) }}</textarea>
+        <div class="form-text"><span class="js-char-counter">0</span>/{{ field.maxlength if field.maxlength is defined else 200 }}</div>
+    {% elif field.type == 'select' %}
+        <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
+        <select class="form-select" name="{{ field.key }}">
+            <option value="">请选择</option>
+            {% set cur = extra_value(field.key) %}
+            {% for opt in field.options %}<option value="{{ opt }}" {% if opt == cur %}selected{% endif %}>{{ opt }}</option>{% endfor %}
+        </select>
+    {% elif field.type == 'select_or_text' %}
+        <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
+        {% set cur = extra_value(field.key) %}
+        <input class="form-control" list="{{ field.key }}_list" name="{{ field.key }}" value="{{ cur }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>
+        <datalist id="{{ field.key }}_list">{% for opt in field.options %}<option value="{{ opt }}"></option>{% endfor %}</datalist>
+    {% elif field.type == 'year' %}
+        <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
+        <input class="form-control" type="number" min="1900" max="2100" step="1" name="{{ field.key }}" value="{{ extra_value(field.key) }}" placeholder="例如：2020">
+    {% elif field.type == 'radio_group' %}
+        <label class="form-label d-block {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
+        {% set cur = extra_value(field.key) %}
+        <div class="btn-group btn-group-sm flex-wrap" role="group">
+            {% for opt in field.options %}
+            <input class="btn-check" type="radio" id="{{ field.key }}_{{ loop.index }}" name="{{ field.key }}" value="{{ opt }}" {% if opt == cur %}checked{% endif %}>
+            <label class="btn btn-outline-primary" for="{{ field.key }}_{{ loop.index }}">{{ opt }}</label>
+            {% endfor %}
+        </div>
+    {% elif field.type == 'checkbox_tags' or field.type == 'checkbox_group' %}
+        <label class="form-label d-block {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
+        {% set selected_values = request.form.getlist(field.key) if request.method == 'POST' else (企业扩展字段 or {}).get(field.key, []) %}
+        <div class="d-flex flex-wrap gap-2">
+            {% for opt in field.options %}
+            <div>
+                <input class="tag-check" type="checkbox" id="{{ field.key }}_{{ loop.index }}" name="{{ field.key }}" value="{{ opt }}" {% if opt in selected_values %}checked{% endif %}>
+                <label class="tag-label" for="{{ field.key }}_{{ loop.index }}">{{ opt }}</label>
+            </div>
+            {% endfor %}
+        </div>
+    {% elif field.type == 'dynamic_contacts' %}
+        <label class="form-label d-block">{{ field.label }}</label>
+        {% set contacts = request.form.getlist('dynamic_contacts_name[]') if request.method == 'POST' else [] %}
+        <div id="dynamicContactsContainer" class="vstack gap-2">
+            {% if request.method == 'POST' %}
+                {% set primary_idx = request.form.get('dynamic_contacts_primary_index', '') %}
+                {% for _ in contacts %}
+                {% set idx = loop.index0 %}
+                <div class="card card-body dynamic-contact-row py-2"><div class="row g-2 align-items-start"><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名" value="{{ request.form.getlist('dynamic_contacts_name[]')[idx] }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_department[]" placeholder="部门" value="{{ request.form.getlist('dynamic_contacts_department[]')[idx] }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位" value="{{ request.form.getlist('dynamic_contacts_position[]')[idx] }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机" value="{{ request.form.getlist('dynamic_contacts_mobile[]')[idx] }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱" value="{{ request.form.getlist('dynamic_contacts_email[]')[idx] }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_wechat[]" placeholder="微信" value="{{ request.form.getlist('dynamic_contacts_wechat[]')[idx] }}"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_responsibility[]" placeholder="负责内容" value="{{ request.form.getlist('dynamic_contacts_responsibility[]')[idx] }}"></div><div class="col-md-2"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div><div class="col-md-2"><div class="form-check mt-1"><input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value="{{ idx }}" {% if primary_idx == idx|string %}checked{% endif %}><label class="form-check-label">主联系人</label></div></div></div></div>
+                {% endfor %}
+            {% else %}
+                {% for row in (企业扩展字段 or {}).get('dynamic_contacts', []) %}
+                <div class="card card-body dynamic-contact-row py-2"><div class="row g-2 align-items-start"><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名" value="{{ row.get('name', '') }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_department[]" placeholder="部门" value="{{ row.get('department', '') }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位" value="{{ row.get('position', '') }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机" value="{{ row.get('mobile', '') }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱" value="{{ row.get('email', '') }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_wechat[]" placeholder="微信" value="{{ row.get('wechat', '') }}"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_responsibility[]" placeholder="负责内容" value="{{ row.get('responsibility', '') }}"></div><div class="col-md-2"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div><div class="col-md-2"><div class="form-check mt-1"><input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value="{{ loop.index0 }}" {% if row.get('is_primary_contact') %}checked{% endif %}><label class="form-check-label">主联系人</label></div></div></div></div>
+                {% endfor %}
+            {% endif %}
+        </div>
+        <button class="btn btn-sm btn-outline-secondary mt-2" type="button" id="dynamicContactAddBtn">+ 新增联系人</button>
+    {% else %}
+        <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
+        <input class="form-control" type="{{ field.type if field.type in ['date','number','email','url'] else 'text' }}" name="{{ field.key }}" value="{{ extra_value(field.key) }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>
+    {% endif %}
+    </div>
+{%- endmacro %}
+
 {% set overview_completeness = extra_value('material_completeness', '0%') %}
 {% set overview_score = extra_value('material_completeness_score', '0')|int %}
 {% set overview_recommend = extra_value('recommended_for_pool', '待定') %}
@@ -88,63 +156,25 @@
             <div id="collapse_{{ group.key }}" class="accordion-collapse collapse {% if group.key in ['A'] %}show{% endif %}" data-bs-parent="#enterpriseAccordion">
                 <div class="accordion-body row g-3">
                     {% for field in group.fields %}
-                        {% set show_when = field.show_when if field.show_when is defined else None %}
-                        {% set show_when_any = field.show_when_any if field.show_when_any is defined else None %}
-                        {% set col_class = 'col-12' if field.type in ['checkbox_group', 'checkbox_tags', 'radio_group', 'dynamic_contacts'] else ('col-lg-6' if field.type == 'textarea' else 'col-lg-3 col-md-4') %}
-                        <div class="{{ col_class }}" data-module-field {% if show_when %}data-show-when='{{ show_when|tojson|forceescape }}'{% endif %}{% if show_when_any %} data-show-when-any='{{ show_when_any|tojson|forceescape }}'{% endif %}>
-                        {% if field.type == 'textarea' %}
-                            <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
-                            <textarea class="form-control js-char-count" rows="2" maxlength="{{ field.maxlength if field.maxlength is defined else 200 }}" data-maxlength="{{ field.maxlength if field.maxlength is defined else 200 }}" name="{{ field.key }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>{{ extra_value(field.key) }}</textarea>
-                            <div class="form-text"><span class="js-char-counter">0</span>/{{ field.maxlength if field.maxlength is defined else 200 }}</div>
-                        {% elif field.type == 'select' %}
-                            <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
-                            <select class="form-select" name="{{ field.key }}">
-                                <option value="">请选择</option>
-                                {% set cur = extra_value(field.key) %}
-                                {% for opt in field.options %}<option value="{{ opt }}" {% if opt == cur %}selected{% endif %}>{{ opt }}</option>{% endfor %}
-                            </select>
-                        {% elif field.type == 'radio_group' %}
-                            <label class="form-label d-block {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
-                            {% set cur = extra_value(field.key) %}
-                            <div class="btn-group btn-group-sm flex-wrap" role="group">
-                                {% for opt in field.options %}
-                                <input class="btn-check" type="radio" id="{{ field.key }}_{{ loop.index }}" name="{{ field.key }}" value="{{ opt }}" {% if opt == cur %}checked{% endif %}>
-                                <label class="btn btn-outline-primary" for="{{ field.key }}_{{ loop.index }}">{{ opt }}</label>
-                                {% endfor %}
-                            </div>
-                        {% elif field.type == 'checkbox_tags' or field.type == 'checkbox_group' %}
-                            <label class="form-label d-block {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
-                            {% set selected_values = request.form.getlist(field.key) if request.method == 'POST' else (企业扩展字段 or {}).get(field.key, []) %}
-                            <div class="d-flex flex-wrap gap-2">
-                                {% for opt in field.options %}
-                                <div>
-                                    <input class="tag-check" type="checkbox" id="{{ field.key }}_{{ loop.index }}" name="{{ field.key }}" value="{{ opt }}" {% if opt in selected_values %}checked{% endif %}>
-                                    <label class="tag-label" for="{{ field.key }}_{{ loop.index }}">{{ opt }}</label>
-                                </div>
-                                {% endfor %}
-                            </div>
-                        {% elif field.type == 'dynamic_contacts' %}
-                            <label class="form-label d-block">{{ field.label }}</label>
-                            {% set contacts = request.form.getlist('dynamic_contacts_name[]') if request.method == 'POST' else [] %}
-                            <div id="dynamicContactsContainer" class="vstack gap-2">
-                                {% if request.method == 'POST' %}
-                                    {% set primary_idx = request.form.get('dynamic_contacts_primary_index', '') %}
-                                    {% for _ in contacts %}
-                                    {% set idx = loop.index0 %}
-                                    <div class="card card-body dynamic-contact-row py-2"><div class="row g-2 align-items-start"><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名" value="{{ request.form.getlist('dynamic_contacts_name[]')[idx] }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机" value="{{ request.form.getlist('dynamic_contacts_mobile[]')[idx] }}"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位" value="{{ request.form.getlist('dynamic_contacts_position[]')[idx] }}"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱" value="{{ request.form.getlist('dynamic_contacts_email[]')[idx] }}"></div><div class="col-md-2"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div><div class="col-md-2"><div class="form-check mt-1"><input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value="{{ idx }}" {% if primary_idx == idx|string %}checked{% endif %}><label class="form-check-label">主联系人</label></div></div></div></div>
-                                    {% endfor %}
-                                {% else %}
-                                    {% for row in (企业扩展字段 or {}).get('dynamic_contacts', []) %}
-                                    <div class="card card-body dynamic-contact-row py-2"><div class="row g-2 align-items-start"><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名" value="{{ row.get('name', '') }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机" value="{{ row.get('mobile', '') }}"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位" value="{{ row.get('position', '') }}"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱" value="{{ row.get('email', '') }}"></div><div class="col-md-2"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div><div class="col-md-2"><div class="form-check mt-1"><input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value="{{ loop.index0 }}" {% if row.get('is_primary_contact') %}checked{% endif %}><label class="form-check-label">主联系人</label></div></div></div></div>
-                                    {% endfor %}
-                                {% endif %}
-                            </div>
-                            <button class="btn btn-sm btn-outline-secondary mt-2" type="button" id="dynamicContactAddBtn">+ 新增联系人</button>
-                        {% else %}
-                            <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
-                            <input class="form-control" type="{{ field.type if field.type in ['date','number','email','url'] else 'text' }}" name="{{ field.key }}" value="{{ extra_value(field.key) }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>
-                        {% endif %}
-                        </div>
+                        {{ render_field(field) }}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+
+        {% set current_industry = request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '') %}
+        {% for industry_group in (行业字段配置.get(current_industry, []) if 行业字段配置 else []) %}
+        <div class="accordion-item shadow-sm border-0 mb-2" data-module-key="{{ industry_group.key }}">
+            <h2 class="accordion-header" id="heading_{{ industry_group.key }}">
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_{{ industry_group.key }}">
+                    {{ industry_group.title }} <span class="ms-2 text-muted small" data-module-progress></span>
+                </button>
+            </h2>
+            <div id="collapse_{{ industry_group.key }}" class="accordion-collapse collapse" data-bs-parent="#enterpriseAccordion">
+                <div class="accordion-body row g-3">
+                    {% for field in industry_group.fields %}
+                        {{ render_field(field) }}
                     {% endfor %}
                 </div>
             </div>
@@ -324,7 +354,7 @@
                 seen.add(el.name);
             });
             const tag = item.querySelector('[data-module-progress]');
-            if (tag) tag.textContent = `（已完成 ${done}/${total}）`;
+            if (tag) tag.textContent = done === total && total > 0 ? `（已完成 ${done}/${total}）` : `（待完善 ${done}/${total}）`;
         });
     };
 
@@ -414,10 +444,22 @@
     });
 
     const contactsContainer = document.getElementById('dynamicContactsContainer');
+    const refreshContactPrimaryIndex = () => {
+        contactsContainer?.querySelectorAll('.dynamic-contact-row').forEach((row, idx) => {
+            const radio = row.querySelector('.dynamic-contacts-primary-radio');
+            if (radio) radio.value = String(idx);
+        });
+    };
     document.getElementById('dynamicContactAddBtn')?.addEventListener('click', () => {
-        contactsContainer?.insertAdjacentHTML('beforeend', '<div class="card card-body dynamic-contact-row py-2"><div class="row g-2 align-items-start"><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱"></div><div class="col-md-2"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div><div class="col-md-2"><div class="form-check mt-1"><input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value=""><label class="form-check-label">主联系人</label></div></div></div></div>');
+        contactsContainer?.insertAdjacentHTML('beforeend', '<div class="card card-body dynamic-contact-row py-2"><div class="row g-2 align-items-start"><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_department[]" placeholder="部门"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_wechat[]" placeholder="微信"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_responsibility[]" placeholder="负责内容"></div><div class="col-md-2"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div><div class="col-md-2"><div class="form-check mt-1"><input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value=""><label class="form-check-label">主联系人</label></div></div></div></div>');
+        refreshContactPrimaryIndex();
     });
-    contactsContainer?.addEventListener('click', (e) => { if (e.target.closest('.dynamic-contact-remove')) e.target.closest('.dynamic-contact-row')?.remove(); });
+    contactsContainer?.addEventListener('click', (e) => {
+        if (e.target.closest('.dynamic-contact-remove')) {
+            e.target.closest('.dynamic-contact-row')?.remove();
+            refreshContactPrimaryIndex();
+        }
+    });
 
     document.addEventListener('input', () => { updateCounters(); syncProgress(); syncCompletenessOverview(); });
     document.addEventListener('change', () => { syncShowWhen(); syncProgress(); syncIndustry(); syncCompletenessOverview(); });
@@ -427,6 +469,7 @@
     updateCounters();
     syncProgress();
     syncCompletenessOverview();
+    refreshContactPrimaryIndex();
     if ({{ 'true' if 触发重复风险确认|default(false) else 'false' }}) {
         new bootstrap.Modal(document.getElementById('duplicateRiskModal')).show();
     }

@@ -91,6 +91,42 @@
                 </select>
             </div>
             <div class="col-md-2">
+                <label class="form-label">是否上市</label>
+                <select class="form-select" name="is_listed">
+                    <option value="">全部</option>
+                    {% for item in 上市选项 %}
+                    <option value="{{ item }}" {% if item == 筛选.is_listed %}selected{% endif %}>{{ item }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">跨境电商经验</label>
+                <select class="form-select" name="has_cross_border">
+                    <option value="">全部</option>
+                    {% for item in 跨境电商选项 %}
+                    <option value="{{ item }}" {% if item == 筛选.has_cross_border %}selected{% endif %}>{{ item }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">是否有自有品牌</label>
+                <select class="form-select" name="has_own_brand">
+                    <option value="">全部</option>
+                    {% for item in 自有品牌选项 %}
+                    <option value="{{ item }}" {% if item == 筛选.has_own_brand %}selected{% endif %}>{{ item }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">证书有效期状态</label>
+                <select class="form-select" name="certificate_validity_status">
+                    <option value="">全部</option>
+                    {% for item in 证书有效期选项 %}
+                    <option value="{{ item }}" {% if item == 筛选.certificate_validity_status %}selected{% endif %}>{{ item }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
                 <label class="form-label">推荐等级</label>
                 <select class="form-select" name="recommendation_level">
                     <option value="">全部</option>
@@ -147,6 +183,10 @@
                 <th>海外业务</th>
                 <th>自有工厂</th>
                 <th>是否有出口经验</th>
+                <th>是否上市</th>
+                <th>跨境电商</th>
+                <th>自有品牌</th>
+                <th>证书状态</th>
                 <th>推荐等级</th>
                 <th>建议入库</th>
                 <th>资料完整度</th>
@@ -184,6 +224,10 @@
                 <td><span class="badge bg-light text-dark border">{{ ext.get('has_overseas_business') or '-' }}</span></td>
                 <td><span class="badge bg-light text-dark border">{{ ext.get('has_own_factory') or '-' }}</span></td>
                 <td><span class="badge bg-light text-dark border">{{ ext.get('export_experience') or ('是' if 企业.has_foreign_trade_experience else '否') }}</span></td>
+                <td><span class="badge bg-light text-dark border">{{ ext.get('is_listed_or_pre_ipo') or ('是' if 企业.is_listed_or_pre_ipo else '否') }}</span></td>
+                <td><span class="badge bg-light text-dark border">{{ ext.get('has_cross_border_ecommerce') or '-' }}</span></td>
+                <td><span class="badge bg-light text-dark border">{{ ext.get('has_own_brand_business') or ext.get('has_own_brand') or '-' }}</span></td>
+                <td><span class="badge bg-light text-dark border">{{ ext.get('certificate_validity_status') or '-' }}</span></td>
                 <td><span class="badge bg-{% if (ext.get('recommendation_level') or '') == 'A' %}success{% elif (ext.get('recommendation_level') or '') == 'B' %}primary{% elif (ext.get('recommendation_level') or '') == 'C' %}warning text-dark{% else %}secondary{% endif %}">{{ ext.get('recommendation_level') or '-' }}</span></td>
                 <td><span class="badge bg-{% if ext.get('recommended_for_pool') == '是' %}success{% elif ext.get('recommended_for_pool') == '否' %}danger{% else %}secondary{% endif %}">{{ ext.get('recommended_for_pool') or '-' }}</span></td>
                 <td>
@@ -209,7 +253,7 @@
             </tr>
             {% else %}
             <tr>
-                <td colspan="15" class="text-center text-muted py-4">暂无数据</td>
+                <td colspan="19" class="text-center text-muted py-4">暂无数据</td>
             </tr>
             {% endfor %}
             </tbody>
@@ -221,19 +265,19 @@
         <nav>
             <ul class="pagination mb-0 justify-content-center">
                 <li class="page-item {% if not 分页.has_prev %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('enterprise_list', page=分页.prev_num, q=筛选.q, industry=筛选.industry, province=筛选.province, city=筛选.city, company_nature=筛选.company_nature, enterprise_size=筛选.enterprise_size, has_overseas_business=筛选.has_overseas_business, has_own_factory=筛选.has_own_factory, has_export=筛选.has_export, recommendation_level=筛选.recommendation_level, recommended_for_pool=筛选.recommended_for_pool, status=筛选.status, completeness=筛选.completeness) }}">上一页</a>
+                    <a class="page-link" href="{{ url_for('enterprise_list', page=分页.prev_num, q=筛选.q, industry=筛选.industry, province=筛选.province, city=筛选.city, company_nature=筛选.company_nature, enterprise_size=筛选.enterprise_size, has_overseas_business=筛选.has_overseas_business, has_own_factory=筛选.has_own_factory, has_export=筛选.has_export, is_listed=筛选.is_listed, has_cross_border=筛选.has_cross_border, has_own_brand=筛选.has_own_brand, certificate_validity_status=筛选.certificate_validity_status, recommendation_level=筛选.recommendation_level, recommended_for_pool=筛选.recommended_for_pool, status=筛选.status, completeness=筛选.completeness) }}">上一页</a>
                 </li>
                 {% for p in 分页.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
                     {% if p %}
                     <li class="page-item {% if p == 分页.page %}active{% endif %}">
-                        <a class="page-link" href="{{ url_for('enterprise_list', page=p, q=筛选.q, industry=筛选.industry, province=筛选.province, city=筛选.city, company_nature=筛选.company_nature, enterprise_size=筛选.enterprise_size, has_overseas_business=筛选.has_overseas_business, has_own_factory=筛选.has_own_factory, has_export=筛选.has_export, recommendation_level=筛选.recommendation_level, recommended_for_pool=筛选.recommended_for_pool, status=筛选.status, completeness=筛选.completeness) }}">{{ p }}</a>
+                        <a class="page-link" href="{{ url_for('enterprise_list', page=p, q=筛选.q, industry=筛选.industry, province=筛选.province, city=筛选.city, company_nature=筛选.company_nature, enterprise_size=筛选.enterprise_size, has_overseas_business=筛选.has_overseas_business, has_own_factory=筛选.has_own_factory, has_export=筛选.has_export, is_listed=筛选.is_listed, has_cross_border=筛选.has_cross_border, has_own_brand=筛选.has_own_brand, certificate_validity_status=筛选.certificate_validity_status, recommendation_level=筛选.recommendation_level, recommended_for_pool=筛选.recommended_for_pool, status=筛选.status, completeness=筛选.completeness) }}">{{ p }}</a>
                     </li>
                     {% else %}
                     <li class="page-item disabled"><span class="page-link">…</span></li>
                     {% endif %}
                 {% endfor %}
                 <li class="page-item {% if not 分页.has_next %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('enterprise_list', page=分页.next_num, q=筛选.q, industry=筛选.industry, province=筛选.province, city=筛选.city, company_nature=筛选.company_nature, enterprise_size=筛选.enterprise_size, has_overseas_business=筛选.has_overseas_business, has_own_factory=筛选.has_own_factory, has_export=筛选.has_export, recommendation_level=筛选.recommendation_level, recommended_for_pool=筛选.recommended_for_pool, status=筛选.status, completeness=筛选.completeness) }}">下一页</a>
+                    <a class="page-link" href="{{ url_for('enterprise_list', page=分页.next_num, q=筛选.q, industry=筛选.industry, province=筛选.province, city=筛选.city, company_nature=筛选.company_nature, enterprise_size=筛选.enterprise_size, has_overseas_business=筛选.has_overseas_business, has_own_factory=筛选.has_own_factory, has_export=筛选.has_export, is_listed=筛选.is_listed, has_cross_border=筛选.has_cross_border, has_own_brand=筛选.has_own_brand, certificate_validity_status=筛选.certificate_validity_status, recommendation_level=筛选.recommendation_level, recommended_for_pool=筛选.recommended_for_pool, status=筛选.status, completeness=筛选.completeness) }}">下一页</a>
                 </li>
             </ul>
         </nav>

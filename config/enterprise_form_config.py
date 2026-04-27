@@ -23,7 +23,10 @@ COMMON_ENTERPRISE_FIELD_GROUPS = [
                 "label": "企业性质（多选）",
                 "type": "checkbox_group",
                 "options": ["制造商", "贸易商", "品牌商", "代理商", "服务商", "OEM/ODM工厂"],
-            }
+            },
+            {"key": "is_listed_or_pre_ipo", "label": "是否上市", "type": "radio_group", "options": ["是", "否"]},
+            {"key": "listed_location", "label": "上市地点", "type": "text", "show_when": {"field": "is_listed_or_pre_ipo", "value": "是"}},
+            {"key": "listed_board", "label": "上市板块", "type": "text", "show_when": {"field": "is_listed_or_pre_ipo", "value": "是"}},
         ],
     },
     {
