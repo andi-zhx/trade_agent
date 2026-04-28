@@ -12,7 +12,7 @@
 {% macro render_field(field) -%}
     {% set show_when = field.show_when if field.show_when is defined else None %}
     {% set show_when_any = field.show_when_any if field.show_when_any is defined else None %}
-    {% set col_class = 'col-12' if field.type in ['checkbox_group', 'checkbox_tags', 'radio_group', 'dynamic_contacts'] else ('col-lg-6' if field.type == 'textarea' else 'col-lg-3 col-md-4') %}
+    {% set col_class = 'col-12' if field.span_full_row or field.type in ['checkbox_group', 'checkbox_tags', 'radio_group', 'dynamic_contacts'] else ('col-lg-6' if field.type == 'textarea' else 'col-lg-3 col-md-4') %}
     <div class="{{ col_class }}" data-module-field {% if show_when %}data-show-when='{{ show_when|tojson|forceescape }}'{% endif %}{% if show_when_any %} data-show-when-any='{{ show_when_any|tojson|forceescape }}'{% endif %}>
     {% if field.type == 'textarea' %}
         <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
@@ -44,15 +44,40 @@
         </div>
     {% elif field.type == 'checkbox_tags' or field.type == 'checkbox_group' %}
         <label class="form-label d-block {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
-        {% set selected_values = request.form.getlist(field.key) if request.method == 'POST' else (企业扩展字段 or {}).get(field.key, []) %}
-        <div class="d-flex flex-wrap gap-2">
+        {% set selected_values = request.form.getlist(field.key) if request.method == 'POST' else ((企业扩展字段 or {}).get(field.key, [])) %}
+        {% if selected_values is string %}
+            {% set selected_values = selected_values.split('、') if '、' in selected_values else [selected_values] %}
+        {% endif %}
+        {% set selected_values = selected_values | map('trim') | reject('equalto', '') | list %}
+        {% set default_options = field.options or [] %}
+        {% set custom_values = selected_values | reject('in', default_options) | list %}
+        <div class="d-flex flex-wrap gap-2" {% if field.allow_custom %}data-custom-tag-container="{{ field.key }}"{% endif %}>
             {% for opt in field.options %}
             <div>
                 <input class="tag-check" type="checkbox" id="{{ field.key }}_{{ loop.index }}" name="{{ field.key }}" value="{{ opt }}" {% if opt in selected_values %}checked{% endif %}>
                 <label class="tag-label" for="{{ field.key }}_{{ loop.index }}">{{ opt }}</label>
             </div>
             {% endfor %}
+            {% if field.allow_custom %}
+                {% for custom in custom_values %}
+                <div>
+                    <input class="tag-check" type="checkbox" id="{{ field.key }}_custom_{{ loop.index }}" name="{{ field.key }}" value="{{ custom }}" checked>
+                    <label class="tag-label" for="{{ field.key }}_custom_{{ loop.index }}">{{ custom }}</label>
+                </div>
+                {% endfor %}
+            {% endif %}
         </div>
+        {% if field.allow_custom %}
+        <div class="input-group input-group-sm mt-2">
+            <input
+                type="text"
+                class="form-control"
+                data-custom-tag-input="{{ field.key }}"
+                placeholder="输入标签后点击新增"
+            >
+            <button type="button" class="btn btn-outline-secondary" data-custom-tag-add="{{ field.key }}">+ 新增标签</button>
+        </div>
+        {% endif %}
     {% elif field.type == 'dynamic_contacts' %}
         <label class="form-label d-block">{{ field.label }}</label>
         {% set contacts = request.form.getlist('dynamic_contacts_name[]') if request.method == 'POST' else [] %}
@@ -300,6 +325,19 @@
         return [(elements[0].value || '').trim()].filter(Boolean);
     };
 
+    const addCustomTag = (fieldKey, rawValue) => {
+        const value = (rawValue || '').trim();
+        if (!value) return false;
+        const container = document.querySelector(`[data-custom-tag-container="${fieldKey}"]`);
+        if (!container) return false;
+        const exists = Array.from(container.querySelectorAll(`input[name="${fieldKey}"]`))
+            .some((el) => (el.value || '').trim() === value);
+        if (exists) return false;
+        const uid = `${fieldKey}_custom_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+        container.insertAdjacentHTML('beforeend', `<div><input class="tag-check" type="checkbox" id="${uid}" name="${fieldKey}" value="${value}" checked><label class="tag-label" for="${uid}">${value}</label></div>`);
+        return true;
+    };
+
     form.querySelectorAll('button[type="submit"][data-action]').forEach((btn) => {
         btn.addEventListener('click', () => { actionInput.value = btn.dataset.action; });
     });
@@ -479,6 +517,31 @@
             e.target.closest('.dynamic-contact-row')?.remove();
             refreshContactPrimaryIndex();
         }
+    });
+
+    document.querySelectorAll('[data-custom-tag-add]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            const key = btn.getAttribute('data-custom-tag-add');
+            const input = document.querySelector(`[data-custom-tag-input="${key}"]`);
+            if (!input) return;
+            if (addCustomTag(key, input.value)) {
+                input.value = '';
+                syncProgress();
+                syncCompletenessOverview();
+            }
+        });
+    });
+    document.querySelectorAll('[data-custom-tag-input]').forEach((input) => {
+        input.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter') return;
+            event.preventDefault();
+            const key = input.getAttribute('data-custom-tag-input');
+            if (addCustomTag(key, input.value)) {
+                input.value = '';
+                syncProgress();
+                syncCompletenessOverview();
+            }
+        });
     });
 
     document.getElementById('enterpriseTabs')?.addEventListener('shown.bs.tab', (event) => {

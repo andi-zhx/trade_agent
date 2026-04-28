@@ -458,6 +458,59 @@ def create_app():
             数据[额外键] = 额外值
         return 数据
 
+    def 估算人员规模(employee_count):
+        if not employee_count:
+            return ""
+        if employee_count <= 20:
+            return "1-20人"
+        if employee_count <= 50:
+            return "21-50人"
+        if employee_count <= 100:
+            return "51-100人"
+        if employee_count <= 300:
+            return "101-300人"
+        if employee_count <= 500:
+            return "301-500人"
+        if employee_count <= 1000:
+            return "501-1000人"
+        return "1000人以上"
+
+    def 兼容企业基础信息字段(企业, 扩展字段):
+        ext = dict(扩展字段 or {})
+        if not ext.get("company_short_name"):
+            ext["company_short_name"] = (ext.get("short_name") or "").strip()
+        if not ext.get("company_full_name"):
+            ext["company_full_name"] = (企业.company_name or "").strip()
+        if not ext.get("founded_date"):
+            ext["founded_date"] = 企业.founded_date.strftime("%Y-%m-%d") if 企业.founded_date else ""
+        if not ext.get("financing_stage"):
+            ext["financing_stage"] = (ext.get("financing_round") or "").strip()
+        if not ext.get("valuation"):
+            ext["valuation"] = (ext.get("market_value") or ext.get("valuation_amount") or "").strip()
+        if not ext.get("employee_count_range"):
+            ext["employee_count_range"] = 估算人员规模(企业.employee_count) or (ext.get("employee_size") or "").strip()
+        if not ext.get("primary_industry"):
+            ext["primary_industry"] = (ext.get("industry_name") or 企业.industry_category or "").strip()
+        if not ext.get("website"):
+            ext["website"] = (ext.get("official_website") or "").strip()
+        if not ext.get("operating_status"):
+            ext["operating_status"] = (ext.get("business_status") or "未知").strip()
+        if not ext.get("company_type"):
+            ext["company_type"] = (企业.company_type or "").strip()
+        if not ext.get("one_sentence_intro"):
+            ext["one_sentence_intro"] = (ext.get("slogan") or ext.get("core_value") or "").strip()
+        if not ext.get("enterprise_description"):
+            ext["enterprise_description"] = (ext.get("company_profile") or ext.get("main_business") or 企业.main_business or "").strip()
+        enterprise_tags = ext.get("enterprise_tags")
+        if isinstance(enterprise_tags, str):
+            enterprise_tags = [item.strip() for item in re.split(r"[、,，;/|]+", enterprise_tags) if item and item.strip()]
+        if not enterprise_tags:
+            legacy_tags = ext.get("tags") or ext.get("enterprise_tag_notes") or ext.get("industry_tags") or ""
+            enterprise_tags = [item.strip() for item in re.split(r"[、,，;/|]+", legacy_tags) if item and item.strip()]
+        if enterprise_tags:
+            ext["enterprise_tags"] = enterprise_tags
+        return ext
+
     def 企业提交审核缺失字段(企业, 扩展字段):
         缺失 = []
         最小必填项 = [
@@ -1058,7 +1111,7 @@ def create_app():
             for 企业 in 分页.items:
                 完整度映射[企业.id] = 计算企业资料完整度(
                     企业,
-                    企业.enterprise_extra_fields or {},
+                    兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {}),
                     文件映射.get(企业.id, set()),
                 )
 
@@ -1112,6 +1165,7 @@ def create_app():
             本次有附件上传 = any(文件 and 文件.filename for 文件 in request.files.getlist("enterprise_upload_file"))
             行业代码, 行业名称 = 解析行业(request.form.get("industry_code"), request.form.get("industry_category"))
             扩展字段 = 提取企业扩展字段(request.form, 行业代码)
+            扩展字段 = 兼容企业基础信息字段(Enterprise(), 扩展字段)
             企业性质列表 = 扩展字段.get("enterprise_natures", [])
             联系人子表单 = 扩展字段.get("dynamic_contacts", [])
             主联系人数 = sum(1 for item in 联系人子表单 if item.get("is_primary_contact"))
@@ -1128,12 +1182,12 @@ def create_app():
                 province=request.form.get("province", "").strip() or None,
                 city=request.form.get("city", "").strip() or None,
                 district=request.form.get("district", "").strip() or None,
-                company_type=request.form.get("company_type", "").strip() or None,
+                company_type=(扩展字段.get("company_type") or "").strip() or None,
                 industry_code=行业代码,
                 industry_category=行业名称,
                 sub_industry=request.form.get("sub_industry", "").strip() or None,
                 main_products=扩展字段.get("core_products") or None,
-                main_business=扩展字段.get("main_business") or None,
+                main_business=扩展字段.get("enterprise_description") or None,
                 is_manufacturer="制造商" in 企业性质列表,
                 is_trader="贸易商" in 企业性质列表,
                 is_brand_owner="品牌商" in 企业性质列表,
@@ -1146,7 +1200,7 @@ def create_app():
                 export_countries=扩展字段.get("export_countries") or None,
                 target_markets=扩展字段.get("target_countries") or None,
                 annual_capacity=扩展字段.get("annual_capacity_level") or None,
-                employee_count=读取整数(request.form.get("employee_count")),
+                employee_count=读取整数(request.form.get("employee_count")) or None,
                 factory_area=扩展字段.get("factory_area_range") or None,
                 main_equipment=request.form.get("main_equipment", "").strip() or None,
                 annual_revenue=读取金额(扩展字段.get("annual_sales")),
@@ -1240,7 +1294,7 @@ def create_app():
         资质展示列表 = [构建证照展示项(资质) for 资质 in 资质列表]
         文件列表 = Document.query.filter_by(enterprise_id=id).all()
         文件类型集合 = {item.document_type for item in 文件列表}
-        扩展字段 = 企业.enterprise_extra_fields or {}
+        扩展字段 = 兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {})
         完整度信息 = 计算企业资料完整度(企业, 扩展字段, 文件类型集合)
         缺失资料提示 = 完整度信息["missing_items"]
 
@@ -1262,7 +1316,7 @@ def create_app():
     @app.get("/enterprises/<int:id>/export")
     def enterprise_export(id):
         企业 = Enterprise.query.get_or_404(id)
-        扩展字段 = 企业.enterprise_extra_fields or {}
+        扩展字段 = 兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {})
         表头 = ["企业编号", "企业名称", "行业分类", "省份", "城市", "企业性质", "主营产品", "是否有出口经验", "年销售额区间", "年出口额区间", "资料完整度", "最近更新时间"]
         企业性质 = "、".join(
             [
@@ -1348,6 +1402,7 @@ def create_app():
             重复确认通过 = (request.form.get("duplicate_confirmed") or "").strip() == "1"
             行业代码, 行业名称 = 解析行业(request.form.get("industry_code"), request.form.get("industry_category"))
             扩展字段 = 提取企业扩展字段(request.form, 行业代码)
+            扩展字段 = 兼容企业基础信息字段(企业, 扩展字段)
             企业性质列表 = 扩展字段.get("enterprise_natures", [])
             联系人子表单 = 扩展字段.get("dynamic_contacts", [])
             主联系人数 = sum(1 for item in 联系人子表单 if item.get("is_primary_contact"))
@@ -1361,12 +1416,12 @@ def create_app():
             企业.province = request.form.get("province", "").strip() or None
             企业.city = request.form.get("city", "").strip() or None
             企业.district = request.form.get("district", "").strip() or None
-            企业.company_type = request.form.get("company_type", "").strip() or None
+            企业.company_type = (扩展字段.get("company_type") or "").strip() or None
             企业.industry_code = 行业代码
             企业.industry_category = 行业名称
             企业.sub_industry = request.form.get("sub_industry", "").strip() or None
             企业.main_products = 扩展字段.get("core_products") or None
-            企业.main_business = 扩展字段.get("main_business") or None
+            企业.main_business = 扩展字段.get("enterprise_description") or None
             企业.is_manufacturer = "制造商" in 企业性质列表
             企业.is_trader = "贸易商" in 企业性质列表
             企业.is_brand_owner = "品牌商" in 企业性质列表
@@ -1413,16 +1468,16 @@ def create_app():
 
             if 操作动作 == "save_draft" and not (企业.company_name or 企业.unified_social_credit_code):
                 flash("保存草稿时，企业全称或统一社会信用代码至少填写一项。", "danger")
-                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
+                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {}), 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
             if 操作动作 != "save_draft" and not 企业.company_name:
                 flash("企业名称为必填项", "danger")
-                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
+                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {}), 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
             if not 行业代码:
                 flash("行业分类必须从下拉框选择。", "danger")
-                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
+                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {}), 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
             if 主联系人数 > 1:
                 flash("联系人子表单中“是否主联系人”只能选择一位。", "danger")
-                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
+                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {}), 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
             重复风险提示 = 企业重复风险检查(企业.company_name, 企业.unified_social_credit_code, exclude_enterprise_id=企业.id)
             if 操作动作 == "save_draft" and 重复风险提示:
                 for 提示 in 重复风险提示:
@@ -1431,9 +1486,9 @@ def create_app():
                 缺失字段 = 企业提交审核缺失字段(企业, 扩展字段)
                 if 缺失字段:
                     flash(f"提交审核失败，缺失字段：{'、'.join(缺失字段)}", "danger")
-                    return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
+                    return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {}), 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
                 if 重复风险提示 and not 重复确认通过:
-                    return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=重复风险提示, 触发重复风险确认=True)
+                    return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {}), 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=重复风险提示, 触发重复风险确认=True)
             企业.status = ENTERPRISE_DEFAULT_STATUS
 
             try:
@@ -1446,7 +1501,7 @@ def create_app():
                 )
             except ValueError as exc:
                 flash(str(exc), "danger")
-                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
+                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {}), 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
             记录审计日志("编辑企业", "enterprise", target_id=企业.id, detail=企业.company_name)
             db.session.commit()
             flash(f"企业信息更新成功，新增上传文件 {上传数} 个。", "success")
@@ -1464,7 +1519,7 @@ def create_app():
             行业列表=行业下拉选项(),
             通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS,
             行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG,
-            企业扩展字段=企业.enterprise_extra_fields or {},
+            企业扩展字段=兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {}),
             企业文件类型选项=ENTERPRISE_UPLOAD_TYPES,
             已上传附件列表=Document.query.filter_by(enterprise_id=企业.id).order_by(Document.uploaded_at.desc(), Document.id.desc()).all(),
             重复风险提示=[],
