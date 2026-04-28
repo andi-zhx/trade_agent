@@ -134,17 +134,100 @@
 
         <div class="tab-pane fade {% if (initial_tab or 'overview') == 'sku' %}show active{% endif %}" id="sku-pane" role="tabpanel" tabindex="0">
             {% if is_new_product %}
-            <div class="alert alert-info mb-3">请先保存产品概览后再维护SKU和附件。</div>
+            <div class="alert alert-info mb-3">请先保存产品概览后再维护SKU明细。</div>
             <button type="button" class="btn btn-outline-secondary" disabled>+ 新增 SKU（待产品保存后可用）</button>
             {% else %}
-            <div class="d-flex justify-content-between align-items-center mb-3">
-                <p class="text-muted mb-0">当前版本先完成结构与路由兼容，SKU 维护沿用原详情页能力。</p>
-                <a class="btn btn-primary" href="{{ url_for('product_detail', product_id=product.id, tab='sku') }}">前往 SKU 管理</a>
+            {% set sku_filters = sku_filters|default({}) %}
+            {% set sku_filter_options = sku_filter_options|default({}) %}
+            {% set sku_list = sku_list|default([]) %}
+            <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+                <div class="small text-muted">SKU总数：{{ sku_list|length }}（已应用筛选）</div>
+                <div class="d-flex gap-2">
+                    <a class="btn btn-outline-success btn-sm" href="{{ url_for('product_sku_export', product_id=product.id, sku_keyword=sku_filters.keyword, sku_color=sku_filters.color, sku_size=sku_filters.size, sku_stock_status=sku_filters.stock_status, sku_sample_available=sku_filters.sample_available, sku_customization_supported=sku_filters.customization_supported) }}">导出 Excel</a>
+                    <a class="btn btn-outline-secondary btn-sm" href="{{ url_for('product_sku_import_template', product_id=product.id) }}">下载导入模板</a>
+                    <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#skuImportModal">导入 Excel</button>
+                    <button type="button" class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#skuCreateModal">+ 新增 SKU</button>
+                </div>
             </div>
-            <div class="border rounded p-3 bg-light">
-                <div class="fw-semibold mb-2">后续扩展位</div>
-                <div class="text-muted small">此区域预留为 SKU 列表和行内编辑，当前不影响既有 SKU 新增/编辑/删除流程。</div>
+
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="row g-2 align-items-end" id="skuFilterPanel" data-url="{{ url_for('product_edit', product_id=product.id) }}">
+                        <div class="col-md-3">
+                            <label class="form-label">SKU名称/型号关键词</label>
+                            <input class="form-control form-control-sm" id="skuFilterKeyword" value="{{ sku_filters.keyword or '' }}">
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">颜色</label>
+                            <select class="form-select form-select-sm" id="skuFilterColor">
+                                <option value="">全部</option>
+                                {% for opt in sku_filter_options.colors|default([]) %}
+                                <option value="{{ opt }}" {% if sku_filters.color == opt %}selected{% endif %}>{{ opt }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">尺寸</label>
+                            <select class="form-select form-select-sm" id="skuFilterSize">
+                                <option value="">全部</option>
+                                {% for opt in sku_filter_options.sizes|default([]) %}
+                                <option value="{{ opt }}" {% if sku_filters.size == opt %}selected{% endif %}>{{ opt }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="form-label">库存状态</label>
+                            <select class="form-select form-select-sm" id="skuFilterStock">
+                                <option value="">全部</option>
+                                {% for opt in sku_filter_options.stock_statuses|default([]) %}
+                                <option value="{{ opt }}" {% if sku_filters.stock_status == opt %}selected{% endif %}>{{ opt }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label">可样品</label>
+                            <select class="form-select form-select-sm" id="skuFilterSample">
+                                <option value="">全部</option><option value="是" {% if sku_filters.sample_available == '是' %}selected{% endif %}>是</option><option value="否" {% if sku_filters.sample_available == '否' %}selected{% endif %}>否</option>
+                            </select>
+                        </div>
+                        <div class="col-md-1">
+                            <label class="form-label">支持定制</label>
+                            <select class="form-select form-select-sm" id="skuFilterCustom">
+                                <option value="">全部</option><option value="是" {% if sku_filters.customization_supported == '是' %}selected{% endif %}>是</option><option value="否" {% if sku_filters.customization_supported == '否' %}selected{% endif %}>否</option>
+                            </select>
+                        </div>
+                        <div class="col-md-1 d-grid">
+                            <button type="button" class="btn btn-sm btn-primary" id="skuFilterSubmit">筛选</button>
+                        </div>
+                    </div>
+                </div>
             </div>
+
+            <div class="table-responsive border rounded">
+                <table class="table table-sm table-hover align-middle mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th><input type="checkbox" id="skuSelectAll"></th>
+                            <th>SKU编号</th><th>SKU名称</th><th>型号</th><th>规格</th><th>颜色</th><th>尺寸</th><th>材质</th><th>MOQ</th><th>交期</th><th>FOB价</th><th>币种</th><th>库存状态</th><th>是否可样品</th><th>是否支持定制</th><th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for sku in sku_list %}
+                        <tr>
+                            <td><input type="checkbox" class="sku-select-item" value="{{ sku.id }}"></td>
+                            <td>{{ sku.sku_code }}</td><td>{{ sku.sku_name }}</td><td>{{ sku.model or '-' }}</td><td>{{ sku.specification or '-' }}</td><td>{{ sku.color or '-' }}</td><td>{{ sku.size or '-' }}</td><td>{{ sku.material or '-' }}</td><td>{{ sku.moq or '-' }}</td><td>{{ sku.delivery_cycle or '-' }}</td><td>{{ sku.fob_price|currency(sku.currency) }}</td><td>{{ sku.currency or 'USD' }}</td><td>{{ sku.stock_status or '-' }}</td><td>{{ '是' if sku.sample_available else '否' }}</td><td>{{ '是' if sku.customization_supported else '否' }}</td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="modal" data-bs-target="#skuEditModal-{{ sku.id }}">编辑</button>
+                                <button type="button" class="btn btn-sm btn-outline-danger sku-delete-btn" data-action="{{ url_for('product_sku_delete', product_id=product.id, sku_id=sku.id) }}">删除</button>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr><td colspan="16" class="text-center text-muted py-3">暂无 SKU 数据</td></tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <button type="button" class="btn btn-outline-primary btn-sm mt-2" data-bs-toggle="modal" data-bs-target="#skuBatchModal">批量修改所选SKU</button>
             {% endif %}
         </div>
 
@@ -183,6 +266,68 @@
         </div>
     </div>
 </form>
+{% if not is_new_product %}
+<form id="skuDeleteForm" method="post">
+    <input type="hidden" name="next" value="{{ url_for('product_edit', product_id=product.id, tab='sku') }}">
+</form>
+
+<div class="modal fade" id="skuCreateModal" tabindex="-1">
+  <div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">新增 SKU</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
+    <form method="post" action="{{ url_for('product_sku_create', product_id=product.id) }}" class="row g-2">
+      <input type="hidden" name="next" value="{{ url_for('product_edit', product_id=product.id, tab='sku') }}">
+      <div class="col-md-4"><input class="form-control" name="sku_code" placeholder="SKU编号（留空自动生成）"></div>
+      <div class="col-md-4"><input class="form-control" name="sku_name" placeholder="SKU名称*" required></div>
+      <div class="col-md-4"><input class="form-control" name="model" placeholder="型号"></div>
+      <div class="col-md-3"><input class="form-control" name="specification" placeholder="规格"></div><div class="col-md-3"><input class="form-control" name="color" placeholder="颜色"></div><div class="col-md-3"><input class="form-control" name="size" placeholder="尺寸"></div><div class="col-md-3"><input class="form-control" name="material" placeholder="材质"></div>
+      <div class="col-md-2"><input class="form-control" name="moq" placeholder="MOQ"></div><div class="col-md-2"><input class="form-control" name="delivery_cycle" placeholder="交期"></div><div class="col-md-2"><input class="form-control" name="fob_price" placeholder="FOB价"></div><div class="col-md-2"><input class="form-control" name="currency" value="{{ product.currency or 'USD' }}" placeholder="币种"></div><div class="col-md-4"><input class="form-control" name="stock_status" placeholder="库存状态"></div>
+      <div class="col-md-3"><input type="hidden" name="sample_available" value="0"><label class="form-check"><input class="form-check-input" type="checkbox" name="sample_available" value="1"> 是否可样品</label></div>
+      <div class="col-md-3"><input type="hidden" name="customization_supported" value="0"><label class="form-check"><input class="form-check-input" type="checkbox" name="customization_supported" value="1"> 是否支持定制</label></div>
+      <div class="col-12 text-end"><button class="btn btn-primary">保存</button></div>
+    </form>
+  </div></div></div>
+</div>
+
+<div class="modal fade" id="skuImportModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">导入 SKU Excel</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
+    <form method="post" action="{{ url_for('product_sku_import', product_id=product.id) }}" enctype="multipart/form-data">
+      <input class="form-control mb-3" type="file" name="file" accept=".xlsx,.csv" required>
+      <div class="text-end"><button class="btn btn-primary">导入</button></div>
+    </form>
+  </div></div></div>
+</div>
+
+<div class="modal fade" id="skuBatchModal" tabindex="-1">
+  <div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">批量修改</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
+    <form method="post" action="{{ url_for('product_sku_batch_update', product_id=product.id) }}">
+      <input type="hidden" name="next" value="{{ url_for('product_edit', product_id=product.id, tab='sku') }}">
+      <div id="skuBatchSelectedIds"></div>
+      <input class="form-control mb-2" name="moq" placeholder="MOQ">
+      <input class="form-control mb-2" name="delivery_cycle" placeholder="交期">
+      <input class="form-control mb-2" name="currency" placeholder="币种">
+      <input class="form-control mb-2" name="stock_status" placeholder="库存状态">
+      <select class="form-select mb-2" name="sample_available"><option value="">是否可样品（不修改）</option><option value="1">是</option><option value="0">否</option></select>
+      <select class="form-select mb-2" name="customization_supported"><option value="">是否支持定制（不修改）</option><option value="1">是</option><option value="0">否</option></select>
+      <div class="text-end"><button class="btn btn-primary">提交</button></div>
+    </form>
+  </div></div></div>
+</div>
+
+{% for sku in sku_list|default([]) %}
+<div class="modal fade" id="skuEditModal-{{ sku.id }}" tabindex="-1">
+  <div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">编辑 SKU</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
+    <form method="post" action="{{ url_for('product_sku_update', product_id=product.id, sku_id=sku.id) }}" class="row g-2">
+      <input type="hidden" name="next" value="{{ url_for('product_edit', product_id=product.id, tab='sku') }}">
+      <div class="col-md-4"><input class="form-control" name="sku_code" value="{{ sku.sku_code }}" required></div><div class="col-md-4"><input class="form-control" name="sku_name" value="{{ sku.sku_name }}" required></div><div class="col-md-4"><input class="form-control" name="model" value="{{ sku.model or '' }}"></div>
+      <div class="col-md-3"><input class="form-control" name="specification" value="{{ sku.specification or '' }}"></div><div class="col-md-3"><input class="form-control" name="color" value="{{ sku.color or '' }}"></div><div class="col-md-3"><input class="form-control" name="size" value="{{ sku.size or '' }}"></div><div class="col-md-3"><input class="form-control" name="material" value="{{ sku.material or '' }}"></div>
+      <div class="col-md-2"><input class="form-control" name="moq" value="{{ sku.moq or '' }}"></div><div class="col-md-2"><input class="form-control" name="delivery_cycle" value="{{ sku.delivery_cycle or '' }}"></div><div class="col-md-2"><input class="form-control" name="fob_price" value="{{ sku.fob_price if sku.fob_price is not none else '' }}"></div><div class="col-md-2"><input class="form-control" name="currency" value="{{ sku.currency or 'USD' }}"></div><div class="col-md-4"><input class="form-control" name="stock_status" value="{{ sku.stock_status or '' }}"></div>
+      <div class="col-md-3"><input type="hidden" name="sample_available" value="0"><label class="form-check"><input class="form-check-input" type="checkbox" name="sample_available" value="1" {% if sku.sample_available %}checked{% endif %}> 是否可样品</label></div>
+      <div class="col-md-3"><input type="hidden" name="customization_supported" value="0"><label class="form-check"><input class="form-check-input" type="checkbox" name="customization_supported" value="1" {% if sku.customization_supported %}checked{% endif %}> 是否支持定制</label></div>
+      <div class="col-12 text-end"><button class="btn btn-primary">保存</button></div>
+    </form>
+  </div></div></div>
+</div>
+{% endfor %}
+{% endif %}
 
 <script>
 (() => {
@@ -204,9 +349,8 @@
         });
     });
 
-    if (!enterpriseSelect || !industrySelect || !industryExtraContainer) return;
-
     const syncIndustryFromEnterprise = () => {
+        if (!enterpriseSelect || !industrySelect) return;
         if (industrySelect.value) return;
         const selectedEnterprise = enterpriseSelect.options[enterpriseSelect.selectedIndex];
         if (!selectedEnterprise) return;
@@ -254,14 +398,15 @@
         `).join('');
     };
 
-    enterpriseSelect.addEventListener('change', () => {
+    if (enterpriseSelect && industrySelect && industryExtraContainer) {
+        enterpriseSelect.addEventListener('change', () => {
+            syncIndustryFromEnterprise();
+            renderIndustryExtraFields();
+        });
+        industrySelect.addEventListener('change', renderIndustryExtraFields);
         syncIndustryFromEnterprise();
         renderIndustryExtraFields();
-    });
-    industrySelect.addEventListener('change', renderIndustryExtraFields);
-
-    syncIndustryFromEnterprise();
-    renderIndustryExtraFields();
+    }
 
     const uploadRows = document.getElementById('productUploadRows');
     const addBtn = document.getElementById('addProductUploadRow');
@@ -273,6 +418,51 @@
             cloned.querySelectorAll('input').forEach((input) => input.value = '');
             cloned.querySelectorAll('select').forEach((select) => select.value = '');
             uploadRows.appendChild(cloned);
+        });
+    }
+
+    document.querySelectorAll('.sku-delete-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+            if (!confirm('确认删除该SKU？删除后不可恢复。')) return;
+            const form = document.getElementById('skuDeleteForm');
+            if (!form) return;
+            form.action = btn.dataset.action;
+            form.submit();
+        });
+    });
+    const selectAll = document.getElementById('skuSelectAll');
+    if (selectAll) {
+        selectAll.addEventListener('change', () => {
+            document.querySelectorAll('.sku-select-item').forEach((item) => item.checked = selectAll.checked);
+        });
+    }
+    const batchModal = document.getElementById('skuBatchModal');
+    if (batchModal) {
+        batchModal.addEventListener('show.bs.modal', () => {
+            const ids = Array.from(document.querySelectorAll('.sku-select-item:checked')).map((item) => item.value);
+            const holder = document.getElementById('skuBatchSelectedIds');
+            if (!holder) return;
+            holder.innerHTML = ids.map((id) => `<input type="hidden" name="sku_ids" value="${id}">`).join('');
+        });
+    }
+    const skuFilterSubmit = document.getElementById('skuFilterSubmit');
+    if (skuFilterSubmit) {
+        skuFilterSubmit.addEventListener('click', () => {
+            const baseUrl = document.getElementById('skuFilterPanel')?.dataset.url;
+            if (!baseUrl) return;
+            const params = new URLSearchParams({ tab: 'sku' });
+            const mappings = {
+                sku_keyword: document.getElementById('skuFilterKeyword')?.value || '',
+                sku_color: document.getElementById('skuFilterColor')?.value || '',
+                sku_size: document.getElementById('skuFilterSize')?.value || '',
+                sku_stock_status: document.getElementById('skuFilterStock')?.value || '',
+                sku_sample_available: document.getElementById('skuFilterSample')?.value || '',
+                sku_customization_supported: document.getElementById('skuFilterCustom')?.value || '',
+            };
+            Object.entries(mappings).forEach(([key, value]) => {
+                if (value) params.set(key, value);
+            });
+            window.location.href = `${baseUrl}?${params.toString()}`;
         });
     }
 })();
