@@ -4,13 +4,6 @@
 {% block content %}
 {% set ext = 扩展字段 or {} %}
 {% set completeness_score = 完整度信息.score if 完整度信息 and 完整度信息.score is not none else (ext.get('material_completeness_score') or 0) %}
-{% set risk_tips = [] %}
-{% if ext.get('has_major_litigation') == '是' %}{% set _ = risk_tips.append('存在重大诉讼风险，请优先核查案件进展。') %}{% endif %}
-{% if ext.get('has_admin_penalty') == '是' %}{% set _ = risk_tips.append('存在行政处罚记录，请评估合规整改情况。') %}{% endif %}
-{% if ext.get('has_dishonest_record') == '是' %}{% set _ = risk_tips.append('存在失信记录，建议谨慎推进合作。') %}{% endif %}
-{% if ext.get('certificate_validity_status') in ['部分临期', '部分过期'] %}{% set _ = risk_tips.append('证书有效期状态为“' ~ ext.get('certificate_validity_status') ~ '”，请尽快补齐或续期。') %}{% endif %}
-{% if ext.get('certificate_completeness') == '待补充' %}{% set _ = risk_tips.append('证书资料待补充，建议补齐核心资质后再评估推荐。') %}{% endif %}
-{% if completeness_score < 50 %}{% set _ = risk_tips.append('资料完整度低于 50%，请优先完善关键字段与附件。') %}{% endif %}
 
 {% macro show_text(value) -%}
     {%- if value is string -%}
@@ -22,7 +15,7 @@
     {%- endif -%}
 {%- endmacro %}
 
-{% macro show_tags(values) -%}
+{% macro show_badges(values) -%}
     {%- if values is string -%}
         {%- set values = [values] if values.strip() else [] -%}
     {%- endif -%}
@@ -37,7 +30,19 @@
     {%- endif -%}
 {%- endmacro %}
 
-{% macro field_value(field) -%}
+{% macro normalize_values(val) -%}
+    {%- if val is iterable and val is not string -%}
+        {{ val }}
+    {%- elif val is string and ('、' in val or ',' in val or '，' in val or ';' in val or '；' in val) -%}
+        {{ val.replace('；', '、').replace(';', '、').replace('，', '、').replace(',', '、').split('、') }}
+    {%- elif val -%}
+        {{ [val] }}
+    {%- else -%}
+        {{ [] }}
+    {%- endif -%}
+{%- endmacro %}
+
+{% macro resolve_field_value(field) -%}
     {%- set key = field.key -%}
     {%- set val = ext.get(key) -%}
     {%- if key == 'company_full_name' and not val -%}{% set val = 企业.company_name %}{%- endif -%}
@@ -62,48 +67,65 @@
     {%- if key == 'employee_count_range' and not val and 企业.employee_count -%}{% set val = 企业.employee_count ~ '人' %}{%- endif -%}
     {%- if key == 'target_expansion_markets' and not val and 企业.target_markets -%}{% set val = 企业.target_markets.split('、') %}{%- endif -%}
     {%- if key == 'is_listed_or_pre_ipo' and not val -%}{% set val = '是' if 企业.is_listed_or_pre_ipo else '否' %}{%- endif -%}
+    {{- val -}}
+{%- endmacro %}
 
-    {%- if field.type in ['checkbox_tags', 'checkbox_group'] -%}
-        {{ show_tags(val if val is iterable and val is not string else (val.split('、') if val is string and '、' in val else ([val] if val else []))) }}
-    {%- elif field.type == 'dynamic_contacts' -%}
+{% macro render_field_value(field) -%}
+    {% set val = resolve_field_value(field) %}
+    {% if field.type in ['checkbox_tags', 'checkbox_group'] %}
+        {{ show_badges(val if val is iterable and val is not string else (val.split('、') if val is string and '、' in val else ([val] if val else []))) }}
+    {% elif field.type == 'dynamic_contacts' %}
         {% set contacts = ext.get('dynamic_contacts', []) %}
         {% if contacts and contacts|length > 0 %}
-        <div class="table-responsive">
-            <table class="table table-sm table-bordered align-middle mb-0">
-                <thead class="table-light">
-                    <tr><th>姓名</th><th>部门</th><th>职位</th><th>手机</th><th>邮箱</th><th>微信</th><th>负责内容</th><th>主联系人</th></tr>
-                </thead>
-                <tbody>
-                    {% for c in contacts %}
-                    <tr>
-                        <td>{{ show_text(c.get('name')) }}</td>
-                        <td>{{ show_text(c.get('department')) }}</td>
-                        <td>{{ show_text(c.get('position')) }}</td>
-                        <td>{{ show_text(c.get('mobile')) }}</td>
-                        <td>{{ show_text(c.get('email')) }}</td>
-                        <td>{{ show_text(c.get('wechat')) }}</td>
-                        <td>{{ show_text(c.get('responsibility')) }}</td>
-                        <td>{{ '是' if c.get('is_primary_contact') else '否' }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
+            <div class="table-responsive">
+                <table class="table table-sm table-bordered align-middle mb-0">
+                    <thead class="table-light">
+                        <tr><th>姓名</th><th>部门</th><th>职位</th><th>手机</th><th>邮箱</th><th>微信</th><th>负责内容</th><th>主联系人</th></tr>
+                    </thead>
+                    <tbody>
+                        {% for c in contacts %}
+                        <tr>
+                            <td>{{ show_text(c.get('name')) }}</td>
+                            <td>{{ show_text(c.get('department')) }}</td>
+                            <td>{{ show_text(c.get('position')) }}</td>
+                            <td>{{ show_text(c.get('mobile')) }}</td>
+                            <td>{{ show_text(c.get('email')) }}</td>
+                            <td>{{ show_text(c.get('wechat')) }}</td>
+                            <td>{{ show_text(c.get('responsibility')) }}</td>
+                            <td>{{ '是' if c.get('is_primary_contact') else '否' }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         {% else %}
             <span class="text-muted">未填写</span>
         {% endif %}
-    {%- else -%}
+    {% elif field.type == 'radio_group' and val in ['是', '否'] %}
+        <span class="badge text-bg-light border">{{ val }}</span>
+    {% else %}
         {{ show_text(val) }}
-    {%- endif -%}
+    {% endif %}
+{%- endmacro %}
+
+{% macro render_table_group(group) -%}
+<div class="table-responsive">
+    <table class="table table-bordered align-middle small mb-0">
+        <tbody>
+            {% for field in group.fields %}
+            <tr>
+                <th class="table-light" style="width: 220px;">{{ field.label }}</th>
+                <td>{{ render_field_value(field) }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 {%- endmacro %}
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h4 class="mb-0">企业详情</h4>
-    <div class="d-flex gap-2">
-        <a href="{{ url_for('enterprise_edit', id=企业.id) }}" class="btn btn-warning btn-sm">编辑企业</a>
-        <a href="{{ url_for('document_upload', enterprise_id=企业.id) }}" class="btn btn-outline-primary btn-sm">上传附件</a>
-        <a href="{{ url_for('enterprise_list') }}" class="btn btn-outline-secondary btn-sm">返回企业库</a>
-    </div>
+    <a href="{{ url_for('enterprise_list') }}" class="btn btn-outline-secondary btn-sm">返回企业库</a>
 </div>
 
 <div class="card shadow-sm mb-3">
@@ -111,91 +133,47 @@
     <div class="card-body">
         <div class="row g-3 small">
             <div class="col-md-4"><strong>企业编号：</strong>{{ show_text(企业.enterprise_code) }}</div>
-            <div class="col-md-4"><strong>企业名称：</strong>{{ show_text(ext.get('company_full_name') or 企业.company_name) }}</div>
-            <div class="col-md-4"><strong>行业大类：</strong>{{ show_text(企业.industry_code) }} {{ 企业.industry_display_name or 企业.industry_category or '' }}</div>
-            <div class="col-md-4"><strong>省市：</strong>{{ show_text(企业.province) }} / {{ show_text(企业.city) }}</div>
+            <div class="col-md-4"><strong>企业简称：</strong>{{ show_text(ext.get('company_short_name') or ext.get('short_name')) }}</div>
+            <div class="col-md-4"><strong>企业全称：</strong>{{ show_text(ext.get('company_full_name') or 企业.company_name) }}</div>
+            <div class="col-md-4"><strong>行业分类：</strong>{{ show_text(企业.industry_code) }}</div>
+            <div class="col-md-4"><strong>行业名称：</strong>{{ show_text(企业.industry_display_name or 企业.industry_category) }}</div>
             <div class="col-md-4"><strong>项目负责人：</strong>{{ show_text(企业.project_owner) }}</div>
             <div class="col-md-4"><strong>资料完整度：</strong><span class="badge bg-{% if completeness_score >= 80 %}success{% elif completeness_score >= 50 %}warning text-dark{% else %}danger{% endif %}">{{ 完整度信息.label if 完整度信息 else (completeness_score ~ '%') }}</span></div>
-            <div class="col-md-4"><strong>是否建议入库：</strong>{{ show_text(ext.get('recommended_for_pool')) }}</div>
             <div class="col-md-4"><strong>推荐等级：</strong>{{ show_text(ext.get('recommendation_level')) }}</div>
+            <div class="col-md-4"><strong>是否建议入库：</strong>{% if ext.get('recommended_for_pool') in ['是','否'] %}<span class="badge text-bg-light border">{{ ext.get('recommended_for_pool') }}</span>{% else %}{{ show_text(ext.get('recommended_for_pool')) }}{% endif %}</div>
         </div>
     </div>
 </div>
 
-<div class="card shadow-sm mb-3 border-{% if risk_tips %}warning{% else %}success{% endif %}">
-    <div class="card-header fw-bold">风险提示区</div>
-    <div class="card-body">
-        {% if risk_tips %}
-        <ul class="mb-0 text-warning-emphasis">
-            {% for tip in risk_tips %}<li>{{ tip }}</li>{% endfor %}
-        </ul>
-        {% else %}
-        <span class="text-success">暂无触发风险提示项。</span>
-        {% endif %}
-    </div>
-</div>
-
-<div class="accordion" id="enterpriseDetailAccordion">
-    <div class="accordion-item mb-2">
-        <h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#detail_entry">入库信息</button></h2>
-        <div id="detail_entry" class="accordion-collapse collapse show" data-bs-parent="#enterpriseDetailAccordion">
-            <div class="accordion-body">
-                <div class="row g-3 small">
-                    <div class="col-md-3"><strong>企业编号：</strong>{{ show_text(企业.enterprise_code) }}</div>
-                    <div class="col-md-3"><strong>项目负责人：</strong>{{ show_text(企业.project_owner) }}</div>
-                    <div class="col-md-3"><strong>行业代码：</strong>{{ show_text(企业.industry_code) }}</div>
-                    <div class="col-md-3"><strong>行业名称：</strong>{{ show_text(企业.industry_display_name or 企业.industry_category) }}</div>
-                    <div class="col-md-3"><strong>省份：</strong>{{ show_text(企业.province) }}</div>
-                    <div class="col-md-3"><strong>城市：</strong>{{ show_text(企业.city) }}</div>
-                    <div class="col-md-3"><strong>区县：</strong>{{ show_text(企业.district) }}</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    {% for group in 通用字段组 %}
-    <div class="accordion-item mb-2">
-        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#detail_{{ group.key }}">{{ group.title }}</button></h2>
-        <div id="detail_{{ group.key }}" class="accordion-collapse collapse" data-bs-parent="#enterpriseDetailAccordion">
-            <div class="accordion-body">
-                <div class="row g-3 small">
-                    {% for field in group.fields %}
-                    <div class="{% if field.type == 'dynamic_contacts' %}col-12{% else %}col-lg-4 col-md-6{% endif %}">
-                        <div class="fw-semibold mb-1">{{ field.label }}</div>
-                        <div>{{ field_value(field) }}</div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-    </div>
+<ul class="nav nav-tabs" id="enterpriseDetailTabs" role="tablist">
+    {% for tab in 详情Tabs %}
+    <li class="nav-item" role="presentation">
+        <button class="nav-link {% if loop.first %}active{% endif %}" id="tab-{{ tab.key }}" data-bs-toggle="tab" data-bs-target="#pane-{{ tab.key }}" type="button" role="tab">{{ tab.title }}</button>
+    </li>
     {% endfor %}
+</ul>
 
-    {% for group in 行业专项字段组 %}
-    <div class="accordion-item mb-2">
-        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#detail_{{ group.key }}">{{ group.title }}</button></h2>
-        <div id="detail_{{ group.key }}" class="accordion-collapse collapse" data-bs-parent="#enterpriseDetailAccordion">
-            <div class="accordion-body">
-                <div class="row g-3 small">
-                    {% for field in group.fields %}
-                    <div class="col-lg-4 col-md-6">
-                        <div class="fw-semibold mb-1">{{ field.label }}</div>
-                        <div>{{ field_value(field) }}</div>
-                    </div>
-                    {% endfor %}
-                </div>
+<div class="tab-content border border-top-0 rounded-bottom p-3 bg-white" id="enterpriseDetailTabContent">
+    {% for tab in 详情Tabs %}
+    <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="pane-{{ tab.key }}" role="tabpanel" aria-labelledby="tab-{{ tab.key }}">
+        {% if tab.key == 'entry' %}
+            <div class="table-responsive">
+                <table class="table table-bordered align-middle small mb-0">
+                    <tbody>
+                        <tr><th class="table-light" style="width: 220px;">企业编号</th><td>{{ show_text(企业.enterprise_code) }}</td></tr>
+                        <tr><th class="table-light">项目负责人</th><td>{{ show_text(企业.project_owner) }}</td></tr>
+                        <tr><th class="table-light">行业代码</th><td>{{ show_text(企业.industry_code) }}</td></tr>
+                        <tr><th class="table-light">行业名称</th><td>{{ show_text(企业.industry_display_name or 企业.industry_category) }}</td></tr>
+                        <tr><th class="table-light">省份</th><td>{{ show_text(企业.province) }}</td></tr>
+                        <tr><th class="table-light">城市</th><td>{{ show_text(企业.city) }}</td></tr>
+                        <tr><th class="table-light">区县</th><td>{{ show_text(企业.district) }}</td></tr>
+                    </tbody>
+                </table>
             </div>
-        </div>
-    </div>
-    {% endfor %}
-
-    <div class="accordion-item mb-2">
-        <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#detail_J">J. 附件资料</button></h2>
-        <div id="detail_J" class="accordion-collapse collapse" data-bs-parent="#enterpriseDetailAccordion">
-            <div class="accordion-body">
-                {% if 文件列表 %}
+        {% elif tab.key == 'attachments' %}
+            {% if 文件列表 %}
                 <div class="table-responsive">
-                    <table class="table table-sm table-bordered align-middle">
+                    <table class="table table-sm table-bordered align-middle mb-0">
                         <thead class="table-light"><tr><th>文件类型</th><th>文件名</th><th>上传时间</th><th>下载入口</th></tr></thead>
                         <tbody>
                             {% for d in 文件列表 %}
@@ -209,11 +187,24 @@
                         </tbody>
                     </table>
                 </div>
-                {% else %}
+            {% else %}
                 <span class="text-muted">未填写</span>
-                {% endif %}
-            </div>
-        </div>
+            {% endif %}
+        {% else %}
+            {% if tab.groups %}
+                <div class="d-flex flex-column gap-3">
+                    {% for group in tab.groups %}
+                    <div>
+                        {% if group.title %}<div class="fw-semibold mb-2">{{ group.title }}</div>{% endif %}
+                        {{ render_table_group(group) }}
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <span class="text-muted">未填写</span>
+            {% endif %}
+        {% endif %}
     </div>
+    {% endfor %}
 </div>
 {% endblock %}
