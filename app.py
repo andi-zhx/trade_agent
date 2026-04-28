@@ -481,8 +481,17 @@ def create_app():
             ext["company_short_name"] = (ext.get("short_name") or "").strip()
         if not ext.get("company_full_name"):
             ext["company_full_name"] = (企业.company_name or "").strip()
+        if not ext.get("registered_name"):
+            ext["registered_name"] = (ext.get("company_full_name") or 企业.company_name or "").strip()
         if not ext.get("founded_date"):
             ext["founded_date"] = 企业.founded_date.strftime("%Y-%m-%d") if 企业.founded_date else ""
+        if not ext.get("legal_representative"):
+            ext["legal_representative"] = (
+                ext.get("legal_person")
+                or ext.get("corporate_representative")
+                or ext.get("法定代表人")
+                or ""
+            ).strip()
         if not ext.get("financing_stage"):
             ext["financing_stage"] = (ext.get("financing_round") or "").strip()
         if not ext.get("valuation"):
@@ -497,6 +506,35 @@ def create_app():
             ext["operating_status"] = (ext.get("business_status") or "未知").strip()
         if not ext.get("company_type"):
             ext["company_type"] = (企业.company_type or "").strip()
+        if not ext.get("business_registration_number"):
+            ext["business_registration_number"] = (
+                ext.get("industry_commerce_registration_number")
+                or ext.get("business_license_registration_no")
+                or ext.get("registration_number")
+                or ""
+            ).strip()
+        if not ext.get("business_term"):
+            ext["business_term"] = (
+                ext.get("business_validity_period")
+                or ext.get("operating_term")
+                or ext.get("营业期限")
+                or ""
+            ).strip()
+        if not ext.get("paid_in_capital"):
+            ext["paid_in_capital"] = (
+                ext.get("actual_paid_capital")
+                or ext.get("real_paid_capital")
+                or ext.get("实缴资本")
+                or ""
+            ).strip()
+        if not ext.get("approval_date"):
+            ext["approval_date"] = (ext.get("approval_time") or ext.get("核准时间") or "").strip()
+        if not ext.get("industry"):
+            ext["industry"] = (ext.get("primary_industry") or 企业.industry_category or "").strip()
+        if not ext.get("registration_authority"):
+            ext["registration_authority"] = (ext.get("registration_organ") or ext.get("登记机关") or "").strip()
+        if not ext.get("business_scope"):
+            ext["business_scope"] = (ext.get("business_range") or ext.get("经营范围") or "").strip()
         if not ext.get("one_sentence_intro"):
             ext["one_sentence_intro"] = (ext.get("slogan") or ext.get("core_value") or "").strip()
         if not ext.get("enterprise_description"):
