@@ -15,8 +15,8 @@
     <div class="card-body">
         <form method="get" class="row g-2 align-items-end">
             <div class="col-md-3">
-                <label class="form-label">企业名称关键词</label>
-                <input type="text" class="form-control" name="q" value="{{ 筛选.q }}" placeholder="请输入企业名称关键字">
+                <label class="form-label">企业/行业名称关键词</label>
+                <input type="text" class="form-control" name="q" value="{{ 筛选.q }}" placeholder="请输入企业名称或行业名称关键字">
             </div>
             <div class="col-md-2">
                 <label class="form-label">行业大类</label>
@@ -208,7 +208,7 @@
             <tr>
                 <td>{{ 企业.enterprise_code }}</td>
                 <td class="text-truncate" style="max-width: 180px;">{{ 企业.company_name or ext.get('company_full_name') or '-' }}</td>
-                <td>{% if 企业.industry_code %}{{ 企业.industry_code }} {{ 企业.industry_category or '' }}{% else %}-{% endif %}</td>
+                <td>{% if 企业.industry_code %}{{ 企业.industry_code }} {{ 企业.industry_display_name or 企业.industry_category or '' }}{% else %}-{% endif %}</td>
                 <td>{{ (企业.province or '-') ~ ' / ' ~ (企业.city or '-') }}</td>
                 <td>
                     {% set role_items = ext.get('enterprise_natures', []) %}
