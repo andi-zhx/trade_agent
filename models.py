@@ -184,6 +184,49 @@ class Product(db.Model):
     )
 
     enterprise = db.relationship('Enterprise', back_populates='products')
+    skus = db.relationship(
+        "ProductSKU",
+        back_populates="product",
+        cascade="all, delete-orphan",
+        order_by="ProductSKU.id.asc()",
+    )
+
+
+class ProductSKU(db.Model):
+    """产品 SKU 明细。"""
+
+    __tablename__ = "product_skus"
+
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(
+        db.Integer, db.ForeignKey("products.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sku_code = db.Column(db.String(64), nullable=False, index=True)
+    sku_name = db.Column(db.String(255), nullable=False)
+    model = db.Column(db.String(100))
+    specification = db.Column(db.Text)
+    color = db.Column(db.String(100))
+    size = db.Column(db.String(100))
+    material = db.Column(db.String(255))
+    weight = db.Column(db.String(100))
+    package_spec = db.Column(db.String(255))
+    moq = db.Column(db.String(50))
+    delivery_cycle = db.Column(db.String(100))
+    exw_price = db.Column(db.Numeric(18, 2))
+    fob_price = db.Column(db.Numeric(18, 2))
+    cif_price = db.Column(db.Numeric(18, 2))
+    ddp_price = db.Column(db.Numeric(18, 2))
+    currency = db.Column(db.String(10), default="USD")
+    stock_status = db.Column(db.String(50))
+    sample_available = db.Column(db.Boolean, default=False, nullable=False)
+    customization_supported = db.Column(db.Boolean, default=False, nullable=False)
+    notes = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+
+    product = db.relationship("Product", back_populates="skus")
 
 
 class Qualification(db.Model):

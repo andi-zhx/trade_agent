@@ -10,7 +10,19 @@
 </div>
 
 {% set extra = product.product_extra_fields or {} %}
+{% set active_tab = request.args.get('tab', 'overview') %}
 
+<ul class="nav nav-tabs mb-3" role="tablist">
+    <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab != 'sku' %}active{% endif %}" href="{{ url_for('product_detail', product_id=product.id, tab='overview') }}">Tab 1：产品概览</a>
+    </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab == 'sku' %}active{% endif %}" href="{{ url_for('product_detail', product_id=product.id, tab='sku') }}">Tab 2：SKU明细</a>
+    </li>
+</ul>
+
+<div class="tab-content">
+<div class="tab-pane fade {% if active_tab != 'sku' %}show active{% endif %}">
 <div class="row g-3">
     <div class="col-lg-9">
         <div class="card mb-3 border-warning">
@@ -130,6 +142,97 @@
                     <li class="list-group-item px-0 text-muted">暂无相关文件</li>
                     {% endfor %}
                 </ul>
+            </div>
+        </div>
+    </div>
+</div>
+    </div>
+
+    <div class="tab-pane fade {% if active_tab == 'sku' %}show active{% endif %}">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>SKU明细列表（{{ skus|length }}）</span>
+            </div>
+            <div class="card-body">
+                {% if skus %}
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead>
+                            <tr>
+                                <th>SKU编号</th><th>SKU名称</th><th>型号</th><th>规格</th><th>价格(FOB)</th><th>库存</th><th>操作</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for sku in skus %}
+                            <tr>
+                                <td style="min-width:150px;">{{ sku.sku_code }}</td>
+                                <td style="min-width:180px;">{{ sku.sku_name }}</td>
+                                <td>{{ sku.model or '-' }}</td>
+                                <td>{{ sku.specification or '-' }}</td>
+                                <td>{{ sku.fob_price|currency(sku.currency) }}</td>
+                                <td>{{ sku.stock_status or '-' }}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#sku-edit-{{ sku.id }}">编辑</button>
+                                    <form method="post" action="{{ url_for('product_sku_delete', product_id=product.id, sku_id=sku.id) }}" class="d-inline" onsubmit="return confirm('确认删除该SKU？删除后不可恢复。');">
+                                        <button class="btn btn-sm btn-outline-danger" type="submit">删除</button>
+                                    </form>
+                                </td>
+                            </tr>
+                            <tr class="collapse" id="sku-edit-{{ sku.id }}">
+                                <td colspan="7">
+                                    <form method="post" action="{{ url_for('product_sku_update', product_id=product.id, sku_id=sku.id) }}" class="row g-2">
+                                        <div class="col-md-3"><input class="form-control" name="sku_code" value="{{ sku.sku_code }}" required></div>
+                                        <div class="col-md-3"><input class="form-control" name="sku_name" value="{{ sku.sku_name }}" required></div>
+                                        <div class="col-md-2"><input class="form-control" name="model" value="{{ sku.model or '' }}" placeholder="型号"></div>
+                                        <div class="col-md-2"><input class="form-control" name="stock_status" value="{{ sku.stock_status or '' }}" placeholder="库存状态"></div>
+                                        <div class="col-md-2"><input class="form-control" name="currency" value="{{ sku.currency or 'USD' }}" placeholder="币种"></div>
+                                        <div class="col-md-3"><input class="form-control" name="specification" value="{{ sku.specification or '' }}" placeholder="规格"></div>
+                                        <div class="col-md-3"><input class="form-control" name="fob_price" type="number" step="0.01" value="{{ sku.fob_price if sku.fob_price is not none else '' }}" placeholder="FOB"></div>
+                                        <div class="col-md-2">
+                                            <input type="hidden" name="sample_available" value="0">
+                                            <label class="form-check mt-2"><input class="form-check-input" type="checkbox" name="sample_available" value="1" {% if sku.sample_available %}checked{% endif %}> 可提供样品</label>
+                                        </div>
+                                        <div class="col-md-2">
+                                            <input type="hidden" name="customization_supported" value="0">
+                                            <label class="form-check mt-2"><input class="form-check-input" type="checkbox" name="customization_supported" value="1" {% if sku.customization_supported %}checked{% endif %}> 支持定制</label>
+                                        </div>
+                                        <div class="col-md-2"><button class="btn btn-primary btn-sm" type="submit">保存SKU</button></div>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-muted">暂无SKU明细</div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card mt-3">
+            <div class="card-header">新增SKU</div>
+            <div class="card-body">
+                <form method="post" action="{{ url_for('product_sku_create', product_id=product.id) }}" class="row g-2">
+                    <div class="col-md-3"><label class="form-label">SKU编号（可留空自动生成）</label><input class="form-control" name="sku_code" placeholder="{{ product.product_code }}-S001"></div>
+                    <div class="col-md-3"><label class="form-label">SKU名称*</label><input class="form-control" name="sku_name" required></div>
+                    <div class="col-md-2"><label class="form-label">型号</label><input class="form-control" name="model"></div>
+                    <div class="col-md-2"><label class="form-label">规格</label><input class="form-control" name="specification"></div>
+                    <div class="col-md-2"><label class="form-label">库存状态</label><input class="form-control" name="stock_status"></div>
+                    <div class="col-md-2"><label class="form-label">币种</label><input class="form-control" name="currency" value="{{ product.currency or 'USD' }}"></div>
+                    <div class="col-md-2"><label class="form-label">FOB价</label><input class="form-control" name="fob_price" type="number" step="0.01"></div>
+                    <div class="col-md-2"><label class="form-label">MOQ</label><input class="form-control" name="moq"></div>
+                    <div class="col-md-2"><label class="form-label">交期</label><input class="form-control" name="delivery_cycle"></div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <input type="hidden" name="sample_available" value="0">
+                        <label class="form-check"><input class="form-check-input" type="checkbox" name="sample_available" value="1"> 可提供样品</label>
+                    </div>
+                    <div class="col-md-2 d-flex align-items-end">
+                        <input type="hidden" name="customization_supported" value="0">
+                        <label class="form-check"><input class="form-check-input" type="checkbox" name="customization_supported" value="1"> 支持定制</label>
+                    </div>
+                    <div class="col-md-12"><button class="btn btn-primary" type="submit">新增SKU</button></div>
+                </form>
             </div>
         </div>
     </div>
