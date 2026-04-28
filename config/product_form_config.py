@@ -66,10 +66,13 @@ COMMON_PRODUCT_FIELD_GROUPS = [
         "key": "F",
         "title": "F. 认证资料",
         "fields": [
-            {"key": "cert_product", "label": "产品认证", "type": "checkbox_group", "options": ["CE", "FDA", "FCC", "RoHS", "REACH", "UL", "UKCA", "ISO", "CCC", "其他", "暂无"]},
+            {"key": "cert_status", "label": "认证情况", "type": "select", "options": ["齐全", "部分齐全", "待补充", "无需认证", "未核验"]},
+            {"key": "cert_product", "label": "产品认证", "type": "checkbox_group", "options": ["CE", "FDA", "FCC", "RoHS", "REACH", "UL", "UKCA", "ISO", "CCC", "CB", "PSE", "KC", "TUV", "其他", "暂无"]},
             {"key": "cert_test_report", "label": "检测报告", "type": "select", "options": ["已提供", "未提供", "不适用"]},
             {"key": "cert_quality_report", "label": "质量报告", "type": "select", "options": ["已提供", "未提供", "不适用"]},
             {"key": "cert_market_access", "label": "目标市场准入文件", "type": "select", "options": ["已提供", "未提供", "不适用"]},
+            {"key": "cert_note", "label": "认证补充说明", "type": "textarea"},
+            {"key": "cert_validity_status", "label": "证书有效期状态", "type": "select", "options": ["全部有效", "部分临期", "部分过期", "未核验"]},
         ],
     },
     {
