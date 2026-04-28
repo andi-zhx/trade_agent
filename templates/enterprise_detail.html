@@ -112,7 +112,7 @@
         <div class="row g-3 small">
             <div class="col-md-4"><strong>企业编号：</strong>{{ show_text(企业.enterprise_code) }}</div>
             <div class="col-md-4"><strong>企业名称：</strong>{{ show_text(ext.get('company_full_name') or 企业.company_name) }}</div>
-            <div class="col-md-4"><strong>行业大类：</strong>{{ show_text(企业.industry_code) }} {{ 企业.industry_category or '' }}</div>
+            <div class="col-md-4"><strong>行业大类：</strong>{{ show_text(企业.industry_code) }} {{ 企业.industry_display_name or 企业.industry_category or '' }}</div>
             <div class="col-md-4"><strong>省市：</strong>{{ show_text(企业.province) }} / {{ show_text(企业.city) }}</div>
             <div class="col-md-4"><strong>项目负责人：</strong>{{ show_text(企业.project_owner) }}</div>
             <div class="col-md-4"><strong>资料完整度：</strong><span class="badge bg-{% if completeness_score >= 80 %}success{% elif completeness_score >= 50 %}warning text-dark{% else %}danger{% endif %}">{{ 完整度信息.label if 完整度信息 else (completeness_score ~ '%') }}</span></div>
@@ -144,7 +144,7 @@
                     <div class="col-md-3"><strong>企业编号：</strong>{{ show_text(企业.enterprise_code) }}</div>
                     <div class="col-md-3"><strong>项目负责人：</strong>{{ show_text(企业.project_owner) }}</div>
                     <div class="col-md-3"><strong>行业代码：</strong>{{ show_text(企业.industry_code) }}</div>
-                    <div class="col-md-3"><strong>行业名称：</strong>{{ show_text(企业.industry_category) }}</div>
+                    <div class="col-md-3"><strong>行业名称：</strong>{{ show_text(企业.industry_display_name or 企业.industry_category) }}</div>
                     <div class="col-md-3"><strong>省份：</strong>{{ show_text(企业.province) }}</div>
                     <div class="col-md-3"><strong>城市：</strong>{{ show_text(企业.city) }}</div>
                     <div class="col-md-3"><strong>区县：</strong>{{ show_text(企业.district) }}</div>

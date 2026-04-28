@@ -382,6 +382,12 @@ def create_app():
     def 行业下拉选项():
         return INDUSTRY_OPTIONS
 
+    def 行业默认名称(行业代码):
+        item = INDUSTRY_MAP.get((行业代码 or "").strip())
+        if not item:
+            return ""
+        return item["name"]
+
     def 解析行业(行业代码, 手动行业名称=None):
         item = INDUSTRY_MAP.get((行业代码 or "").strip())
         if not item:
@@ -1037,7 +1043,12 @@ def create_app():
 
         查询 = Enterprise.query
         if q:
-            查询 = 查询.filter(Enterprise.company_name.ilike(f"%{q}%"))
+            查询 = 查询.filter(
+                or_(
+                    Enterprise.company_name.ilike(f"%{q}%"),
+                    Enterprise.industry_category.ilike(f"%{q}%"),
+                )
+            )
         if industry:
             查询 = 查询.filter(Enterprise.industry_code == industry)
         if province:
@@ -1152,6 +1163,7 @@ def create_app():
                     兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {}),
                     文件映射.get(企业.id, set()),
                 )
+                企业.industry_display_name = (企业.industry_category or "").strip() or 行业默认名称(企业.industry_code)
 
         return render_template(
             "enterprise_list.html",
@@ -1324,6 +1336,7 @@ def create_app():
     @app.route("/enterprises/<int:id>")
     def enterprise_detail(id):
         企业 = Enterprise.query.get_or_404(id)
+        企业.industry_display_name = (企业.industry_category or "").strip() or 行业默认名称(企业.industry_code)
         联系人列表 = Contact.query.filter_by(enterprise_id=id).all()
         产品列表 = Product.query.filter_by(enterprise_id=id).all()
         资质列表 = Qualification.query.filter_by(enterprise_id=id).order_by(
