@@ -14,7 +14,13 @@ from sqlalchemy import func, inspect, or_, text
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
-from config.enterprise_form_config import COMMON_ENTERPRISE_FIELD_GROUPS, INDUSTRY_EXTRA_FIELD_CONFIG
+from config.enterprise_form_config import (
+    COMMON_ENTERPRISE_FIELD_GROUPS,
+    ENTRY_SOURCE_OPTIONS,
+    ENTRY_STAGE_OPTIONS,
+    ENTERPRISE_DEFAULT_STATUS,
+    INDUSTRY_EXTRA_FIELD_CONFIG,
+)
 from config.industry_config import INDUSTRY_MAP, INDUSTRY_OPTIONS
 from config.product_form_config import COMMON_PRODUCT_FIELD_GROUPS, INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG
 from models import (
@@ -352,6 +358,8 @@ def create_app():
             "当前用户名": session.get("用户"),
             "当前角色": session.get("角色"),
             "是管理员": session.get("角色") == "管理员",
+            "ENTRY_SOURCE_OPTIONS": ENTRY_SOURCE_OPTIONS,
+            "ENTRY_STAGE_OPTIONS": ENTRY_STAGE_OPTIONS,
         }
 
     @app.before_request
@@ -374,11 +382,12 @@ def create_app():
     def 行业下拉选项():
         return INDUSTRY_OPTIONS
 
-    def 解析行业(行业代码):
+    def 解析行业(行业代码, 手动行业名称=None):
         item = INDUSTRY_MAP.get((行业代码 or "").strip())
         if not item:
             return None, None
-        return item["code"], item["name"]
+        行业名称 = (手动行业名称 or "").strip() or item["name"]
+        return item["code"], 行业名称
 
     def 行业专项字段组(行业代码):
         return INDUSTRY_EXTRA_FIELD_CONFIG.get((行业代码 or "").strip(), [])
@@ -438,6 +447,15 @@ def create_app():
             if 值 in (None, "", []):
                 continue
             数据[键名] = 值
+        for 额外键 in ("source_channels", "enterprise_stage", "enterprise_tag_notes"):
+            if 额外键 == "source_channels":
+                额外值 = 读取多选值(form, 额外键)
+            else:
+                原值 = form.get(额外键, "")
+                额外值 = 原值.strip() if isinstance(原值, str) else 原值
+            if 额外值 in (None, "", []):
+                continue
+            数据[额外键] = 额外值
         return 数据
 
     def 企业提交审核缺失字段(企业, 扩展字段):
@@ -1092,7 +1110,7 @@ def create_app():
             操作动作 = (request.form.get("action") or "save_draft").strip()
             重复确认通过 = (request.form.get("duplicate_confirmed") or "").strip() == "1"
             本次有附件上传 = any(文件 and 文件.filename for 文件 in request.files.getlist("enterprise_upload_file"))
-            行业代码, 行业名称 = 解析行业(request.form.get("industry_code"))
+            行业代码, 行业名称 = 解析行业(request.form.get("industry_code"), request.form.get("industry_category"))
             扩展字段 = 提取企业扩展字段(request.form, 行业代码)
             企业性质列表 = 扩展字段.get("enterprise_natures", [])
             联系人子表单 = 扩展字段.get("dynamic_contacts", [])
@@ -1136,7 +1154,7 @@ def create_app():
                 service_needs=request.form.get("service_needs", "").strip() or None,
                 risk_notes=request.form.get("risk_notes", "").strip() or None,
                 enterprise_extra_fields=扩展字段,
-                status=request.form.get("status", "草稿").strip() or "草稿",
+                status=ENTERPRISE_DEFAULT_STATUS,
                 project_owner=request.form.get("project_owner", "").strip() or None,
             )
 
@@ -1172,13 +1190,7 @@ def create_app():
                     return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
                 if 重复风险提示 and not 重复确认通过:
                     return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=重复风险提示, 触发重复风险确认=True)
-                企业.status = "待审核"
-            elif 操作动作 == "save_next":
-                企业.status = "跟进中"
-            elif 操作动作 == "save_return":
-                企业.status = 企业.status or "草稿"
-            else:
-                企业.status = "草稿"
+            企业.status = ENTERPRISE_DEFAULT_STATUS
 
             db.session.add(企业)
             db.session.flush()
@@ -1334,7 +1346,7 @@ def create_app():
         if request.method == "POST":
             操作动作 = (request.form.get("action") or "save_draft").strip()
             重复确认通过 = (request.form.get("duplicate_confirmed") or "").strip() == "1"
-            行业代码, 行业名称 = 解析行业(request.form.get("industry_code"))
+            行业代码, 行业名称 = 解析行业(request.form.get("industry_code"), request.form.get("industry_category"))
             扩展字段 = 提取企业扩展字段(request.form, 行业代码)
             企业性质列表 = 扩展字段.get("enterprise_natures", [])
             联系人子表单 = 扩展字段.get("dynamic_contacts", [])
@@ -1375,7 +1387,7 @@ def create_app():
             企业.service_needs = request.form.get("service_needs", "").strip() or None
             企业.risk_notes = request.form.get("risk_notes", "").strip() or None
             企业.enterprise_extra_fields = 扩展字段
-            企业.status = request.form.get("status", "草稿").strip() or "草稿"
+            企业.status = ENTERPRISE_DEFAULT_STATUS
             企业.project_owner = request.form.get("project_owner", "").strip() or None
             企业.updated_at = datetime.utcnow()
 
@@ -1422,13 +1434,7 @@ def create_app():
                     return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
                 if 重复风险提示 and not 重复确认通过:
                     return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=企业.enterprise_extra_fields or {}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=重复风险提示, 触发重复风险确认=True)
-                企业.status = "待审核"
-            elif 操作动作 == "save_next":
-                企业.status = "跟进中"
-            elif 操作动作 == "save_return":
-                企业.status = 企业.status or "草稿"
-            else:
-                企业.status = "草稿"
+            企业.status = ENTERPRISE_DEFAULT_STATUS
 
             try:
                 上传数 = 处理表单文件上传(

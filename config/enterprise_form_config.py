@@ -1,5 +1,9 @@
 """企业入库表单（通用字段 + 行业专项字段）配置。"""
 
+ENTRY_SOURCE_OPTIONS = ["主动报名", "政府推荐", "协会推荐", "展会获取", "老客户推荐", "网络收集", "其他"]
+ENTRY_STAGE_OPTIONS = ["初步接触", "资料收集中", "已完成初审", "已推荐客户", "撮合中"]
+ENTERPRISE_DEFAULT_STATUS = "已入库"
+
 COMMON_ENTERPRISE_FIELD_GROUPS = [
     {
         "key": "A",
