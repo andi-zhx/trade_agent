@@ -1741,7 +1741,9 @@ def create_app():
     def product_detail(product_id):
         product = Product.query.get_or_404(product_id)
         enterprise = Enterprise.query.get(product.enterprise_id)
-        skus = ProductSKU.query.filter_by(product_id=product.id).order_by(ProductSKU.id.asc()).all()
+        sku_filters = 读取SKU筛选条件(request.args)
+        skus = 查询SKU列表(product.id, request.args).all()
+        sku_filter_options = SKU筛选选项(product.id)
         certificates = Qualification.query.filter_by(product_id=product.id).order_by(Qualification.expiry_date.desc()).all()
         product_files = Document.query.filter_by(product_id=product.id).order_by(Document.uploaded_at.desc()).all()
         匹配记录 = (
@@ -1784,6 +1786,8 @@ def create_app():
             archive_code=archive_code,
             匹配需求列表=匹配需求列表,
             资料缺失提示=资料缺失提示,
+            sku_filters=sku_filters,
+            sku_filter_options=sku_filter_options,
             product_extra_display_groups=构建产品扩展信息分组(product.industry_code, product.product_extra_fields),
         )
 

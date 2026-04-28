@@ -1,206 +1,170 @@
 {% extends 'base.html' %}
 {% block title %}产品详情 - {{ product.product_name_cn }}{% endblock %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-3">
+{% set extra = product.product_extra_fields or {} %}
+{% set active_tab = request.args.get('tab', 'overview') %}
+{% set recommendation_badges = {
+    'A优先推荐': 'text-bg-success',
+    'B可推荐': 'text-bg-primary',
+    'C待完善': 'text-bg-warning text-dark',
+    'D暂缓': 'text-bg-danger',
+    '待评估': 'text-bg-secondary'
+} %}
+{% set export_badges = {
+    '适合': 'text-bg-success',
+    '基本适合': 'text-bg-primary',
+    '待补充资料': 'text-bg-warning text-dark',
+    '暂不适合': 'text-bg-danger',
+    '待判断': 'text-bg-secondary'
+} %}
+{% set product_status_badges = {
+    '草稿': 'text-bg-secondary',
+    '待补充': 'text-bg-warning text-dark',
+    '已入库': 'text-bg-success',
+    '已推荐': 'text-bg-primary',
+    '暂停': 'text-bg-danger',
+    '下架': 'text-bg-dark'
+} %}
+
+{% macro show_text(value) -%}
+{{ value.strip() if value and value is string and value.strip() else '未填写' }}
+{%- endmacro %}
+
+{% macro show_badges(value) -%}
+{% if value %}
+    {% if value is string %}
+        {% for item in value.split('、') if item.strip() %}
+        <span class="badge rounded-pill text-bg-light border me-1 mb-1">{{ item.strip() }}</span>
+        {% endfor %}
+    {% elif value is sequence %}
+        {% for item in value if item %}
+        <span class="badge rounded-pill text-bg-light border me-1 mb-1">{{ item }}</span>
+        {% endfor %}
+    {% endif %}
+{% else %}
+    <span class="text-muted">未填写</span>
+{% endif %}
+{%- endmacro %}
+
+{% macro show_status_badge(value, mapping) -%}
+{% if value %}
+<span class="badge {{ mapping.get(value, 'text-bg-secondary') }}">{{ value }}</span>
+{% else %}
+<span class="badge text-bg-secondary">未填写</span>
+{% endif %}
+{%- endmacro %}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
     <h1 class="h3 mb-0">产品详情：{{ product.product_name_cn }}</h1>
-    <div class="d-flex gap-2">
-        <a class="btn btn-outline-secondary" href="{{ url_for('product_list') }}">返回列表</a>
+    <div class="d-flex flex-wrap gap-2">
         <a class="btn btn-primary" href="{{ url_for('product_edit', product_id=product.id) }}">编辑产品</a>
+        <a class="btn btn-outline-info" href="{{ url_for('document_upload', enterprise_id=enterprise.id, product_id=product.id) if enterprise else url_for('document_upload', product_id=product.id) }}">上传附件</a>
+        <a class="btn btn-outline-success" href="{{ url_for('product_detail', product_id=product.id, tab='sku') }}#sku-create">新增SKU</a>
+        <a class="btn btn-outline-secondary" href="{{ url_for('product_list') }}">返回产品库</a>
     </div>
 </div>
 
-{% set extra = product.product_extra_fields or {} %}
-{% set active_tab = request.args.get('tab', 'overview') %}
-
 <ul class="nav nav-tabs mb-3" role="tablist">
     <li class="nav-item" role="presentation">
-        <a class="nav-link {% if active_tab != 'sku' %}active{% endif %}" href="{{ url_for('product_detail', product_id=product.id, tab='overview') }}">Tab 1：产品概览</a>
+        <a class="nav-link {% if active_tab == 'overview' %}active{% endif %}" href="{{ url_for('product_detail', product_id=product.id, tab='overview') }}">Tab 1：产品概览</a>
     </li>
     <li class="nav-item" role="presentation">
         <a class="nav-link {% if active_tab == 'sku' %}active{% endif %}" href="{{ url_for('product_detail', product_id=product.id, tab='sku') }}">Tab 2：SKU明细</a>
     </li>
+    <li class="nav-item" role="presentation">
+        <a class="nav-link {% if active_tab == 'cert' %}active{% endif %}" href="{{ url_for('product_detail', product_id=product.id, tab='cert') }}">Tab 3：认证与附件</a>
+    </li>
 </ul>
 
 <div class="tab-content">
-<div class="tab-pane fade {% if active_tab != 'sku' %}show active{% endif %}">
-<div class="row g-3">
-    <div class="col-lg-9">
-        <div class="card mb-3 border-warning">
-            <div class="card-header bg-warning-subtle">资料缺失提示</div>
-            <div class="card-body small">
-                {% if 资料缺失提示 %}
-                <ul class="mb-0 ps-3">
-                    {% for item in 资料缺失提示 %}
-                    <li>{{ item }}</li>
-                    {% endfor %}
-                </ul>
-                {% else %}
-                <span class="text-success">资料齐全，可用于展示与交易判断。</span>
-                {% endif %}
+    <div class="tab-pane fade {% if active_tab == 'overview' %}show active{% endif %}">
+        <div class="row g-3">
+            <div class="col-lg-4">
+                <div class="card h-100">
+                    <div class="card-header">产品主图</div>
+                    <div class="card-body text-center">
+                        {% if product.main_image %}
+                        <img src="{{ product.main_image }}" alt="主图" class="img-fluid rounded border" style="max-height: 280px; object-fit: contain;">
+                        {% else %}
+                        <div class="text-muted py-5">未填写</div>
+                        {% endif %}
+                    </div>
+                </div>
             </div>
-        </div>
-
-        <div class="card h-100">
-            <div class="card-header">产品详情分区</div>
-            <div class="card-body">
-                <div class="small">
-                    <h6 class="fw-bold">1) 所属企业摘要</h6>
-                    <p><strong>企业编号：</strong>{{ enterprise.enterprise_code if enterprise else '-' }} / <strong>企业名称：</strong>{{ enterprise.company_name if enterprise else '-' }}</p>
-                    <h6 class="fw-bold">2) 产品身份</h6>
-                    <p><strong>产品编号：</strong>{{ product.product_code }}；<strong>归档编号：</strong>{{ archive_code }}；<strong>HS编码：</strong>{{ product.hs_code or '-' }}；<strong>行业分类：</strong>{% if product.industry_code %}{{ product.industry_code }} {{ product.industry_name or '' }}{% else %}-{% endif %}</p>
-                    <h6 class="fw-bold">3) 产品说明</h6>
-                    <p><strong>名称：</strong>{{ product.product_name_cn }} / {{ product.product_name_en or '-' }}；<strong>型号：</strong>{{ product.model or '-' }}；<strong>卖点：</strong>{{ product.product_selling_points or '-' }}</p>
-                    <h6 class="fw-bold">4) 产品参数</h6>
-                    <p><strong>材质：</strong>{{ product.material or '-' }}；<strong>规格：</strong>{{ product.specification or '-' }}；<strong>尺寸：</strong>{{ product.size or '-' }}；<strong>重量：</strong>{{ product.weight or '-' }}</p>
-                    <h6 class="fw-bold">5) 价格信息</h6>
-                    <p><strong>FOB：</strong>{{ product.fob_price|currency(product.currency) }}；<strong>CIF：</strong>{{ product.cif_price|currency(product.currency) }}；<strong>DDP：</strong>{{ product.ddp_price|currency(product.currency) }}；<strong>报价日期：</strong>{{ product.quote_date or '-' }}</p>
-                    <h6 class="fw-bold">6) 交易条件</h6>
-                    <p><strong>MOQ：</strong>{{ product.moq or extra.get('trade_moq') or '-' }}；<strong>样品政策：</strong>{{ extra.get('trade_sample_policy') or '-' }}；<strong>生产周期：</strong>{{ product.production_cycle or extra.get('trade_mass_cycle') or '-' }}；<strong>支持定制：</strong>{{ extra.get('support_customization') or ('是' if product.customization_supported else '否') }}</p>
-                    <h6 class="fw-bold">7) 认证资料</h6>
-                    <p><strong>主要认证：</strong>{{ product.certifications or '-' }}；<strong>检测报告：</strong>{{ extra.get('cert_test_report') or '-' }}</p>
-                    <h6 class="fw-bold">8) 物流信息</h6>
-                    <p><strong>包装：</strong>{{ product.packaging or '-' }}；<strong>装箱量：</strong>{{ product.loading_quantity or extra.get('log_container_load') or '-' }}</p>
-                    <h6 class="fw-bold">9) 售后服务</h6>
-                    <p><strong>质保：</strong>{{ product.warranty or extra.get('after_warranty') or '-' }}；<strong>退换货：</strong>{{ extra.get('after_return_policy') or '-' }}；<strong>海外支持：</strong>{{ extra.get('after_oversea_support') or '-' }}</p>
-                    <h6 class="fw-bold">10) 展示资料</h6>
-                    <p><strong>产品图片：</strong>{{ extra.get('media_product_images') or '-' }}；<strong>产品视频：</strong>{{ extra.get('media_product_videos') or '-' }}；<strong>英文PPT：</strong>{{ extra.get('media_english_ppt') or '-' }}</p>
-                    <h6 class="fw-bold">11) 行业专项产品资料</h6>
-                    {% if product_extra_display_groups %}
-                    {% for group in product_extra_display_groups %}
-                    <p class="mb-1"><strong>{{ group.title }}：</strong>
-                        {% for field in group.fields[:4] %}
-                        {{ field.label }}={{ field.value }}{% if not loop.last %}；{% endif %}
-                        {% endfor %}
-                    </p>
-                    {% endfor %}
-                    {% else %}
-                    <p>-</p>
-                    {% endif %}
-                    <h6 class="fw-bold">12) 产品相关文件</h6>
-                    <p>共 {{ product_files|length }} 份，最近更新时间：{{ product.updated_at.strftime('%Y-%m-%d %H:%M') }}</p>
+            <div class="col-lg-8">
+                <div class="card h-100">
+                    <div class="card-header">产品概览</div>
+                    <div class="card-body">
+                        <div class="row g-3 small">
+                            <div class="col-md-6"><strong>产品编号：</strong>{{ show_text(product.product_code) }}</div>
+                            <div class="col-md-6"><strong>产品名称：</strong>{{ show_text(product.product_name_cn) }}</div>
+                            <div class="col-md-6"><strong>所属企业：</strong>{{ show_text(enterprise.company_name if enterprise else None) }}</div>
+                            <div class="col-md-6"><strong>行业 / 品类：</strong>{{ show_text((product.industry_name or '') ~ (' / ' ~ product.product_category if product.product_category else '')) }}</div>
+                            <div class="col-md-6"><strong>产品类型：</strong>{{ show_text(product.product_type) }}</div>
+                            <div class="col-md-6"><strong>HS编码：</strong>{{ show_text(product.hs_code) }}</div>
+                            <div class="col-md-6"><strong>用途：</strong>{{ show_text(extra.get('desc_usage') or product.function_description)|truncate(42, True, '…') }}</div>
+                            <div class="col-md-6"><strong>应用场景：</strong>{{ show_badges(extra.get('positioning_scenarios') or extra.get('desc_scenarios') or product.application_scenario) }}</div>
+                            <div class="col-md-6"><strong>目标客户：</strong>{{ show_badges(extra.get('target_customer_tags') or extra.get('desc_target_customer')) }}</div>
+                            <div class="col-md-6"><strong>核心卖点：</strong>{{ show_text(extra.get('desc_core_selling_points') or product.product_selling_points)|truncate(42, True, '…') }}</div>
+                            <div class="col-md-6"><strong>差异化优势：</strong>{{ show_text(extra.get('desc_differentiated_advantage'))|truncate(42, True, '…') }}</div>
+                            <div class="col-md-6"><strong>是否适合出口：</strong>{{ show_status_badge(product.export_suitability, export_badges) }}</div>
+                            <div class="col-md-6"><strong>推荐等级：</strong>{{ show_status_badge(product.recommendation_level, recommendation_badges) }}</div>
+                            <div class="col-md-6"><strong>目标市场：</strong>{{ show_badges(extra.get('target_market_tags') or product.target_market) }}</div>
+                            <div class="col-md-6"><strong>合作模式：</strong>{{ show_badges(extra.get('cooperation_modes')) }}</div>
+                            <div class="col-md-6"><strong>产品状态：</strong>{{ show_status_badge(extra.get('product_status_review'), product_status_badges) }}</div>
+                            <div class="col-md-6"><strong>MOQ：</strong>{{ show_text(product.moq or extra.get('trade_moq')) }}</div>
+                            <div class="col-md-6"><strong>交期：</strong>{{ show_text(product.delivery_cycle or product.production_cycle or extra.get('trade_mass_cycle')) }}</div>
+                            <div class="col-md-6"><strong>价格展示：</strong>{{ show_text(product.price_display) }}</div>
+                            <div class="col-md-6"><strong>样品政策：</strong>{{ show_text(product.sample_policy or extra.get('trade_sample_policy')) }}</div>
+                            <div class="col-md-6"><strong>是否支持定制：</strong>{{ show_text(extra.get('support_customization') or ('是' if product.customization_supported else '否')) }}</div>
+                            <div class="col-md-6"><strong>内部备注：</strong>{{ show_text(product.notes or extra.get('other_notes'))|truncate(42, True, '…') }}</div>
+                            <div class="col-12"><strong>风险提示：</strong>{{ show_text(extra.get('risk_warning'))|truncate(88, True, '…') }}</div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <div class="col-lg-3">
-        <div class="card mb-3">
-            <div class="card-header">快速操作</div>
-            <div class="card-body d-grid gap-2">
-                <a class="btn btn-sm btn-primary" href="{{ url_for('product_edit', product_id=product.id) }}">编辑产品</a>
-                <a class="btn btn-sm btn-outline-info" href="{{ url_for('document_upload', enterprise_id=enterprise.id, product_id=product.id) if enterprise else url_for('document_upload', product_id=product.id) }}">上传产品文件</a>
-                <a class="btn btn-sm btn-outline-success" href="{{ url_for('product_export', product_id=product.id) }}">导出产品信息</a>
-                {% if enterprise %}
-                <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('enterprise_folder_download', id=enterprise.id) }}">打开所属企业文件夹</a>
-                {% endif %}
-            </div>
-        </div>
-        <div class="card mb-3">
-            <div class="card-header">所属企业信息</div>
-            <div class="card-body small">
-                {% if enterprise %}
-                <p><strong>企业编号：</strong>{{ enterprise.enterprise_code }}</p>
-                <p><strong>企业名称：</strong>{{ enterprise.company_name }}</p>
-                <p><strong>行业分类：</strong>{% if enterprise.industry_code %}{{ enterprise.industry_code }} {{ enterprise.industry_category or '' }}{% else %}-{% endif %}</p>
-                <p><strong>英文名称：</strong>{{ enterprise.english_name or '-' }}</p>
-                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('enterprise_detail', id=enterprise.id) }}">查看企业详情</a>
-                {% else %}<p class="text-muted">未绑定企业信息</p>{% endif %}
-            </div>
-        </div>
-    </div>
-</div>
-
-<div class="row g-3 mt-1">
-    <div class="col-md-6">
-        <div class="card h-100">
-            <div class="card-header">产品相关证书</div>
-            <div class="card-body">
-                <ul class="list-group list-group-flush small">
-                    {% for c in certificates %}
-                    <li class="list-group-item px-0">{{ c.certificate_name }}（{{ c.certificate_no or '无证书编号' }}）</li>
-                    {% else %}
-                    <li class="list-group-item px-0 text-muted">暂无产品证书</li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-6">
-        <div class="card h-100">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span>产品相关文件</span>
-                <a class="btn btn-sm btn-outline-primary" href="{{ url_for('document_upload', enterprise_id=enterprise.id, product_id=product.id) if enterprise else url_for('document_upload', product_id=product.id) }}">上传文件</a>
-            </div>
-            <div class="card-body">
-                <ul class="list-group list-group-flush small">
-                    {% for f in product_files %}
-                    <li class="list-group-item px-0 d-flex justify-content-between align-items-center">
-                        <span>{{ f.document_name }}（{{ f.document_type }}）</span>
-                        <a class="btn btn-sm btn-outline-success" href="{{ url_for('document_download', document_id=f.id) }}">下载</a>
-                    </li>
-                    {% else %}
-                    <li class="list-group-item px-0 text-muted">暂无相关文件</li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
-    </div>
-</div>
-    </div>
-
     <div class="tab-pane fade {% if active_tab == 'sku' %}show active{% endif %}">
-        <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
-                <span>SKU明细列表（{{ skus|length }}）</span>
+        <div class="card mb-3">
+            <div class="card-body">
+                <form method="get" class="row g-2 align-items-end">
+                    <input type="hidden" name="tab" value="sku">
+                    <div class="col-md-3"><label class="form-label">关键词</label><input class="form-control" name="sku_keyword" value="{{ sku_filters.keyword }}" placeholder="SKU名称/型号"></div>
+                    <div class="col-md-2"><label class="form-label">颜色</label><select class="form-select" name="sku_color"><option value="">全部</option>{% for opt in sku_filter_options.colors %}<option value="{{ opt }}" {% if sku_filters.color == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
+                    <div class="col-md-2"><label class="form-label">尺寸</label><select class="form-select" name="sku_size"><option value="">全部</option>{% for opt in sku_filter_options.sizes %}<option value="{{ opt }}" {% if sku_filters.size == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
+                    <div class="col-md-2"><label class="form-label">库存状态</label><select class="form-select" name="sku_stock_status"><option value="">全部</option>{% for opt in sku_filter_options.stock_statuses %}<option value="{{ opt }}" {% if sku_filters.stock_status == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
+                    <div class="col-md-3 d-flex gap-2">
+                        <button class="btn btn-primary" type="submit">筛选</button>
+                        <a class="btn btn-outline-secondary" href="{{ url_for('product_detail', product_id=product.id, tab='sku') }}">重置</a>
+                        <a class="btn btn-outline-success" href="{{ url_for('product_sku_export', product_id=product.id, tab='sku', sku_keyword=sku_filters.keyword, sku_color=sku_filters.color, sku_size=sku_filters.size, sku_stock_status=sku_filters.stock_status, sku_sample_available=sku_filters.sample_available, sku_customization_supported=sku_filters.customization_supported) }}">导出</a>
+                        <a class="btn btn-outline-info" href="{{ url_for('product_edit', product_id=product.id, tab='sku') }}">维护SKU</a>
+                    </div>
+                </form>
             </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">SKU明细（{{ skus|length }}）</div>
             <div class="card-body">
                 {% if skus %}
                 <div class="table-responsive">
                     <table class="table table-sm align-middle">
-                        <thead>
-                            <tr>
-                                <th>SKU编号</th><th>SKU名称</th><th>型号</th><th>规格</th><th>价格(FOB)</th><th>库存</th><th>操作</th>
-                            </tr>
-                        </thead>
+                        <thead><tr><th>SKU编号</th><th>SKU名称</th><th>型号</th><th>规格</th><th>MOQ</th><th>交期</th><th>FOB</th><th>库存</th></tr></thead>
                         <tbody>
-                            {% for sku in skus %}
-                            <tr>
-                                <td style="min-width:150px;">{{ sku.sku_code }}</td>
-                                <td style="min-width:180px;">{{ sku.sku_name }}</td>
-                                <td>{{ sku.model or '-' }}</td>
-                                <td>{{ sku.specification or '-' }}</td>
-                                <td>{{ sku.fob_price|currency(sku.currency) }}</td>
-                                <td>{{ sku.stock_status or '-' }}</td>
-                                <td>
-                                    <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#sku-edit-{{ sku.id }}">编辑</button>
-                                    <form method="post" action="{{ url_for('product_sku_delete', product_id=product.id, sku_id=sku.id) }}" class="d-inline" onsubmit="return confirm('确认删除该SKU？删除后不可恢复。');">
-                                        <button class="btn btn-sm btn-outline-danger" type="submit">删除</button>
-                                    </form>
-                                </td>
-                            </tr>
-                            <tr class="collapse" id="sku-edit-{{ sku.id }}">
-                                <td colspan="7">
-                                    <form method="post" action="{{ url_for('product_sku_update', product_id=product.id, sku_id=sku.id) }}" class="row g-2">
-                                        <div class="col-md-3"><input class="form-control" name="sku_code" value="{{ sku.sku_code }}" required></div>
-                                        <div class="col-md-3"><input class="form-control" name="sku_name" value="{{ sku.sku_name }}" required></div>
-                                        <div class="col-md-2"><input class="form-control" name="model" value="{{ sku.model or '' }}" placeholder="型号"></div>
-                                        <div class="col-md-2"><input class="form-control" name="stock_status" value="{{ sku.stock_status or '' }}" placeholder="库存状态"></div>
-                                        <div class="col-md-2"><input class="form-control" name="currency" value="{{ sku.currency or 'USD' }}" placeholder="币种"></div>
-                                        <div class="col-md-3"><input class="form-control" name="specification" value="{{ sku.specification or '' }}" placeholder="规格"></div>
-                                        <div class="col-md-3"><input class="form-control" name="fob_price" type="number" step="0.01" value="{{ sku.fob_price if sku.fob_price is not none else '' }}" placeholder="FOB"></div>
-                                        <div class="col-md-2">
-                                            <input type="hidden" name="sample_available" value="0">
-                                            <label class="form-check mt-2"><input class="form-check-input" type="checkbox" name="sample_available" value="1" {% if sku.sample_available %}checked{% endif %}> 可提供样品</label>
-                                        </div>
-                                        <div class="col-md-2">
-                                            <input type="hidden" name="customization_supported" value="0">
-                                            <label class="form-check mt-2"><input class="form-check-input" type="checkbox" name="customization_supported" value="1" {% if sku.customization_supported %}checked{% endif %}> 支持定制</label>
-                                        </div>
-                                        <div class="col-md-2"><button class="btn btn-primary btn-sm" type="submit">保存SKU</button></div>
-                                    </form>
-                                </td>
-                            </tr>
-                            {% endfor %}
+                        {% for sku in skus %}
+                        <tr>
+                            <td>{{ sku.sku_code }}</td>
+                            <td>{{ sku.sku_name }}</td>
+                            <td>{{ show_text(sku.model) }}</td>
+                            <td>{{ show_text(sku.specification)|truncate(26, True, '…') }}</td>
+                            <td>{{ show_text(sku.moq) }}</td>
+                            <td>{{ show_text(sku.delivery_cycle) }}</td>
+                            <td>{{ sku.fob_price|currency(sku.currency) }}</td>
+                            <td>{{ show_text(sku.stock_status) }}</td>
+                        </tr>
+                        {% endfor %}
                         </tbody>
                     </table>
                 </div>
@@ -209,30 +173,59 @@
                 {% endif %}
             </div>
         </div>
+        <div id="sku-create"></div>
+    </div>
 
-        <div class="card mt-3">
-            <div class="card-header">新增SKU</div>
+    <div class="tab-pane fade {% if active_tab == 'cert' %}show active{% endif %}">
+        <div class="card mb-3">
+            <div class="card-header">认证信息</div>
+            <div class="card-body small">
+                <div class="row g-3">
+                    <div class="col-md-6"><strong>认证情况：</strong>{{ show_text(extra.get('cert_status') or product.certification_status) }}</div>
+                    <div class="col-md-6"><strong>产品认证：</strong>{{ show_badges(extra.get('cert_product') or product.certifications) }}</div>
+                    <div class="col-md-6"><strong>检测报告状态：</strong>{{ show_text(extra.get('cert_test_report')) }}</div>
+                    <div class="col-md-6"><strong>质量报告状态：</strong>{{ show_text(extra.get('cert_quality_report')) }}</div>
+                    <div class="col-md-6"><strong>目标市场准入文件：</strong>{{ show_text(extra.get('cert_market_access')) }}</div>
+                    <div class="col-md-6"><strong>证书有效期状态：</strong>{{ show_text(extra.get('cert_validity_status')) }}</div>
+                    <div class="col-12"><strong>认证补充说明：</strong>{{ show_text(extra.get('cert_note'))|truncate(120, True, '…') }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>附件列表（{{ product_files|length }}）</span>
+                <a class="btn btn-sm btn-outline-info" href="{{ url_for('document_upload', enterprise_id=enterprise.id, product_id=product.id) if enterprise else url_for('document_upload', product_id=product.id) }}">上传附件</a>
+            </div>
             <div class="card-body">
-                <form method="post" action="{{ url_for('product_sku_create', product_id=product.id) }}" class="row g-2">
-                    <div class="col-md-3"><label class="form-label">SKU编号（可留空自动生成）</label><input class="form-control" name="sku_code" placeholder="{{ product.product_code }}-S001"></div>
-                    <div class="col-md-3"><label class="form-label">SKU名称*</label><input class="form-control" name="sku_name" required></div>
-                    <div class="col-md-2"><label class="form-label">型号</label><input class="form-control" name="model"></div>
-                    <div class="col-md-2"><label class="form-label">规格</label><input class="form-control" name="specification"></div>
-                    <div class="col-md-2"><label class="form-label">库存状态</label><input class="form-control" name="stock_status"></div>
-                    <div class="col-md-2"><label class="form-label">币种</label><input class="form-control" name="currency" value="{{ product.currency or 'USD' }}"></div>
-                    <div class="col-md-2"><label class="form-label">FOB价</label><input class="form-control" name="fob_price" type="number" step="0.01"></div>
-                    <div class="col-md-2"><label class="form-label">MOQ</label><input class="form-control" name="moq"></div>
-                    <div class="col-md-2"><label class="form-label">交期</label><input class="form-control" name="delivery_cycle"></div>
-                    <div class="col-md-2 d-flex align-items-end">
-                        <input type="hidden" name="sample_available" value="0">
-                        <label class="form-check"><input class="form-check-input" type="checkbox" name="sample_available" value="1"> 可提供样品</label>
-                    </div>
-                    <div class="col-md-2 d-flex align-items-end">
-                        <input type="hidden" name="customization_supported" value="0">
-                        <label class="form-check"><input class="form-check-input" type="checkbox" name="customization_supported" value="1"> 支持定制</label>
-                    </div>
-                    <div class="col-md-12"><button class="btn btn-primary" type="submit">新增SKU</button></div>
-                </form>
+                {% if product_files %}
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle">
+                        <thead><tr><th>文件名</th><th>类型</th><th>上传时间</th><th>下载</th><th>设为主图</th></tr></thead>
+                        <tbody>
+                        {% for f in product_files %}
+                        <tr>
+                            <td>{{ f.document_name }}</td>
+                            <td>{{ f.document_type }}</td>
+                            <td>{{ f.uploaded_at.strftime('%Y-%m-%d %H:%M') if f.uploaded_at else '未填写' }}</td>
+                            <td><a class="btn btn-sm btn-outline-success" href="{{ url_for('document_download', document_id=f.id) }}">下载</a></td>
+                            <td>
+                                {% if f.document_type == '产品图片' %}
+                                <form method="post" action="{{ url_for('product_attachment_set_main_image', product_id=product.id, document_id=f.id) }}">
+                                    <button class="btn btn-sm btn-outline-primary" type="submit">设为主图</button>
+                                </form>
+                                {% else %}
+                                <span class="text-muted">-</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-muted">未上传附件</div>
+                {% endif %}
             </div>
         </div>
     </div>
