@@ -303,6 +303,43 @@ def create_app():
             return None
         return datetime.fromtimestamp(文件列表[0].stat().st_mtime)
 
+    def 构建产品资料缺失提示(product, enterprise=None, product_files=None, skus=None):
+        extra = product.product_extra_fields or {}
+        product_files = product_files or []
+        skus = skus or []
+        资料缺失提示 = []
+
+        if not (product.main_image and product.main_image.strip()):
+            资料缺失提示.append("缺少产品主图")
+        if not (product.product_name_cn and product.product_name_cn.strip()):
+            资料缺失提示.append("缺少产品名称")
+        if not (product.enterprise_id and enterprise):
+            资料缺失提示.append("缺少所属企业")
+        if not (product.product_category and product.product_category.strip()):
+            资料缺失提示.append("缺少产品品类")
+        if not (product.export_suitability and product.export_suitability.strip()):
+            资料缺失提示.append("缺少出口适配判断")
+        if not (product.recommendation_level and product.recommendation_level.strip()):
+            资料缺失提示.append("缺少推荐等级")
+        if not ((product.moq and str(product.moq).strip()) or (extra.get("trade_moq") and str(extra.get("trade_moq")).strip())):
+            资料缺失提示.append("缺少MOQ")
+        if not (
+            (product.delivery_cycle and product.delivery_cycle.strip())
+            or (product.production_cycle and product.production_cycle.strip())
+            or (extra.get("trade_mass_cycle") and str(extra.get("trade_mass_cycle")).strip())
+        ):
+            资料缺失提示.append("缺少交期")
+
+        认证情况 = (extra.get("cert_status") or product.certification_status or "").strip()
+        if 认证情况 in {"待补充", "未核验"}:
+            资料缺失提示.append("认证资料待补充")
+        if not product_files:
+            资料缺失提示.append("缺少产品附件")
+        if not skus:
+            资料缺失提示.append("缺少SKU明细")
+
+        return 资料缺失提示
+
     @app.template_filter("currency")
     def currency_filter(value, currency="USD"):
         if value is None:
@@ -1759,23 +1796,7 @@ def create_app():
             for 记录 in 匹配记录
         ]
         archive_code = f"{enterprise.enterprise_code}_{product.product_code}" if enterprise else product.product_code
-        product_extra = product.product_extra_fields or {}
-        产品文件类型集合 = {item.document_type for item in product_files}
-        资料缺失提示 = []
-        if "产品图片" not in 产品文件类型集合 and product_extra.get("media_product_images") != "已提供":
-            资料缺失提示.append("缺少产品图片")
-        if "产品规格书" not in 产品文件类型集合:
-            资料缺失提示.append("缺少规格书")
-        if "报价单" not in 产品文件类型集合 and not product.fob_price:
-            资料缺失提示.append("缺少报价单")
-        if "产品认证" not in 产品文件类型集合 and not certificates and not product.certifications:
-            资料缺失提示.append("缺少认证资料")
-        if "检测报告" not in 产品文件类型集合:
-            资料缺失提示.append("缺少检测报告")
-        if "包装资料" not in 产品文件类型集合 and not product.packaging:
-            资料缺失提示.append("缺少包装物流资料")
-        if "英文PPT" not in 产品文件类型集合 and not (product.product_name_en and product.product_name_en.strip()):
-            资料缺失提示.append("缺少英文资料")
+        资料缺失提示 = 构建产品资料缺失提示(product, enterprise=enterprise, product_files=product_files, skus=skus)
         return render_template(
             "products/detail.html",
             product=product,
@@ -1997,6 +2018,9 @@ def create_app():
         product = Product.query.get_or_404(product_id)
         enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
         product_files = Document.query.filter_by(product_id=product.id).order_by(Document.uploaded_at.desc()).all()
+        sku_list = 查询SKU列表(product.id, request.args).all()
+        enterprise = Enterprise.query.get(product.enterprise_id) if product.enterprise_id else None
+        资料缺失提示 = 构建产品资料缺失提示(product, enterprise=enterprise, product_files=product_files, skus=sku_list)
         当前标签 = request.form.get("_active_tab") or request.args.get("tab", "overview")
         if request.method == "POST":
             enterprise_id = request.form.get("enterprise_id", type=int)
@@ -2018,6 +2042,7 @@ def create_app():
                     is_new_product=False,
                     product_files=product_files,
                     initial_tab=当前标签,
+                    资料缺失提示=资料缺失提示,
                 )
 
             old_enterprise_id = product.enterprise_id
@@ -2043,6 +2068,7 @@ def create_app():
                     is_new_product=False,
                     product_files=product_files,
                     initial_tab=当前标签,
+                    资料缺失提示=资料缺失提示,
                 )
             try:
                 附件主图 = request.form.get("main_image_from_attachment", "").strip()
@@ -2076,6 +2102,7 @@ def create_app():
                     is_new_product=False,
                     product_files=product_files,
                     initial_tab=当前标签,
+                    资料缺失提示=资料缺失提示,
                 )
             记录审计日志("编辑产品", "product", target_id=product.id, detail=product.product_name_cn)
             db.session.commit()
@@ -2097,9 +2124,10 @@ def create_app():
             is_new_product=False,
             product_files=product_files,
             initial_tab=当前标签,
-            sku_list=查询SKU列表(product.id, request.args).all(),
+            sku_list=sku_list,
             sku_filters=读取SKU筛选条件(request.args),
             sku_filter_options=SKU筛选选项(product.id),
+            资料缺失提示=资料缺失提示,
         )
 
     @app.post("/products/<int:product_id>/delete")
