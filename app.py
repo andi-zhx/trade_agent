@@ -865,7 +865,7 @@ def create_app():
             返回地址=返回地址,
             返回文案="返回产品库",
             字段提示=产品导入字段提示(),
-            必填字段=["所属企业编号", "产品中文名"],
+            必填字段=["所属企业编号", "产品名称（或产品中文名）"],
         )
 
     @app.route("/enterprises")
@@ -1870,13 +1870,21 @@ def create_app():
                 sku.color,
                 sku.size,
                 sku.material,
+                sku.weight,
+                sku.package_spec,
                 sku.moq,
                 sku.delivery_cycle,
+                float(sku.exw_price) if sku.exw_price is not None else "",
                 float(sku.fob_price) if sku.fob_price is not None else "",
+                float(sku.cif_price) if sku.cif_price is not None else "",
+                float(sku.ddp_price) if sku.ddp_price is not None else "",
                 sku.currency or "USD",
                 sku.stock_status,
                 "是" if sku.sample_available else "否",
                 "是" if sku.customization_supported else "否",
+                sku.notes,
+                sku.created_at.strftime("%Y-%m-%d %H:%M:%S") if sku.created_at else "",
+                sku.updated_at.strftime("%Y-%m-%d %H:%M:%S") if sku.updated_at else "",
             ])
         缓冲区 = BytesIO()
         工作簿.save(缓冲区)
@@ -1896,7 +1904,30 @@ def create_app():
         工作表 = 工作簿.active
         工作表.title = "SKU导入模板"
         工作表.append(SKU导入导出字段())
-        工作表.append([f"{product.product_code}-S001", "示例SKU", "M-001", "220V", "黑色", "L", "铝合金", "100", "30天", 12.8, "USD", "现货", "是", "否"])
+        工作表.append([
+            f"{product.product_code}-S001",
+            "示例SKU",
+            "M-001",
+            "220V",
+            "黑色",
+            "L",
+            "铝合金",
+            "0.5kg",
+            "20pcs/箱",
+            "100",
+            "30天",
+            10.5,
+            12.8,
+            14.2,
+            15.6,
+            "USD",
+            "现货",
+            "是",
+            "否",
+            "示例备注",
+            "",
+            "",
+        ])
         缓冲区 = BytesIO()
         工作簿.save(缓冲区)
         缓冲区.seek(0)
@@ -2910,13 +2941,21 @@ def SKU导入导出字段():
         "颜色",
         "尺寸",
         "材质",
+        "重量",
+        "包装规格",
         "MOQ",
         "交期",
+        "EXW价",
         "FOB价",
+        "CIF价",
+        "DDP价",
         "币种",
         "库存状态",
         "是否可样品",
         "是否支持定制",
+        "备注",
+        "创建时间",
+        "更新时间",
     ]
 
 
@@ -3094,31 +3133,37 @@ def 导出企业总表():
 def 导出产品总表():
     表头 = [
         "产品编号",
+        "产品名称",
+        "产品英文名称",
         "所属企业编号",
         "所属企业名称",
-        "行业分类",
-        "产品中文名",
-        "产品英文名",
-        "产品类别",
-        "型号",
-        "SKU",
+        "行业编号",
+        "行业名称",
+        "产品品类",
+        "产品类型",
         "HS编码",
-        "核心卖点",
+        "品牌",
+        "型号",
+        "是否适合出口",
+        "推荐等级",
+        "目标市场",
+        "合作模式",
+        "产品状态",
         "MOQ",
+        "交期",
+        "价格展示",
+        "币种",
         "样品政策",
-        "样品周期",
-        "批量生产周期",
-        "FOB价",
-        "CIF价",
-        "DDP参考价",
-        "产品认证",
-        "包装方式",
-        "运输方式",
         "是否支持定制",
-        "是否适合跨境电商",
-        "是否适合工程采购",
-        "是否适合经销代理",
-        "最近更新时间",
+        "认证情况",
+        "产品认证",
+        "检测报告状态",
+        "质量报告状态",
+        "目标市场准入文件",
+        "证书有效期状态",
+        "核心卖点",
+        "风险提示",
+        "更新时间",
     ]
     enterprise_map = {e.id: e for e in Enterprise.query.all()}
     rows = []
@@ -3127,30 +3172,36 @@ def 导出产品总表():
         extra = item.product_extra_fields or {}
         rows.append([
             item.product_code,
-            enterprise.enterprise_code if enterprise else "",
-            enterprise.company_name if enterprise else "",
-            item.industry_name or (enterprise.industry_category if enterprise else ""),
             item.product_name_cn,
             item.product_name_en,
+            enterprise.enterprise_code if enterprise else "",
+            enterprise.company_name if enterprise else "",
+            item.industry_code or (enterprise.industry_code if enterprise else ""),
+            item.industry_name or (enterprise.industry_category if enterprise else ""),
             item.product_category,
-            item.model,
-            item.brand,
+            item.product_type,
             item.hs_code,
-            item.product_selling_points,
+            item.brand,
+            item.model,
+            item.export_suitability,
+            item.recommendation_level,
+            item.target_market,
+            extra.get("cooperation_mode") or extra.get("trade_cooperation_mode"),
+            item.status,
             item.moq or extra.get("trade_moq"),
+            item.delivery_cycle or item.production_cycle or extra.get("trade_mass_cycle"),
+            item.price_display or 生成价格展示文案(item),
+            item.currency or "USD",
             item.sample_policy or extra.get("trade_sample_policy"),
-            item.sample_cycle or extra.get("trade_sample_cycle"),
-            item.production_cycle or extra.get("trade_mass_cycle"),
-            float(item.fob_price) if item.fob_price is not None else "",
-            float(item.cif_price) if item.cif_price is not None else "",
-            float(item.ddp_price) if item.ddp_price is not None else "",
-            item.certifications,
-            item.packaging,
-            extra.get("shipping_method"),
             "是" if item.customization_supported else "否",
-            extra.get("fit_cross_border"),
-            extra.get("fit_engineering"),
-            extra.get("fit_distributor"),
+            item.certification_status or extra.get("cert_status"),
+            item.certifications,
+            extra.get("cert_test_report"),
+            extra.get("cert_quality_report"),
+            extra.get("cert_market_access"),
+            extra.get("cert_validity_status"),
+            item.product_selling_points,
+            extra.get("risk_warning") or item.notes,
             item.updated_at.strftime("%Y-%m-%d %H:%M:%S") if item.updated_at else "",
         ])
     return 表头, rows
@@ -3468,31 +3519,49 @@ def 企业导入字段提示():
 def 产品导入字段提示():
     return [
         ("产品编号", "用于更新匹配；留空则新增并自动生成"),
+        ("产品名称", "必填，兼容旧列名“产品中文名”"),
+        ("产品英文名称", "写入产品英文名，兼容旧列名“产品英文名”"),
         ("所属企业编号", "必填，必须能匹配到企业"),
         ("所属企业名称", "仅用于提示，系统以企业编号为准"),
-        ("行业分类", "写入产品行业分类"),
-        ("产品中文名", "必填"),
-        ("产品英文名", "写入产品英文名"),
-        ("产品类别", "写入产品类别"),
-        ("型号", "写入型号"),
-        ("SKU", "写入品牌/SKU字段"),
+        ("行业编号", "写入行业编号"),
+        ("行业名称", "写入行业名称，兼容旧列名“行业分类”"),
+        ("产品品类", "写入产品品类，兼容旧列名“产品类别”"),
+        ("产品类型", "写入产品类型"),
         ("HS编码", "写入HS编码"),
+        ("品牌", "写入品牌，兼容旧列名“SKU”"),
+        ("型号", "写入型号"),
+        ("是否适合出口", "写入是否适合出口"),
+        ("推荐等级", "写入推荐等级"),
+        ("目标市场", "多值字段，支持中文逗号/英文逗号分隔"),
+        ("合作模式", "多值字段，支持中文逗号/英文逗号分隔"),
+        ("产品状态", "写入产品状态"),
         ("核心卖点", "写入核心卖点"),
         ("MOQ", "写入MOQ"),
+        ("交期", "写入交期，兼容旧列名“批量生产周期”"),
+        ("价格展示", "写入价格展示文案"),
+        ("币种", "写入币种"),
         ("样品政策", "写入样品政策"),
-        ("样品周期", "写入样品周期"),
-        ("批量生产周期", "写入批量生产周期"),
-        ("FOB价", "写入FOB价格"),
-        ("CIF价", "写入CIF价格"),
-        ("DDP参考价", "写入DDP价格"),
-        ("产品认证", "写入产品认证"),
-        ("包装方式", "写入包装方式"),
-        ("运输方式", "写入产品扩展字段"),
         ("是否支持定制", "支持 是/否/true/false"),
-        ("是否适合跨境电商", "写入产品扩展字段"),
-        ("是否适合工程采购", "写入产品扩展字段"),
-        ("是否适合经销代理", "写入产品扩展字段"),
+        ("认证情况", "写入认证情况"),
+        ("产品认证", "写入产品认证"),
+        ("检测报告状态", "写入产品扩展字段"),
+        ("质量报告状态", "写入产品扩展字段"),
+        ("目标市场准入文件", "写入产品扩展字段"),
+        ("证书有效期状态", "写入产品扩展字段"),
+        ("风险提示", "写入风险提示"),
     ]
+
+
+def 取首个存在字段值(row, idx, *字段名):
+    for 字段 in 字段名:
+        if 字段 in idx:
+            return 单元格文本(row[idx[字段]])
+    return ""
+
+
+def 规范多值文本(value):
+    tokens = [item.strip() for item in re.split(r"[，,]+", 单元格文本(value)) if item and item.strip()]
+    return "、".join(tokens) if tokens else None
 
 
 def 解析省市(value):
@@ -3588,7 +3657,7 @@ def 导入产品Excel(file_storage):
         return 0, [{"行号": 1, "原因": "文件为空", "数据": {}}]
     header = [单元格文本(c) for c in rows[0]]
     idx = {name: i for i, name in enumerate(header)}
-    必填 = ["所属企业编号", "产品中文名"]
+    必填 = ["所属企业编号"]
     缺失 = [f for f in 必填 if f not in idx]
     if 缺失:
         return 0, [{"行号": 1, "原因": f"缺少必填列: {', '.join(缺失)}", "数据": {}}]
@@ -3604,11 +3673,11 @@ def 导入产品Excel(file_storage):
             enterprise = enterprise_map.get(enterprise_code)
             if not enterprise:
                 raise ValueError(f"未找到企业编号 {enterprise_code}")
-            name_cn = 单元格文本(row[idx["产品中文名"]])
+            name_cn = 取首个存在字段值(row, idx, "产品名称", "产品中文名")
             if not name_cn:
-                raise ValueError("产品中文名不能为空")
+                raise ValueError("产品名称不能为空")
             product_code = 单元格文本(row[idx["产品编号"]]) if "产品编号" in idx else ""
-            product = Product.query.filter_by(product_code=product_code, enterprise_id=enterprise.id).first() if product_code else None
+            product = Product.query.filter_by(product_code=product_code).first() if product_code else None
             if not product:
                 product = Product(
                     enterprise_id=enterprise.id,
@@ -3619,42 +3688,53 @@ def 导入产品Excel(file_storage):
             extra = dict(product.product_extra_fields or {})
             product.enterprise_id = enterprise.id
             product.product_name_cn = name_cn
-            product.product_name_en = 单元格文本(row[idx["产品英文名"]]) or None if "产品英文名" in idx else None
-            if "行业分类" in idx:
-                product.industry_name = 单元格文本(row[idx["行业分类"]]) or None
+            product.product_name_en = 取首个存在字段值(row, idx, "产品英文名称", "产品英文名") or None
+            if "行业编号" in idx:
+                product.industry_code = 单元格文本(row[idx["行业编号"]]) or None
+            行业名称 = 取首个存在字段值(row, idx, "行业名称", "行业分类")
+            if 行业名称:
+                product.industry_name = 行业名称
             if not product.industry_name:
                 product.industry_name = enterprise.industry_category
-            product.product_category = 单元格文本(row[idx["产品类别"]]) or None if "产品类别" in idx else None
+            if not product.industry_code:
+                product.industry_code = enterprise.industry_code
+            product.product_category = 取首个存在字段值(row, idx, "产品品类", "产品类别") or None
+            product.product_type = 单元格文本(row[idx["产品类型"]]) or None if "产品类型" in idx else None
             product.hs_code = 单元格文本(row[idx["HS编码"]]) or None if "HS编码" in idx else None
+            product.brand = 取首个存在字段值(row, idx, "品牌", "SKU") or None
             product.model = 单元格文本(row[idx["型号"]]) or None if "型号" in idx else None
-            product.brand = 单元格文本(row[idx["SKU"]]) or None if "SKU" in idx else None
+            product.export_suitability = 单元格文本(row[idx["是否适合出口"]]) or None if "是否适合出口" in idx else None
+            product.recommendation_level = 单元格文本(row[idx["推荐等级"]]) or None if "推荐等级" in idx else None
+            product.target_market = 规范多值文本(取首个存在字段值(row, idx, "目标市场")) or product.target_market
+            合作模式 = 规范多值文本(取首个存在字段值(row, idx, "合作模式"))
+            if 合作模式:
+                extra["cooperation_mode"] = 合作模式
+            product.status = 单元格文本(row[idx["产品状态"]]) or product.status if "产品状态" in idx else product.status
             product.product_selling_points = 单元格文本(row[idx["核心卖点"]]) or None if "核心卖点" in idx else None
             product.moq = 单元格文本(row[idx["MOQ"]]) or None if "MOQ" in idx else None
+            product.delivery_cycle = 取首个存在字段值(row, idx, "交期", "批量生产周期") or product.delivery_cycle
+            product.price_display = 单元格文本(row[idx["价格展示"]]) or None if "价格展示" in idx else None
+            product.currency = 单元格文本(row[idx["币种"]]) or (product.currency or "USD") if "币种" in idx else (product.currency or "USD")
             product.sample_policy = 单元格文本(row[idx["样品政策"]]) or None if "样品政策" in idx else None
-            product.sample_cycle = 单元格文本(row[idx["样品周期"]]) or None if "样品周期" in idx else None
-            product.production_cycle = 单元格文本(row[idx["批量生产周期"]]) or None if "批量生产周期" in idx else None
-            if "FOB价" in idx:
-                product.fob_price = 读取金额(单元格文本(row[idx["FOB价"]]))
-            if "CIF价" in idx:
-                product.cif_price = 读取金额(单元格文本(row[idx["CIF价"]]))
-            if "DDP参考价" in idx:
-                product.ddp_price = 读取金额(单元格文本(row[idx["DDP参考价"]]))
-            product.certifications = 单元格文本(row[idx["产品认证"]]) or None if "产品认证" in idx else None
-            product.packaging = 单元格文本(row[idx["包装方式"]]) or None if "包装方式" in idx else None
-            if "运输方式" in idx:
-                extra["shipping_method"] = 单元格文本(row[idx["运输方式"]]) or None
+            product.certification_status = 单元格文本(row[idx["认证情况"]]) or None if "认证情况" in idx else None
+            product.certifications = 规范多值文本(取首个存在字段值(row, idx, "产品认证")) or None
+            if "检测报告状态" in idx:
+                extra["cert_test_report"] = 单元格文本(row[idx["检测报告状态"]]) or None
+            if "质量报告状态" in idx:
+                extra["cert_quality_report"] = 单元格文本(row[idx["质量报告状态"]]) or None
+            if "目标市场准入文件" in idx:
+                extra["cert_market_access"] = 单元格文本(row[idx["目标市场准入文件"]]) or None
+            if "证书有效期状态" in idx:
+                extra["cert_validity_status"] = 单元格文本(row[idx["证书有效期状态"]]) or None
             if "是否支持定制" in idx:
                 product.customization_supported = 读取布尔文本(row[idx["是否支持定制"]])
-            if "是否适合跨境电商" in idx:
-                extra["fit_cross_border"] = 单元格文本(row[idx["是否适合跨境电商"]]) or None
-            if "是否适合工程采购" in idx:
-                extra["fit_engineering"] = 单元格文本(row[idx["是否适合工程采购"]]) or None
-            if "是否适合经销代理" in idx:
-                extra["fit_distributor"] = 单元格文本(row[idx["是否适合经销代理"]]) or None
+            风险提示 = 单元格文本(row[idx["风险提示"]]) if "风险提示" in idx else ""
+            if 风险提示:
+                extra["risk_warning"] = 风险提示
             product.product_extra_fields = extra
             success += 1
         except Exception as exc:
-            failed.append({"行号": row_num, "原因": str(exc), "数据": {"所属企业编号": row[idx["所属企业编号"]] if "所属企业编号" in idx else "", "产品中文名": row[idx["产品中文名"]] if "产品中文名" in idx else ""}})
+            failed.append({"行号": row_num, "原因": str(exc), "数据": {"所属企业编号": row[idx["所属企业编号"]] if "所属企业编号" in idx else "", "产品名称": 取首个存在字段值(row, idx, "产品名称", "产品中文名")}})
     db.session.commit()
     return success, failed
 
@@ -3692,16 +3772,25 @@ def 导入SKUExcel(product, file_storage):
             sku.color = 单元格文本(row[idx["颜色"]]) or None if "颜色" in idx else sku.color
             sku.size = 单元格文本(row[idx["尺寸"]]) or None if "尺寸" in idx else sku.size
             sku.material = 单元格文本(row[idx["材质"]]) or None if "材质" in idx else sku.material
+            sku.weight = 单元格文本(row[idx["重量"]]) or None if "重量" in idx else sku.weight
+            sku.package_spec = 单元格文本(row[idx["包装规格"]]) or None if "包装规格" in idx else sku.package_spec
             sku.moq = 单元格文本(row[idx["MOQ"]]) or None if "MOQ" in idx else sku.moq
             sku.delivery_cycle = 单元格文本(row[idx["交期"]]) or None if "交期" in idx else sku.delivery_cycle
+            if "EXW价" in idx:
+                sku.exw_price = 读取金额(单元格文本(row[idx["EXW价"]]))
             if "FOB价" in idx:
                 sku.fob_price = 读取金额(单元格文本(row[idx["FOB价"]]))
+            if "CIF价" in idx:
+                sku.cif_price = 读取金额(单元格文本(row[idx["CIF价"]]))
+            if "DDP价" in idx:
+                sku.ddp_price = 读取金额(单元格文本(row[idx["DDP价"]]))
             sku.currency = 单元格文本(row[idx["币种"]]) or "USD" if "币种" in idx else (sku.currency or "USD")
             sku.stock_status = 单元格文本(row[idx["库存状态"]]) or None if "库存状态" in idx else sku.stock_status
             if "是否可样品" in idx:
                 sku.sample_available = 读取布尔文本(row[idx["是否可样品"]])
             if "是否支持定制" in idx:
                 sku.customization_supported = 读取布尔文本(row[idx["是否支持定制"]])
+            sku.notes = 单元格文本(row[idx["备注"]]) or None if "备注" in idx else sku.notes
             success += 1
         except Exception as exc:
             failed.append({"行号": row_num, "原因": str(exc), "数据": [单元格文本(c) for c in row]})

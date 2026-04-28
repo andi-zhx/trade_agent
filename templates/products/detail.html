@@ -138,7 +138,9 @@
                     <div class="col-md-3 d-flex gap-2">
                         <button class="btn btn-primary" type="submit">筛选</button>
                         <a class="btn btn-outline-secondary" href="{{ url_for('product_detail', product_id=product.id, tab='sku') }}">重置</a>
-                        <a class="btn btn-outline-success" href="{{ url_for('product_sku_export', product_id=product.id, tab='sku', sku_keyword=sku_filters.keyword, sku_color=sku_filters.color, sku_size=sku_filters.size, sku_stock_status=sku_filters.stock_status, sku_sample_available=sku_filters.sample_available, sku_customization_supported=sku_filters.customization_supported) }}">导出</a>
+                        <a class="btn btn-outline-primary" href="{{ url_for('product_sku_export', product_id=product.id, tab='sku', sku_keyword=sku_filters.keyword, sku_color=sku_filters.color, sku_size=sku_filters.size, sku_stock_status=sku_filters.stock_status, sku_sample_available=sku_filters.sample_available, sku_customization_supported=sku_filters.customization_supported) }}">导出SKU</a>
+                        <a class="btn btn-outline-secondary" href="{{ url_for('product_sku_import_template', product_id=product.id) }}">下载SKU模板</a>
+                        <button class="btn btn-outline-success" type="button" data-bs-toggle="modal" data-bs-target="#skuImportModal">导入SKU</button>
                         <a class="btn btn-outline-info" href="{{ url_for('product_edit', product_id=product.id, tab='sku') }}">维护SKU</a>
                     </div>
                 </form>
@@ -174,6 +176,28 @@
             </div>
         </div>
         <div id="sku-create"></div>
+    </div>
+
+    <div class="modal fade" id="skuImportModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <form class="modal-content" method="post" action="{{ url_for('product_sku_import', product_id=product.id) }}" enctype="multipart/form-data">
+                <div class="modal-header">
+                    <h5 class="modal-title">导入SKU</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">选择文件（.xlsx/.csv）</label>
+                        <input class="form-control" type="file" name="file" accept=".xlsx,.csv" required>
+                    </div>
+                    <div class="small text-muted">系统将按“SKU编号”更新；SKU编号为空则自动新增并生成编号。</div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">取消</button>
+                    <button class="btn btn-primary" type="submit">开始导入</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <div class="tab-pane fade {% if active_tab == 'cert' %}show active{% endif %}">
