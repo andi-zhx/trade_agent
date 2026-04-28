@@ -127,13 +127,46 @@
         </div>
     </div>
 
-    <div class="accordion" id="enterpriseAccordion">
-        <div class="accordion-item shadow-sm border-0 mb-2" data-module-key="ENTRY">
-            <h2 class="accordion-header" id="heading_entry">
-                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_entry">入库信息 <span class="ms-2 text-muted small" data-module-progress></span></button>
-            </h2>
-            <div id="collapse_entry" class="accordion-collapse collapse show" data-bs-parent="#enterpriseAccordion">
-                <div class="accordion-body row g-3">
+    {% set current_industry = request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '') %}
+    {% set industry_tabs = (行业字段配置.get(current_industry, []) if 行业字段配置 else []) %}
+    {% set tab_title_map = {
+        'ENTRY': 'Tab 0：入库信息',
+        'A': 'Tab A：基本信息',
+        'B': 'Tab B：工商信息',
+        'C': 'Tab C：联系信息',
+        'D': 'Tab D：经营情况',
+        'E': 'Tab E：生产能力',
+        'F': 'Tab F：外贸能力',
+        'G': 'Tab G：财务信用',
+        'H': 'Tab H：资质合规',
+        'I': 'Tab I：项目判断与备注',
+        'J': 'Tab J：附件资料'
+    } %}
+    {% set tab_groups = [{'key': 'ENTRY', 'title': tab_title_map['ENTRY'], 'fields': []}] + 通用字段组 + industry_tabs + [{'key': 'J', 'title': tab_title_map['J'], 'fields': []}] %}
+
+    <ul class="nav nav-tabs flex-nowrap overflow-auto" id="enterpriseTabs" role="tablist">
+        {% for tab in tab_groups %}
+        {% set tab_key = tab.key %}
+        <li class="nav-item" role="presentation">
+            <button
+                class="nav-link {% if loop.first %}active{% endif %}"
+                id="tab-btn-{{ tab_key }}"
+                data-bs-toggle="tab"
+                data-bs-target="#tab-pane-{{ tab_key }}"
+                type="button"
+                role="tab"
+                aria-controls="tab-pane-{{ tab_key }}"
+                aria-selected="{{ 'true' if loop.first else 'false' }}"
+            >
+                {{ tab_title_map.get(tab_key, tab.title) }} <span class="ms-1 text-muted small" data-module-progress></span>
+            </button>
+        </li>
+        {% endfor %}
+    </ul>
+
+    <div class="tab-content border border-top-0 rounded-bottom bg-white p-3 shadow-sm" id="enterpriseTabContent">
+        <div class="tab-pane fade show active" id="tab-pane-ENTRY" role="tabpanel" aria-labelledby="tab-btn-ENTRY" tabindex="0" data-module-pane data-module-key="ENTRY">
+            <div class="row g-3">
                     <div class="col-md-3"><label class="form-label">企业编号</label><input class="form-control" value="{{ 企业.enterprise_code if 企业 else '自动生成（保存后可见）' }}" disabled></div>
                     <div class="col-md-3"><label class="form-label">入库状态</label><select class="form-select" name="status">{% set 状态值 = request.form.get('status') if request.method == 'POST' else (企业.status if 企业 else '草稿') %}{% for s in ['草稿','待审核','已入库','跟进中','冻结'] %}<option value="{{ s }}" {% if s == 状态值 %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
                     <div class="col-md-3"><label class="form-label">项目负责人</label><input class="form-control" name="project_owner" value="{{ request.form.get('project_owner') if request.method == 'POST' else (企业.project_owner if 企业 else '') }}"></div>
@@ -142,51 +175,31 @@
                     <div class="col-md-3"><label class="form-label field-required">省份</label><input class="form-control" name="province" value="{{ request.form.get('province') if request.method == 'POST' else (企业.province if 企业 else '') }}"></div>
                     <div class="col-md-3"><label class="form-label field-required">城市</label><input class="form-control" name="city" value="{{ request.form.get('city') if request.method == 'POST' else (企业.city if 企业 else '') }}"></div>
                     <div class="col-md-3"><label class="form-label">区县</label><input class="form-control" name="district" value="{{ request.form.get('district') if request.method == 'POST' else (企业.district if 企业 else '') }}"></div>
-                </div>
             </div>
         </div>
 
         {% for group in 通用字段组 %}
-        <div class="accordion-item shadow-sm border-0 mb-2" data-module-key="{{ group.key }}">
-            <h2 class="accordion-header" id="heading_{{ group.key }}">
-                <button class="accordion-button {% if group.key not in ['A'] %}collapsed{% endif %}" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_{{ group.key }}">
-                    {{ group.title }} <span class="ms-2 text-muted small" data-module-progress></span>
-                </button>
-            </h2>
-            <div id="collapse_{{ group.key }}" class="accordion-collapse collapse {% if group.key in ['A'] %}show{% endif %}" data-bs-parent="#enterpriseAccordion">
-                <div class="accordion-body row g-3">
-                    {% for field in group.fields %}
-                        {{ render_field(field) }}
-                    {% endfor %}
-                </div>
+        <div class="tab-pane fade" id="tab-pane-{{ group.key }}" role="tabpanel" aria-labelledby="tab-btn-{{ group.key }}" tabindex="0" data-module-pane data-module-key="{{ group.key }}">
+            <div class="row g-3">
+                {% for field in group.fields %}
+                    {{ render_field(field) }}
+                {% endfor %}
             </div>
         </div>
         {% endfor %}
 
-        {% set current_industry = request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '') %}
-        {% for industry_group in (行业字段配置.get(current_industry, []) if 行业字段配置 else []) %}
-        <div class="accordion-item shadow-sm border-0 mb-2" data-module-key="{{ industry_group.key }}">
-            <h2 class="accordion-header" id="heading_{{ industry_group.key }}">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_{{ industry_group.key }}">
-                    {{ industry_group.title }} <span class="ms-2 text-muted small" data-module-progress></span>
-                </button>
-            </h2>
-            <div id="collapse_{{ industry_group.key }}" class="accordion-collapse collapse" data-bs-parent="#enterpriseAccordion">
-                <div class="accordion-body row g-3">
-                    {% for field in industry_group.fields %}
-                        {{ render_field(field) }}
-                    {% endfor %}
-                </div>
+        {% for industry_group in industry_tabs %}
+        <div class="tab-pane fade" id="tab-pane-{{ industry_group.key }}" role="tabpanel" aria-labelledby="tab-btn-{{ industry_group.key }}" tabindex="0" data-module-pane data-module-key="{{ industry_group.key }}">
+            <div class="row g-3">
+                {% for field in industry_group.fields %}
+                    {{ render_field(field) }}
+                {% endfor %}
             </div>
         </div>
         {% endfor %}
 
-        <div class="accordion-item shadow-sm border-0 mb-2" data-module-key="J">
-            <h2 class="accordion-header" id="heading_J">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapse_J">J. 附件资料 <span class="ms-2 text-muted small" data-module-progress></span></button>
-            </h2>
-            <div id="collapse_J" class="accordion-collapse collapse" data-bs-parent="#enterpriseAccordion">
-                <div class="accordion-body">
+        <div class="tab-pane fade" id="tab-pane-J" role="tabpanel" aria-labelledby="tab-btn-J" tabindex="0" data-module-pane data-module-key="J">
+            <div>
                     {% if 模式 == 'new' %}
                     <div class="alert alert-warning py-2 mb-3">请先保存草稿后上传附件</div>
                     {% endif %}
@@ -233,7 +246,6 @@
                     {% else %}
                     <div class="text-muted small">暂无上传文件。</div>
                     {% endif %}
-                </div>
             </div>
         </div>
     </div>
@@ -337,7 +349,7 @@
     };
 
     const syncProgress = () => {
-        document.querySelectorAll('#enterpriseAccordion .accordion-item').forEach((item) => {
+        document.querySelectorAll('#enterpriseTabContent [data-module-pane]').forEach((item) => {
             const fields = item.querySelectorAll('[data-module-field] input:not([type="hidden"]), [data-module-field] textarea, [data-module-field] select');
             let total = 0, done = 0;
             const seen = new Set();
@@ -353,7 +365,8 @@
                 if (filled) done += 1;
                 seen.add(el.name);
             });
-            const tag = item.querySelector('[data-module-progress]');
+            const key = item.dataset.moduleKey || '';
+            const tag = key ? document.querySelector(`#tab-btn-${key} [data-module-progress]`) : null;
             if (tag) tag.textContent = done === total && total > 0 ? `（已完成 ${done}/${total}）` : `（待完善 ${done}/${total}）`;
         });
     };
@@ -412,6 +425,14 @@
         if (hiddenName) hiddenName.value = name;
     };
 
+    const syncTabByHash = () => {
+        const hash = (window.location.hash || '').replace('#', '');
+        if (!hash) return;
+        const key = hash.startsWith('tab-pane-') ? hash.replace('tab-pane-', '') : hash;
+        const tabBtn = document.getElementById(`tab-btn-${key}`);
+        if (tabBtn) bootstrap.Tab.getOrCreateInstance(tabBtn).show();
+    };
+
     const updateCounters = () => {
         document.querySelectorAll('.js-char-count').forEach((el) => {
             const counter = el.parentElement.querySelector('.js-char-counter');
@@ -461,9 +482,16 @@
         }
     });
 
+    document.getElementById('enterpriseTabs')?.addEventListener('shown.bs.tab', (event) => {
+        const targetId = event.target.getAttribute('data-bs-target') || '';
+        if (targetId) window.location.hash = targetId.replace('#tab-pane-', '');
+    });
+
     document.addEventListener('input', () => { updateCounters(); syncProgress(); syncCompletenessOverview(); });
     document.addEventListener('change', () => { syncShowWhen(); syncProgress(); syncIndustry(); syncCompletenessOverview(); });
+    window.addEventListener('hashchange', syncTabByHash);
 
+    syncTabByHash();
     syncIndustry();
     syncShowWhen();
     updateCounters();
