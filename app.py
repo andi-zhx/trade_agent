@@ -26,6 +26,7 @@ from models import (
     ForeignClient,
     MatchRecord,
     Product,
+    ProductSKU,
     ProjectProgress,
     Qualification,
     AuditLog,
@@ -1740,6 +1741,7 @@ def create_app():
     def product_detail(product_id):
         product = Product.query.get_or_404(product_id)
         enterprise = Enterprise.query.get(product.enterprise_id)
+        skus = ProductSKU.query.filter_by(product_id=product.id).order_by(ProductSKU.id.asc()).all()
         certificates = Qualification.query.filter_by(product_id=product.id).order_by(Qualification.expiry_date.desc()).all()
         product_files = Document.query.filter_by(product_id=product.id).order_by(Document.uploaded_at.desc()).all()
         匹配记录 = (
@@ -1775,6 +1777,7 @@ def create_app():
         return render_template(
             "products/detail.html",
             product=product,
+            skus=skus,
             enterprise=enterprise,
             certificates=certificates,
             product_files=product_files,
@@ -1783,6 +1786,44 @@ def create_app():
             资料缺失提示=资料缺失提示,
             product_extra_display_groups=构建产品扩展信息分组(product.industry_code, product.product_extra_fields),
         )
+
+    @app.post("/products/<int:product_id>/skus")
+    def product_sku_create(product_id):
+        product = Product.query.get_or_404(product_id)
+        sku = ProductSKU(product_id=product.id)
+        填充SKU字段(sku, request.form, product=product)
+        if not sku.sku_name:
+            flash("SKU名称为必填项。", "danger")
+            return redirect(url_for("product_detail", product_id=product.id, tab="sku"))
+        db.session.add(sku)
+        db.session.commit()
+        记录审计日志("新增SKU", "product_sku", target_id=sku.id, detail=f"{product.product_code}:{sku.sku_code}")
+        flash(f"SKU 已新增：{sku.sku_code}", "success")
+        return redirect(url_for("product_detail", product_id=product.id, tab="sku"))
+
+    @app.post("/products/<int:product_id>/skus/<int:sku_id>/update")
+    def product_sku_update(product_id, sku_id):
+        product = Product.query.get_or_404(product_id)
+        sku = ProductSKU.query.filter_by(id=sku_id, product_id=product.id).first_or_404()
+        填充SKU字段(sku, request.form, product=product, 自动生成编码=False)
+        if not sku.sku_name:
+            flash("SKU名称为必填项。", "danger")
+            return redirect(url_for("product_detail", product_id=product.id, tab="sku"))
+        db.session.commit()
+        记录审计日志("编辑SKU", "product_sku", target_id=sku.id, detail=f"{product.product_code}:{sku.sku_code}")
+        flash(f"SKU 已更新：{sku.sku_code}", "success")
+        return redirect(url_for("product_detail", product_id=product.id, tab="sku"))
+
+    @app.post("/products/<int:product_id>/skus/<int:sku_id>/delete")
+    def product_sku_delete(product_id, sku_id):
+        product = Product.query.get_or_404(product_id)
+        sku = ProductSKU.query.filter_by(id=sku_id, product_id=product.id).first_or_404()
+        code = sku.sku_code
+        db.session.delete(sku)
+        db.session.commit()
+        记录审计日志("删除SKU", "product_sku", target_id=sku_id, detail=f"{product.product_code}:{code}")
+        flash(f"SKU 已删除：{code}", "success")
+        return redirect(url_for("product_detail", product_id=product.id, tab="sku"))
 
     @app.get("/products/<int:product_id>/export")
     def product_export(product_id):
@@ -2512,6 +2553,16 @@ def generate_product_code(enterprise_id):
     return f"P{seq:03d}"
 
 
+def generate_sku_code(product):
+    最后SKU = ProductSKU.query.filter_by(product_id=product.id).order_by(ProductSKU.id.desc()).first()
+    if not 最后SKU:
+        seq = 1
+    else:
+        match = re.search(r"-S(\d+)$", 最后SKU.sku_code or "")
+        seq = int(match.group(1)) + 1 if match else ProductSKU.query.filter_by(product_id=product.id).count() + 1
+    return f"{product.product_code}-S{seq:03d}"
+
+
 def 产品行业专项字段组(行业代码):
     return INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG.get((行业代码 or "").strip(), [])
 
@@ -2614,6 +2665,40 @@ def fill_product_from_form(product, form):
     product.product_extra_fields = 提取产品扩展字段(form, product.industry_code)
     if not product.product_name_cn:
         raise ValueError("产品中文名为必填项")
+
+
+def 填充SKU字段(sku, form, product=None, 自动生成编码=True):
+    product = product or (Product.query.get(sku.product_id) if sku.product_id else None)
+    def 取值(字段名, 默认值=None):
+        if 字段名 not in form:
+            return 默认值
+        return form.get(字段名, "")
+
+    if 自动生成编码:
+        sku.sku_code = (取值("sku_code", "").strip() or (generate_sku_code(product) if product else None))
+    else:
+        sku.sku_code = 取值("sku_code", "").strip() or sku.sku_code
+    sku.sku_name = 取值("sku_name", sku.sku_name or "").strip()
+    sku.model = 取值("model", sku.model or "").strip() or None
+    sku.specification = 取值("specification", sku.specification or "").strip() or None
+    sku.color = 取值("color", sku.color or "").strip() or None
+    sku.size = 取值("size", sku.size or "").strip() or None
+    sku.material = 取值("material", sku.material or "").strip() or None
+    sku.weight = 取值("weight", sku.weight or "").strip() or None
+    sku.package_spec = 取值("package_spec", sku.package_spec or "").strip() or None
+    sku.moq = 取值("moq", sku.moq or "").strip() or None
+    sku.delivery_cycle = 取值("delivery_cycle", sku.delivery_cycle or "").strip() or None
+    sku.exw_price = 读取金额(取值("exw_price")) if "exw_price" in form else sku.exw_price
+    sku.fob_price = 读取金额(取值("fob_price")) if "fob_price" in form else sku.fob_price
+    sku.cif_price = 读取金额(取值("cif_price")) if "cif_price" in form else sku.cif_price
+    sku.ddp_price = 读取金额(取值("ddp_price")) if "ddp_price" in form else sku.ddp_price
+    sku.currency = 取值("currency", sku.currency or "USD").strip() or "USD"
+    sku.stock_status = 取值("stock_status", sku.stock_status or "").strip() or None
+    if "sample_available" in form or sku.id is None:
+        sku.sample_available = 读取布尔(form, "sample_available")
+    if "customization_supported" in form or sku.id is None:
+        sku.customization_supported = 读取布尔(form, "customization_supported")
+    sku.notes = 取值("notes", sku.notes or "").strip() or None
 
 
 def 生成价格展示文案(product):
@@ -3568,6 +3653,7 @@ def init_db(app):
     with app.app_context():
         db.create_all()
         inspector = inspect(db.engine)
+        existing_tables = set(inspector.get_table_names())
         product_columns = {col["name"] for col in inspector.get_columns("products")}
         enterprise_columns = {col["name"] for col in inspector.get_columns("enterprises")}
         if "enterprise_extra_fields" not in enterprise_columns:
@@ -3615,6 +3701,42 @@ def init_db(app):
             db.session.execute(text("ALTER TABLE products ADD COLUMN status VARCHAR(20) DEFAULT 'active'"))
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_products_status ON products (status)"))
             db.session.execute(text("UPDATE products SET status='active' WHERE status IS NULL OR status=''"))
+        if "product_skus" not in existing_tables:
+            db.session.execute(
+                text(
+                    """
+                    CREATE TABLE IF NOT EXISTS product_skus (
+                        id INTEGER PRIMARY KEY,
+                        product_id INTEGER NOT NULL,
+                        sku_code VARCHAR(64) NOT NULL,
+                        sku_name VARCHAR(255) NOT NULL,
+                        model VARCHAR(100),
+                        specification TEXT,
+                        color VARCHAR(100),
+                        size VARCHAR(100),
+                        material VARCHAR(255),
+                        weight VARCHAR(100),
+                        package_spec VARCHAR(255),
+                        moq VARCHAR(50),
+                        delivery_cycle VARCHAR(100),
+                        exw_price NUMERIC(18, 2),
+                        fob_price NUMERIC(18, 2),
+                        cif_price NUMERIC(18, 2),
+                        ddp_price NUMERIC(18, 2),
+                        currency VARCHAR(10),
+                        stock_status VARCHAR(50),
+                        sample_available BOOLEAN NOT NULL DEFAULT 0,
+                        customization_supported BOOLEAN NOT NULL DEFAULT 0,
+                        notes TEXT,
+                        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE
+                    )
+                    """
+                )
+            )
+        db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_product_skus_product_id ON product_skus (product_id)"))
+        db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_product_skus_sku_code ON product_skus (sku_code)"))
         db.session.commit()
 
         db.session.execute(
