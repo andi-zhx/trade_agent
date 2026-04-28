@@ -1349,12 +1349,26 @@ def create_app():
         完整度信息 = 计算企业资料完整度(企业, 扩展字段, 文件类型集合)
         缺失资料提示 = 完整度信息["missing_items"]
 
+        通用分组映射 = {group.get("key"): group for group in COMMON_ENTERPRISE_FIELD_GROUPS}
+        行业分组列表 = 行业专项字段组(企业.industry_code)
+        详情Tabs = [
+            {"key": "entry", "title": "入库信息", "groups": []},
+            {"key": "basic", "title": "基本信息", "groups": [通用分组映射.get("A")] if 通用分组映射.get("A") else []},
+            {"key": "business", "title": "工商信息", "groups": [通用分组映射.get("B")] if 通用分组映射.get("B") else []},
+            {"key": "contact", "title": "联系信息", "groups": [通用分组映射.get("C")] if 通用分组映射.get("C") else []},
+            {"key": "operations", "title": "经营情况", "groups": [item for item in [通用分组映射.get("D"), *行业分组列表] if item]},
+            {"key": "production", "title": "生产能力", "groups": [通用分组映射.get("E")] if 通用分组映射.get("E") else []},
+            {"key": "trade", "title": "外贸能力", "groups": [通用分组映射.get("F")] if 通用分组映射.get("F") else []},
+            {"key": "finance", "title": "财务信用", "groups": [通用分组映射.get("G")] if 通用分组映射.get("G") else []},
+            {"key": "compliance", "title": "资质合规", "groups": [通用分组映射.get("H")] if 通用分组映射.get("H") else []},
+            {"key": "project", "title": "项目判断与备注", "groups": [通用分组映射.get("I")] if 通用分组映射.get("I") else []},
+            {"key": "attachments", "title": "附件资料", "groups": []},
+        ]
+
         return render_template(
             "enterprise_detail.html",
             企业=企业,
             扩展字段=扩展字段,
-            通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS,
-            行业专项字段组=行业专项字段组(企业.industry_code),
             联系人列表=联系人列表,
             产品列表=产品列表,
             资质列表=资质列表,
@@ -1362,6 +1376,7 @@ def create_app():
             文件列表=文件列表,
             缺失资料提示=缺失资料提示,
             完整度信息=完整度信息,
+            详情Tabs=详情Tabs,
         )
 
     @app.get("/enterprises/<int:id>/export")
