@@ -1212,7 +1212,7 @@ def create_app():
             if 操作动作 == "save_return":
                 return redirect(url_for("enterprise_list"))
             if 操作动作 == "save_next":
-                return redirect(url_for("enterprise_edit", id=企业.id) + "#enterpriseAccordion")
+                return redirect(url_for("enterprise_edit", id=企业.id) + "#A")
             return redirect(url_for("enterprise_detail", id=企业.id))
 
         return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 已上传附件列表=[], 重复风险提示=[])
@@ -1447,7 +1447,7 @@ def create_app():
             if 操作动作 == "save_return":
                 return redirect(url_for("enterprise_list"))
             if 操作动作 == "save_next":
-                return redirect(url_for("enterprise_edit", id=企业.id) + "#enterpriseAccordion")
+                return redirect(url_for("enterprise_edit", id=企业.id) + "#A")
             return redirect(url_for("enterprise_detail", id=企业.id))
 
         return render_template(
