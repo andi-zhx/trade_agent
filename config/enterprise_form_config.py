@@ -11,11 +11,13 @@ COMMON_ENTERPRISE_FIELD_GROUPS = [
         "fields": [
             {"key": "company_short_name", "label": "企业简称", "type": "text"},
             {"key": "company_full_name", "label": "企业全称", "type": "text", "required": True},
+            {"key": "english_name", "label": "英文名称", "type": "text"},
             {"key": "financing_stage", "label": "融资阶段", "type": "select", "options": ["未融资", "天使轮", "Pre-A轮", "A轮", "B轮", "C轮", "D轮及以后", "战略融资", "已上市", "未披露"]},
             {"key": "valuation", "label": "市值/估值", "type": "text"},
             {"key": "employee_count_range", "label": "人员规模", "type": "select", "options": ["1-20人", "21-50人", "51-100人", "101-300人", "301-500人", "501-1000人", "1000人以上", "未披露"]},
             {"key": "primary_industry", "label": "一级行业", "type": "select_or_text", "options": ["工业机械与装备", "电子电器与智能硬件", "电力、电缆与能源设备", "新能源与节能环保", "汽车、摩托车与零部件", "低空经济与航空装备", "五金、建材与建筑工程", "化工、塑料与新材料", "纺织、面辅料与家纺", "服装服饰与鞋帽箱包", "家居、家具与生活用品", "食品、农产品与饮料", "园艺、花卉与农林设备", "畜牧、水产与宠物产业", "医疗器械与健康产品", "母婴、个护与美妆", "零售消费品与礼品", "劳保、安防与应急装备", "游戏、动漫与文化创意", "数字科技与专业服务"]},
             {"key": "website", "label": "企业网址", "type": "url", "placeholder": "http://example.com"},
+            {"key": "founded_date", "label": "成立时间", "type": "date"},
             {"key": "operating_status", "label": "运营状态", "type": "select", "options": ["运营中", "停业", "注销", "迁出", "吊销", "未知"]},
             {"key": "one_sentence_intro", "label": "一句话简介", "type": "text"},
             {"key": "enterprise_description", "label": "企业介绍", "type": "textarea", "maxlength": 1000, "span_full_row": True, "placeholder": "请填写企业介绍"},
@@ -28,7 +30,6 @@ COMMON_ENTERPRISE_FIELD_GROUPS = [
         "fields": [
             {"key": "registered_name", "label": "注册名称", "type": "text", "placeholder": "默认等于企业全称，可手动修改"},
             {"key": "legal_representative", "label": "法人代表", "type": "text"},
-            {"key": "founded_date", "label": "注册时间", "type": "date"},
             {"key": "unified_social_credit_code", "label": "统一社会信用代码", "type": "text", "placeholder": "18位统一社会信用代码", "help_text": "格式提示：18位数字或大写字母组合。"},
             {"key": "business_registration_number", "label": "工商注册号", "type": "text"},
             {"key": "business_term", "label": "营业期限", "type": "text", "placeholder": "例如：2014-01-16至9999-09-09"},
@@ -46,7 +47,6 @@ COMMON_ENTERPRISE_FIELD_GROUPS = [
         "key": "C",
         "title": "C. 联系信息",
         "fields": [
-            {"key": "english_name", "label": "英文名称", "type": "text"},
             {"key": "primary_contact_name", "label": "主联系人姓名", "type": "text", "required": True},
             {"key": "primary_contact_position", "label": "职位", "type": "select_or_text", "required": True, "options": ["董事长", "总经理", "外贸负责人", "销售负责人", "项目对接人", "其他"]},
             {"key": "primary_contact_mobile", "label": "手机", "type": "text", "required": True, "placeholder": "例如：13800138000", "help_text": "请输入 11 位手机号。"},
@@ -118,7 +118,6 @@ COMMON_ENTERPRISE_FIELD_GROUPS = [
             {"key": "trade_terms", "label": "常用贸易术语", "type": "checkbox_tags", "options": ["EXW", "FOB", "CIF", "DDP", "DAP", "FCA"], "show_when": {"field": "export_experience", "value": "是"}},
             {"key": "payment_methods", "label": "常用付款方式", "type": "checkbox_tags", "options": ["T/T", "L/C", "OA", "D/P", "其他"], "show_when": {"field": "export_experience", "value": "是"}},
             {"key": "has_english_materials", "label": "是否具备英文资料", "type": "radio_group", "options": ["是", "否", "部分具备"]},
-            {"key": "english_communication", "label": "是否具备英文沟通能力", "type": "radio_group", "options": ["是", "否", "需协助"]},
             {"key": "attended_international_expo", "label": "是否参加过国际展会", "type": "radio_group", "options": ["是", "否"]},
             {"key": "international_expo_names", "label": "国际展会名称", "type": "text", "show_when": {"field": "attended_international_expo", "value": "是"}},
             {"key": "has_cross_border_ecommerce", "label": "是否有跨境电商经验", "type": "radio_group", "options": ["是", "否"]},
