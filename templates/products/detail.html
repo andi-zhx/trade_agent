@@ -238,7 +238,7 @@
                 {% if product_files %}
                 <div class="table-responsive">
                     <table class="table table-sm align-middle">
-                        <thead><tr><th>文件名</th><th>类型</th><th>上传时间</th><th>下载</th><th>设为主图</th></tr></thead>
+                        <thead><tr><th>文件名</th><th>类型</th><th>上传时间</th><th>下载</th><th>删除</th><th>设为主图</th></tr></thead>
                         <tbody>
                         {% for f in product_files %}
                         <tr>
@@ -246,6 +246,11 @@
                             <td>{{ f.document_type }}</td>
                             <td>{{ f.uploaded_at.strftime('%Y-%m-%d %H:%M') if f.uploaded_at else '未填写' }}</td>
                             <td><a class="btn btn-sm btn-outline-success" href="{{ url_for('document_download', document_id=f.id) }}">下载</a></td>
+                            <td>
+                                <form method="post" action="{{ url_for('product_attachment_delete', product_id=product.id, document_id=f.id) }}" onsubmit="return confirm('确认删除该附件？');">
+                                    <button class="btn btn-sm btn-outline-danger" type="submit">删除</button>
+                                </form>
+                            </td>
                             <td>
                                 {% if f.document_type == '产品图片' %}
                                 <form method="post" action="{{ url_for('product_attachment_set_main_image', product_id=product.id, document_id=f.id) }}">

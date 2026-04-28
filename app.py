@@ -3177,6 +3177,7 @@ def 导出产品总表():
         "目标市场",
         "合作模式",
         "产品状态",
+        "上架状态",
         "MOQ",
         "交期",
         "价格展示",
@@ -3214,7 +3215,8 @@ def 导出产品总表():
             item.export_suitability,
             item.recommendation_level,
             item.target_market,
-            extra.get("cooperation_mode") or extra.get("trade_cooperation_mode"),
+            "、".join(extra.get("cooperation_modes")) if isinstance(extra.get("cooperation_modes"), list) else (extra.get("cooperation_modes") or extra.get("cooperation_mode") or extra.get("trade_cooperation_mode")),
+            extra.get("product_status_review"),
             item.status,
             item.moq or extra.get("trade_moq"),
             item.delivery_cycle or item.production_cycle or extra.get("trade_mass_cycle"),
@@ -3562,7 +3564,8 @@ def 产品导入字段提示():
         ("推荐等级", "写入推荐等级"),
         ("目标市场", "多值字段，支持中文逗号/英文逗号分隔"),
         ("合作模式", "多值字段，支持中文逗号/英文逗号分隔"),
-        ("产品状态", "写入产品状态"),
+        ("产品状态", "写入业务产品状态（Tab1 的“产品状态”）"),
+        ("上架状态", "可选，写入上架状态（active/inactive 或 上架/下架）"),
         ("核心卖点", "写入核心卖点"),
         ("MOQ", "写入MOQ"),
         ("交期", "写入交期，兼容旧列名“批量生产周期”"),
@@ -3736,8 +3739,16 @@ def 导入产品Excel(file_storage):
             product.target_market = 规范多值文本(取首个存在字段值(row, idx, "目标市场")) or product.target_market
             合作模式 = 规范多值文本(取首个存在字段值(row, idx, "合作模式"))
             if 合作模式:
-                extra["cooperation_mode"] = 合作模式
-            product.status = 单元格文本(row[idx["产品状态"]]) or product.status if "产品状态" in idx else product.status
+                extra["cooperation_modes"] = [item for item in 合作模式.split("、") if item]
+            业务状态 = 单元格文本(row[idx["产品状态"]]) if "产品状态" in idx else ""
+            if 业务状态:
+                extra["product_status_review"] = 业务状态
+            if "上架状态" in idx:
+                上架状态原值 = 单元格文本(row[idx["上架状态"]]).lower()
+                if 上架状态原值 in {"active", "上架", "启用", "enable", "enabled"}:
+                    product.status = "active"
+                elif 上架状态原值 in {"inactive", "下架", "停用", "disable", "disabled"}:
+                    product.status = "inactive"
             product.product_selling_points = 单元格文本(row[idx["核心卖点"]]) or None if "核心卖点" in idx else None
             product.moq = 单元格文本(row[idx["MOQ"]]) or None if "MOQ" in idx else None
             product.delivery_cycle = 取首个存在字段值(row, idx, "交期", "批量生产周期") or product.delivery_cycle
