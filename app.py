@@ -555,35 +555,47 @@ def create_app():
             ext["enterprise_tags"] = enterprise_tags
         return ext
 
-    def 企业提交审核缺失字段(企业, 扩展字段):
-        缺失 = []
-        最小必填项 = [
-            ("企业全称", (扩展字段.get("company_full_name") or 企业.company_name or "").strip()),
-            ("统一社会信用代码", (扩展字段.get("unified_social_credit_code") or 企业.unified_social_credit_code or "").strip()),
-            ("行业大类", (企业.industry_code or "").strip()),
-            ("省份", (企业.province or "").strip()),
-            ("城市", (企业.city or "").strip()),
-            ("企业角色", "、".join(扩展字段.get("enterprise_natures", []))),
-            ("主联系人姓名", (扩展字段.get("primary_contact_name") or "").strip()),
-            ("手机", (扩展字段.get("primary_contact_mobile") or "").strip()),
-            ("是否已有海外业务", (扩展字段.get("has_overseas_business") or "").strip()),
-            ("是否自有工厂", (扩展字段.get("has_own_factory") or "").strip()),
-            ("是否建议入库", (扩展字段.get("recommended_for_pool") or "").strip()),
+    def 企业核心完整度字段(企业, 扩展字段):
+        ext = 兼容企业基础信息字段(企业, 扩展字段 or {})
+        基本信息字段 = [
+            ("企业全称", ext.get("company_full_name") or 企业.company_name),
+            ("企业简称", ext.get("company_short_name")),
+            ("成立时间", ext.get("founded_date") or (企业.founded_date.strftime("%Y-%m-%d") if 企业.founded_date else "")),
+            ("行业分类", 企业.industry_code),
+            ("行业名称", 企业.industry_category or ext.get("primary_industry")),
+            ("一级行业", ext.get("primary_industry")),
+            ("企业网址", ext.get("website")),
+            ("运营状态", ext.get("operating_status")),
+            ("公司类型", ext.get("company_type") or 企业.company_type),
+            ("一句话简介", ext.get("one_sentence_intro")),
+            ("企业介绍", ext.get("enterprise_description") or 企业.main_business),
+            ("省份", 企业.province),
+            ("城市", 企业.city),
         ]
-        for 字段名, 值 in 最小必填项:
-            if not 值:
-                缺失.append(字段名)
+        工商信息字段 = [
+            ("注册名称", ext.get("registered_name")),
+            ("法人代表", ext.get("legal_representative")),
+            ("注册时间", ext.get("registration_date") or ext.get("registered_date") or ext.get("founded_date")),
+            ("统一社会信用代码", ext.get("unified_social_credit_code") or 企业.unified_social_credit_code),
+            ("工商注册号", ext.get("business_registration_number")),
+            ("注册资本", ext.get("registered_capital") or 企业.registered_capital),
+            ("企业注册类型", ext.get("company_type") or 企业.company_type),
+            ("行业", ext.get("industry") or 企业.industry_category),
+            ("登记机关", ext.get("registration_authority")),
+            ("注册地址", ext.get("registered_address") or 企业.registered_address),
+            ("经营范围", ext.get("business_scope")),
+            ("营业期限", ext.get("business_term")),
+            ("核准日期", ext.get("approval_date")),
+            ("实缴资本", ext.get("paid_in_capital")),
+        ]
+        return {
+            "A": [(字段名, 字段已填写(字段值)) for 字段名, 字段值 in 基本信息字段],
+            "B": [(字段名, 字段已填写(字段值)) for 字段名, 字段值 in 工商信息字段],
+        }
 
-        已有营业执照 = Document.query.filter_by(enterprise_id=企业.id, document_type="营业执照").first() is not None if 企业.id else False
-        当前上传类型列表 = request.form.getlist("enterprise_upload_type")
-        当前上传文件列表 = request.files.getlist("enterprise_upload_file")
-        本次上传营业执照 = any(
-            ((当前上传类型列表[idx] if idx < len(当前上传类型列表) else "").strip() == "营业执照") and 上传文件 and 上传文件.filename
-            for idx, 上传文件 in enumerate(当前上传文件列表)
-        )
-        if not (已有营业执照 or 本次上传营业执照):
-            缺失.append("营业执照附件")
-        return 缺失
+    def 企业提交审核缺失字段(企业, 扩展字段):
+        核心字段 = 企业核心完整度字段(企业, 扩展字段)
+        return [字段名 for 字段名, 已填写 in [*核心字段["A"], *核心字段["B"]] if not 已填写]
 
     def 企业重复风险检查(company_name, unified_social_credit_code, exclude_enterprise_id=None):
         风险提示 = []
@@ -626,53 +638,13 @@ def create_app():
         return 已上传类型
 
     def 计算企业资料完整度(企业, 扩展字段, 本次上传类型=None):
-        扩展字段 = 扩展字段 or {}
-        本次上传类型 = 本次上传类型 or set()
-        历史文件类型 = set()
-        if getattr(企业, "id", None):
-            历史文件类型 = {item.document_type for item in Document.query.filter_by(enterprise_id=企业.id).all()}
-        文件类型集合 = 历史文件类型 | 本次上传类型
-
-        最小必填项 = [
-            ("企业全称", 字段已填写(扩展字段.get("company_full_name") or 企业.company_name)),
-            ("统一社会信用代码", 字段已填写(扩展字段.get("unified_social_credit_code") or 企业.unified_social_credit_code)),
-            ("行业大类", 字段已填写(企业.industry_code)),
-            ("省份", 字段已填写(企业.province)),
-            ("城市", 字段已填写(企业.city)),
-            ("企业角色", 字段已填写(扩展字段.get("enterprise_natures"))),
-            ("主联系人姓名", 字段已填写(扩展字段.get("primary_contact_name"))),
-            ("手机", 字段已填写(扩展字段.get("primary_contact_mobile"))),
-            ("是否已有海外业务", 字段已填写(扩展字段.get("has_overseas_business"))),
-            ("是否自有工厂", 字段已填写(扩展字段.get("has_own_factory"))),
-            ("是否建议入库", 字段已填写(扩展字段.get("recommended_for_pool"))),
-            ("营业执照附件", "营业执照" in 文件类型集合),
-        ]
-        建议字段项 = [
-            ("企业性质", 字段已填写(扩展字段.get("company_type") or 扩展字段.get("enterprise_natures"))),
-            ("员工规模", 字段已填写(扩展字段.get("employee_count_range") or 企业.employee_count)),
-            ("主营业务方向", 字段已填写(扩展字段.get("business_directions"))),
-            ("主要客户类型", 字段已填写(扩展字段.get("customer_types"))),
-            ("外贸团队规模", 字段已填写(扩展字段.get("foreign_trade_team_size"))),
-            ("经营模式", 字段已填写(扩展字段.get("production_mode"))),
-            ("推荐合作方向", 字段已填写(扩展字段.get("recommended_cooperation_directions"))),
-            ("风险标签", 字段已填写(扩展字段.get("risk_tags"))),
-            ("证书是否齐全", 字段已填写(扩展字段.get("certificate_completeness"))),
-            ("证书有效期状态", 字段已填写(扩展字段.get("certificate_validity_status"))),
-        ]
-        附件字段项 = [
-            ("营业执照", "营业执照" in 文件类型集合),
-            ("企业宣传册", "企业宣传册" in 文件类型集合),
-            ("企业介绍PPT", "企业介绍PPT" in 文件类型集合),
-            ("资质证书包", "资质证书包" in 文件类型集合),
-            ("工厂/办公照片", "工厂/办公照片" in 文件类型集合),
-            ("企业名片", "企业名片" in 文件类型集合),
-            ("其他补充资料", "其他补充资料" in 文件类型集合),
-        ]
-
-        最小得分 = 60 * (sum(1 for _, ok in 最小必填项 if ok) / len(最小必填项))
-        建议得分 = 25 * (sum(1 for _, ok in 建议字段项 if ok) / len(建议字段项))
-        附件得分 = 15 * (sum(1 for _, ok in 附件字段项 if ok) / len(附件字段项))
-        分数 = int(round(最小得分 + 建议得分 + 附件得分))
+        核心字段 = 企业核心完整度字段(企业, 扩展字段 or {})
+        基本已填 = sum(1 for _, ok in 核心字段["A"] if ok)
+        工商已填 = sum(1 for _, ok in 核心字段["B"] if ok)
+        基本总数 = len(核心字段["A"])
+        工商总数 = len(核心字段["B"])
+        总字段数 = 基本总数 + 工商总数
+        分数 = int(round(((基本已填 + 工商已填) / 总字段数) * 100)) if 总字段数 else 0
 
         if 分数 >= 80:
             颜色 = "success"
@@ -681,12 +653,16 @@ def create_app():
         else:
             颜色 = "danger"
 
-        缺失项 = [字段名 for 字段名, ok in [*最小必填项, *建议字段项, *附件字段项] if not ok]
+        缺失项 = [字段名 for 字段名, ok in [*核心字段["A"], *核心字段["B"]] if not ok]
         return {
             "score": 分数,
             "label": f"{分数}%",
             "color": 颜色,
             "missing_items": 缺失项,
+            "tabs": {
+                "A": {"done": 基本已填, "total": 基本总数},
+                "B": {"done": 工商已填, "total": 工商总数},
+            },
         }
 
     def 产品行业专项字段组(行业代码):
@@ -1351,10 +1327,13 @@ def create_app():
 
         通用分组映射 = {group.get("key"): group for group in COMMON_ENTERPRISE_FIELD_GROUPS}
         行业分组列表 = 行业专项字段组(企业.industry_code)
+        标签完成度 = 完整度信息.get("tabs", {})
+        A完成度 = 标签完成度.get("A", {})
+        B完成度 = 标签完成度.get("B", {})
         详情Tabs = [
             {"key": "entry", "title": "入库信息", "groups": []},
-            {"key": "basic", "title": "基本信息", "groups": [通用分组映射.get("A")] if 通用分组映射.get("A") else []},
-            {"key": "business", "title": "工商信息", "groups": [通用分组映射.get("B")] if 通用分组映射.get("B") else []},
+            {"key": "basic", "title": f"基本信息 {A完成度.get('done', 0)}/{A完成度.get('total', 13)}", "groups": [通用分组映射.get("A")] if 通用分组映射.get("A") else []},
+            {"key": "business", "title": f"工商信息 {B完成度.get('done', 0)}/{B完成度.get('total', 14)}", "groups": [通用分组映射.get("B")] if 通用分组映射.get("B") else []},
             {"key": "contact", "title": "联系信息", "groups": [通用分组映射.get("C")] if 通用分组映射.get("C") else []},
             {"key": "operations", "title": "经营情况", "groups": [item for item in [通用分组映射.get("D"), *行业分组列表] if item]},
             {"key": "production", "title": "生产能力", "groups": [通用分组映射.get("E")] if 通用分组映射.get("E") else []},

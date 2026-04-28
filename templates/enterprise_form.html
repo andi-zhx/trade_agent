@@ -340,22 +340,24 @@
         btn.addEventListener('click', () => { actionInput.value = btn.dataset.action; });
     });
 
-    const requiredForReview = [
-        ['company_full_name', '企业全称'], ['unified_social_credit_code', '统一社会信用代码'], ['industry_code', '行业大类'],
-        ['province', '省份'], ['city', '城市'], ['enterprise_natures', '企业角色'], ['primary_contact_name', '主联系人姓名'],
-        ['primary_contact_mobile', '手机'], ['has_overseas_business', '是否已有海外业务'], ['has_own_factory', '是否自有工厂'],
-        ['recommended_for_pool', '是否建议入库']
+    const coreBasicFields = [
+        ['company_full_name', '企业全称'], ['company_short_name', '企业简称'], ['founded_date', '成立时间'],
+        ['industry_code', '行业分类'], ['industry_category', '行业名称'], ['primary_industry', '一级行业'],
+        ['website', '企业网址'], ['operating_status', '运营状态'], ['company_type', '公司类型'],
+        ['one_sentence_intro', '一句话简介'], ['enterprise_description', '企业介绍'], ['province', '省份'], ['city', '城市'],
     ];
+    const coreBusinessFields = [
+        ['registered_name', '注册名称'], ['legal_representative', '法人代表'], ['registration_date', '注册时间'],
+        ['unified_social_credit_code', '统一社会信用代码'], ['business_registration_number', '工商注册号'], ['registered_capital', '注册资本'],
+        ['company_type', '企业注册类型'], ['industry', '行业'], ['registration_authority', '登记机关'],
+        ['registered_address', '注册地址'], ['business_scope', '经营范围'], ['business_term', '营业期限'],
+        ['approval_date', '核准日期'], ['paid_in_capital', '实缴资本'],
+    ];
+    const requiredForReview = [...coreBasicFields, ...coreBusinessFields];
 
     submitReviewBtn?.addEventListener('click', () => {
         duplicateConfirmedInput.value = '0';
         const missing = requiredForReview.filter(([key]) => getFieldValues(key).length === 0).map(([, label]) => label);
-        const hasLicenseInCurrent = Array.from(document.querySelectorAll('.enterprise-upload-row')).some((row) => {
-            const type = row.querySelector('select[name="enterprise_upload_type"]')?.value || '';
-            const fileInput = row.querySelector('input[name="enterprise_upload_file"]');
-            return type === '营业执照' && (fileInput?.files || []).length > 0;
-        });
-        if (!existingUploadedTypes.has('营业执照') && !hasLicenseInCurrent) missing.push('营业执照附件');
         if (missing.length) {
             const ul = document.getElementById('missingFieldsList');
             ul.innerHTML = missing.map((item) => `<li>${item}</li>`).join('');
@@ -385,6 +387,7 @@
     };
 
     const syncProgress = () => {
+        const coreDone = (items) => items.reduce((acc, [key]) => acc + (getFieldValues(key).length > 0 ? 1 : 0), 0);
         document.querySelectorAll('#enterpriseTabContent [data-module-pane]').forEach((item) => {
             const fields = item.querySelectorAll('[data-module-field] input:not([type="hidden"]), [data-module-field] textarea, [data-module-field] select');
             let total = 0, done = 0;
@@ -403,45 +406,23 @@
             });
             const key = item.dataset.moduleKey || '';
             const tag = key ? document.querySelector(`#tab-btn-${key} [data-module-progress]`) : null;
-            if (tag) tag.textContent = done === total && total > 0 ? `（已完成 ${done}/${total}）` : `（待完善 ${done}/${total}）`;
+            if (!tag) return;
+            if (key === 'A') {
+                tag.textContent = `（${coreDone(coreBasicFields)}/${coreBasicFields.length}）`;
+                return;
+            }
+            if (key === 'B') {
+                tag.textContent = `（${coreDone(coreBusinessFields)}/${coreBusinessFields.length}）`;
+                return;
+            }
+            tag.textContent = done === total && total > 0 ? `（已完成 ${done}/${total}）` : `（待完善 ${done}/${total}）`;
         });
     };
 
     const calculateCompleteness = () => {
-        const requiredKeys = ['company_full_name','unified_social_credit_code','industry_code','province','city','enterprise_natures','primary_contact_name','primary_contact_mobile','has_overseas_business','has_own_factory','recommended_for_pool'];
-        const suggestedKeys = ['enterprise_natures','employee_count_range','business_directions','customer_types','foreign_trade_team_size','production_mode','recommended_cooperation_directions','risk_tags','certificate_completeness','certificate_validity_status'];
-        const attachmentRules = [
-            ['营业执照'],
-            ['企业宣传册'],
-            ['企业介绍PPT'],
-            ['资质证书包'],
-            ['工厂/办公照片'],
-            ['企业名片'],
-            ['其他补充资料'],
-        ];
-        const hasBusinessLicenseUpload = () => {
-            if (existingUploadedTypes.has('营业执照')) return true;
-            const rows = Array.from(document.querySelectorAll('.enterprise-upload-row'));
-            return rows.some((row) => {
-                const type = row.querySelector('select[name="enterprise_upload_type"]')?.value || '';
-                const fileInput = row.querySelector('input[name="enterprise_upload_file"]');
-                return type === '营业执照' && (fileInput?.files || []).length > 0;
-            });
-        };
-        const hasAttachmentType = (types) => {
-            if (types.some((type) => existingUploadedTypes.has(type))) return true;
-            const rows = Array.from(document.querySelectorAll('.enterprise-upload-row'));
-            return rows.some((row) => {
-                const type = row.querySelector('select[name="enterprise_upload_type"]')?.value || '';
-                const fileInput = row.querySelector('input[name="enterprise_upload_file"]');
-                if ((fileInput?.files || []).length === 0) return false;
-                return types.includes(type);
-            });
-        };
-        const requiredDone = requiredKeys.reduce((acc, key) => acc + (getFieldValues(key).length > 0 ? 1 : 0), 0) + (hasBusinessLicenseUpload() ? 1 : 0);
-        const suggestedDone = suggestedKeys.reduce((acc, key) => acc + (getFieldValues(key).length > 0 ? 1 : 0), 0);
-        const attachmentDone = attachmentRules.reduce((acc, rule) => acc + (hasAttachmentType(rule) ? 1 : 0), 0);
-        return Math.round((requiredDone / 12) * 60 + (suggestedDone / 10) * 25 + (attachmentDone / 7) * 15);
+        const total = coreBasicFields.length + coreBusinessFields.length;
+        const done = [...coreBasicFields, ...coreBusinessFields].reduce((acc, [key]) => acc + (getFieldValues(key).length > 0 ? 1 : 0), 0);
+        return total ? Math.round((done / total) * 100) : 0;
     };
 
     const syncCompletenessOverview = () => {
