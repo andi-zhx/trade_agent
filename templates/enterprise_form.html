@@ -16,7 +16,7 @@
     <div class="{{ col_class }}" data-module-field {% if show_when %}data-show-when='{{ show_when|tojson|forceescape }}'{% endif %}{% if show_when_any %} data-show-when-any='{{ show_when_any|tojson|forceescape }}'{% endif %}>
     {% if field.type == 'textarea' %}
         <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
-        <textarea class="form-control js-char-count" rows="2" maxlength="{{ field.maxlength if field.maxlength is defined else 200 }}" data-maxlength="{{ field.maxlength if field.maxlength is defined else 200 }}" name="{{ field.key }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>{{ extra_value(field.key) }}</textarea>
+        <textarea class="form-control js-char-count" rows="{{ 8 if field.key == 'business_scope' else 2 }}" maxlength="{{ field.maxlength if field.maxlength is defined else 200 }}" data-maxlength="{{ field.maxlength if field.maxlength is defined else 200 }}" name="{{ field.key }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>{{ extra_value(field.key) }}</textarea>
         <div class="form-text"><span class="js-char-counter">0</span>/{{ field.maxlength if field.maxlength is defined else 200 }}</div>
     {% elif field.type == 'select' %}
         <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
@@ -97,7 +97,12 @@
         <button class="btn btn-sm btn-outline-secondary mt-2" type="button" id="dynamicContactAddBtn">+ 新增联系人</button>
     {% else %}
         <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
-        <input class="form-control" type="{{ field.type if field.type in ['date','number','email','url'] else 'text' }}" name="{{ field.key }}" value="{{ extra_value(field.key) }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>
+        {% set cur_value = extra_value(field.key) %}
+        {% if field.key == 'registered_name' and not cur_value %}
+            {% set cur_value = extra_value('company_full_name') %}
+        {% endif %}
+        <input class="form-control" type="{{ field.type if field.type in ['date','number','email','url'] else 'text' }}" name="{{ field.key }}" value="{{ cur_value }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>
+        {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
     {% endif %}
     </div>
 {%- endmacro %}
