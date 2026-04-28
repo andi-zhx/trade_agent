@@ -92,3 +92,15 @@ body {
         position: relative;
     }
 }
+
+/* enterprise form */
+.enterprise-overview-sticky { position: sticky; top: 64px; z-index: 1000; }
+.enterprise-action-sticky { position: sticky; bottom: 0; z-index: 1020; }
+.field-required::after { content: ' *'; color: #dc3545; }
+
+#enterpriseForm .tag-check { display: none; }
+#enterpriseForm .tag-label { border: 1px solid #ced4da; border-radius: 999px; padding: .35rem .75rem; cursor: pointer; font-size: .875rem; }
+#enterpriseForm .tag-check:checked + .tag-label { background: #0d6efd; color: #fff; border-color: #0d6efd; }
+
+#enterpriseForm .enterprise-radio-group { column-gap: .25rem; row-gap: .35rem; }
+#enterpriseForm .enterprise-radio-item { margin-right: .9rem !important; }
