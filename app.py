@@ -1781,12 +1781,12 @@ def create_app():
         填充SKU字段(sku, request.form, product=product)
         if not sku.sku_name:
             flash("SKU名称为必填项。", "danger")
-            return redirect(url_for("product_detail", product_id=product.id, tab="sku"))
+            return redirect(获取SKU返回地址(product.id))
         db.session.add(sku)
         db.session.commit()
         记录审计日志("新增SKU", "product_sku", target_id=sku.id, detail=f"{product.product_code}:{sku.sku_code}")
         flash(f"SKU 已新增：{sku.sku_code}", "success")
-        return redirect(url_for("product_detail", product_id=product.id, tab="sku"))
+        return redirect(获取SKU返回地址(product.id))
 
     @app.post("/products/<int:product_id>/skus/<int:sku_id>/update")
     def product_sku_update(product_id, sku_id):
@@ -1795,11 +1795,11 @@ def create_app():
         填充SKU字段(sku, request.form, product=product, 自动生成编码=False)
         if not sku.sku_name:
             flash("SKU名称为必填项。", "danger")
-            return redirect(url_for("product_detail", product_id=product.id, tab="sku"))
+            return redirect(获取SKU返回地址(product.id))
         db.session.commit()
         记录审计日志("编辑SKU", "product_sku", target_id=sku.id, detail=f"{product.product_code}:{sku.sku_code}")
         flash(f"SKU 已更新：{sku.sku_code}", "success")
-        return redirect(url_for("product_detail", product_id=product.id, tab="sku"))
+        return redirect(获取SKU返回地址(product.id))
 
     @app.post("/products/<int:product_id>/skus/<int:sku_id>/delete")
     def product_sku_delete(product_id, sku_id):
@@ -1810,7 +1810,103 @@ def create_app():
         db.session.commit()
         记录审计日志("删除SKU", "product_sku", target_id=sku_id, detail=f"{product.product_code}:{code}")
         flash(f"SKU 已删除：{code}", "success")
-        return redirect(url_for("product_detail", product_id=product.id, tab="sku"))
+        return redirect(获取SKU返回地址(product.id))
+
+    @app.post("/products/<int:product_id>/skus/batch-update")
+    def product_sku_batch_update(product_id):
+        product = Product.query.get_or_404(product_id)
+        sku_ids = request.form.getlist("sku_ids")
+        if not sku_ids:
+            flash("请先勾选至少一个 SKU。", "warning")
+            return redirect(获取SKU返回地址(product.id))
+        try:
+            ids = [int(item) for item in sku_ids]
+        except ValueError:
+            flash("批量更新参数无效。", "danger")
+            return redirect(获取SKU返回地址(product.id))
+        skus = ProductSKU.query.filter(ProductSKU.product_id == product.id, ProductSKU.id.in_(ids)).all()
+        if not skus:
+            flash("未找到可更新的 SKU。", "warning")
+            return redirect(获取SKU返回地址(product.id))
+        for sku in skus:
+            填充SKU字段(sku, request.form, 自动生成编码=False)
+        db.session.commit()
+        记录审计日志("批量编辑SKU", "product_sku", target_id=product.id, detail=f"count={len(skus)}")
+        flash(f"已批量更新 {len(skus)} 个 SKU。", "success")
+        return redirect(获取SKU返回地址(product.id))
+
+    @app.get("/products/<int:product_id>/skus/export")
+    def product_sku_export(product_id):
+        product = Product.query.get_or_404(product_id)
+        skus = 查询SKU列表(product.id, request.args).all()
+        工作簿 = Workbook()
+        工作表 = 工作簿.active
+        工作表.title = "SKU明细"
+        表头 = SKU导入导出字段()
+        工作表.append(表头)
+        for sku in skus:
+            工作表.append([
+                sku.sku_code,
+                sku.sku_name,
+                sku.model,
+                sku.specification,
+                sku.color,
+                sku.size,
+                sku.material,
+                sku.moq,
+                sku.delivery_cycle,
+                float(sku.fob_price) if sku.fob_price is not None else "",
+                sku.currency or "USD",
+                sku.stock_status,
+                "是" if sku.sample_available else "否",
+                "是" if sku.customization_supported else "否",
+            ])
+        缓冲区 = BytesIO()
+        工作簿.save(缓冲区)
+        缓冲区.seek(0)
+        文件名 = f"{product.product_code}_SKU明细.xlsx"
+        return send_file(
+            缓冲区,
+            as_attachment=True,
+            download_name=文件名,
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+    @app.get("/products/<int:product_id>/skus/import-template")
+    def product_sku_import_template(product_id):
+        product = Product.query.get_or_404(product_id)
+        工作簿 = Workbook()
+        工作表 = 工作簿.active
+        工作表.title = "SKU导入模板"
+        工作表.append(SKU导入导出字段())
+        工作表.append([f"{product.product_code}-S001", "示例SKU", "M-001", "220V", "黑色", "L", "铝合金", "100", "30天", 12.8, "USD", "现货", "是", "否"])
+        缓冲区 = BytesIO()
+        工作簿.save(缓冲区)
+        缓冲区.seek(0)
+        return send_file(
+            缓冲区,
+            as_attachment=True,
+            download_name=f"{product.product_code}_SKU导入模板.xlsx",
+            mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+
+    @app.post("/products/<int:product_id>/skus/import")
+    def product_sku_import(product_id):
+        product = Product.query.get_or_404(product_id)
+        上传文件 = request.files.get("file")
+        if not 上传文件 or not 上传文件.filename:
+            flash("请先选择 SKU Excel 文件。", "danger")
+            return redirect(获取SKU返回地址(product.id))
+        成功条数, 失败列表 = 导入SKUExcel(product, 上传文件)
+        记录审计日志("导入SKU", "product_sku", target_id=product.id, detail=f"success={成功条数}, failed={len(失败列表)}")
+        return render_template(
+            "import_result.html",
+            标题=f"{product.product_name_cn} SKU导入结果",
+            成功条数=成功条数,
+            失败列表=失败列表,
+            返回地址=url_for("product_edit", product_id=product.id, tab="sku"),
+            返回文案="返回 SKU 明细",
+        )
 
     @app.get("/products/<int:product_id>/export")
     def product_export(product_id):
@@ -1952,6 +2048,9 @@ def create_app():
             is_new_product=False,
             product_files=product_files,
             initial_tab=当前标签,
+            sku_list=查询SKU列表(product.id, request.args).all(),
+            sku_filters=读取SKU筛选条件(request.args),
+            sku_filter_options=SKU筛选选项(product.id),
         )
 
     @app.post("/products/<int:product_id>/delete")
@@ -2746,6 +2845,71 @@ def 填充SKU字段(sku, form, product=None, 自动生成编码=True):
     sku.notes = 取值("notes", sku.notes or "").strip() or None
 
 
+def 获取SKU返回地址(product_id):
+    回跳地址 = request.form.get("next") or request.args.get("next")
+    if 回跳地址:
+        return 回跳地址
+    return url_for("product_edit", product_id=product_id, tab="sku")
+
+
+def SKU导入导出字段():
+    return [
+        "SKU编号",
+        "SKU名称",
+        "型号",
+        "规格",
+        "颜色",
+        "尺寸",
+        "材质",
+        "MOQ",
+        "交期",
+        "FOB价",
+        "币种",
+        "库存状态",
+        "是否可样品",
+        "是否支持定制",
+    ]
+
+
+def 读取SKU筛选条件(source):
+    return {
+        "keyword": source.get("sku_keyword", "", type=str).strip(),
+        "color": source.get("sku_color", "", type=str).strip(),
+        "size": source.get("sku_size", "", type=str).strip(),
+        "stock_status": source.get("sku_stock_status", "", type=str).strip(),
+        "sample_available": source.get("sku_sample_available", "", type=str).strip(),
+        "customization_supported": source.get("sku_customization_supported", "", type=str).strip(),
+    }
+
+
+def 查询SKU列表(product_id, source):
+    filters = 读取SKU筛选条件(source)
+    query = ProductSKU.query.filter_by(product_id=product_id)
+    if filters["keyword"]:
+        like = f"%{filters['keyword']}%"
+        query = query.filter(or_(ProductSKU.sku_name.ilike(like), ProductSKU.model.ilike(like)))
+    if filters["color"]:
+        query = query.filter(ProductSKU.color == filters["color"])
+    if filters["size"]:
+        query = query.filter(ProductSKU.size == filters["size"])
+    if filters["stock_status"]:
+        query = query.filter(ProductSKU.stock_status == filters["stock_status"])
+    if filters["sample_available"] in {"是", "否"}:
+        query = query.filter(ProductSKU.sample_available.is_(filters["sample_available"] == "是"))
+    if filters["customization_supported"] in {"是", "否"}:
+        query = query.filter(ProductSKU.customization_supported.is_(filters["customization_supported"] == "是"))
+    return query.order_by(ProductSKU.id.asc())
+
+
+def SKU筛选选项(product_id):
+    全部SKU = ProductSKU.query.filter_by(product_id=product_id).all()
+    return {
+        "colors": sorted({item.color for item in 全部SKU if item.color}),
+        "sizes": sorted({item.size for item in 全部SKU if item.size}),
+        "stock_statuses": sorted({item.stock_status for item in 全部SKU if item.stock_status}),
+    }
+
+
 def 生成价格展示文案(product):
     片段 = []
     货币 = (product.currency or "USD").strip() or "USD"
@@ -3442,6 +3606,56 @@ def 导入产品Excel(file_storage):
             success += 1
         except Exception as exc:
             failed.append({"行号": row_num, "原因": str(exc), "数据": {"所属企业编号": row[idx["所属企业编号"]] if "所属企业编号" in idx else "", "产品中文名": row[idx["产品中文名"]] if "产品中文名" in idx else ""}})
+    db.session.commit()
+    return success, failed
+
+
+def 导入SKUExcel(product, file_storage):
+    rows = 读取导入表格(file_storage)
+    if not rows:
+        return 0, [{"行号": 1, "原因": "文件为空", "数据": {}}]
+    header = [单元格文本(c) for c in rows[0]]
+    idx = {name: i for i, name in enumerate(header)}
+    必填 = ["SKU名称"]
+    缺失 = [f for f in 必填 if f not in idx]
+    if 缺失:
+        return 0, [{"行号": 1, "原因": f"缺少必填列: {', '.join(缺失)}", "数据": {}}]
+
+    success = 0
+    failed = []
+    for row_num, row in enumerate(rows[1:], start=2):
+        try:
+            if not any(单元格文本(cell) for cell in row):
+                continue
+            sku_code = 单元格文本(row[idx["SKU编号"]]) if "SKU编号" in idx else ""
+            sku = ProductSKU.query.filter_by(product_id=product.id, sku_code=sku_code).first() if sku_code else None
+            if not sku:
+                sku = ProductSKU(
+                    product_id=product.id,
+                    sku_code=sku_code or generate_sku_code(product),
+                )
+                db.session.add(sku)
+            sku.sku_name = 单元格文本(row[idx["SKU名称"]]) or ""
+            if not sku.sku_name:
+                raise ValueError("SKU名称不能为空")
+            sku.model = 单元格文本(row[idx["型号"]]) or None if "型号" in idx else sku.model
+            sku.specification = 单元格文本(row[idx["规格"]]) or None if "规格" in idx else sku.specification
+            sku.color = 单元格文本(row[idx["颜色"]]) or None if "颜色" in idx else sku.color
+            sku.size = 单元格文本(row[idx["尺寸"]]) or None if "尺寸" in idx else sku.size
+            sku.material = 单元格文本(row[idx["材质"]]) or None if "材质" in idx else sku.material
+            sku.moq = 单元格文本(row[idx["MOQ"]]) or None if "MOQ" in idx else sku.moq
+            sku.delivery_cycle = 单元格文本(row[idx["交期"]]) or None if "交期" in idx else sku.delivery_cycle
+            if "FOB价" in idx:
+                sku.fob_price = 读取金额(单元格文本(row[idx["FOB价"]]))
+            sku.currency = 单元格文本(row[idx["币种"]]) or "USD" if "币种" in idx else (sku.currency or "USD")
+            sku.stock_status = 单元格文本(row[idx["库存状态"]]) or None if "库存状态" in idx else sku.stock_status
+            if "是否可样品" in idx:
+                sku.sample_available = 读取布尔文本(row[idx["是否可样品"]])
+            if "是否支持定制" in idx:
+                sku.customization_supported = 读取布尔文本(row[idx["是否支持定制"]])
+            success += 1
+        except Exception as exc:
+            failed.append({"行号": row_num, "原因": str(exc), "数据": [单元格文本(c) for c in row]})
     db.session.commit()
     return success, failed
 
