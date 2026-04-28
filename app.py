@@ -1569,18 +1569,16 @@ def create_app():
 
     @app.route("/products")
     def product_list():
+        page = request.args.get("page", 1, type=int)
         q_enterprise = request.args.get("enterprise", "").strip()
         q_keyword = request.args.get("keyword", "").strip()
         q_category = request.args.get("category", "").strip()
-        q_hs_code = request.args.get("hs_code", "").strip()
-        q_certification = request.args.get("certification", "").strip()
+        q_product_type = request.args.get("product_type", "").strip()
+        q_export_suitability = request.args.get("export_suitability", "").strip()
+        q_recommendation_level = request.args.get("recommendation_level", "").strip()
+        q_certification = request.args.get("certification_status", "").strip()
+        q_target_market = request.args.get("target_market", "").strip()
         q_industry = request.args.get("industry", "").strip()
-        q_moq_range = request.args.get("moq_range", "").strip()
-        q_production_cycle = request.args.get("production_cycle", "").strip()
-        q_customization = request.args.get("customization_supported", "").strip()
-        q_fit_cross_border = request.args.get("fit_cross_border", "").strip()
-        q_fit_engineering = request.args.get("fit_engineering", "").strip()
-        q_fit_distributor = request.args.get("fit_distributor", "").strip()
         q_status = request.args.get("status", "").strip() or "active"
 
         query = Product.query.join(Enterprise, Product.enterprise_id == Enterprise.id)
@@ -1601,52 +1599,50 @@ def create_app():
             )
         if q_category:
             query = query.filter(Product.product_category.ilike(f"%{q_category}%"))
-        if q_hs_code:
-            query = query.filter(Product.hs_code.ilike(f"%{q_hs_code}%"))
+        if q_product_type:
+            query = query.filter(Product.product_type == q_product_type)
+        if q_export_suitability:
+            query = query.filter(Product.export_suitability == q_export_suitability)
+        if q_recommendation_level:
+            query = query.filter(Product.recommendation_level == q_recommendation_level)
         if q_certification:
-            query = query.filter(Product.certifications.ilike(f"%{q_certification}%"))
+            query = query.filter(Product.certification_status == q_certification)
+        if q_target_market:
+            query = query.filter(Product.target_market.ilike(f"%{q_target_market}%"))
         if q_industry:
             query = query.filter(Product.industry_code == q_industry)
         if q_status in {"active", "inactive"}:
             query = query.filter(Product.status == q_status)
 
-        if q_moq_range:
-            query = query.filter(
-                or_(
-                    Product.moq.ilike(f"%{q_moq_range}%"),
-                    func.json_extract(Product.product_extra_fields, "$.trade_moq") == q_moq_range,
-                )
-            )
-        if q_production_cycle:
-            query = query.filter(
-                or_(
-                    Product.production_cycle.ilike(f"%{q_production_cycle}%"),
-                    Product.sample_cycle.ilike(f"%{q_production_cycle}%"),
-                    func.json_extract(Product.product_extra_fields, "$.trade_mass_cycle") == q_production_cycle,
-                )
-            )
-        if q_customization:
-            query = query.filter(func.json_extract(Product.product_extra_fields, "$.support_customization") == q_customization)
-        if q_fit_cross_border:
-            query = query.filter(func.json_extract(Product.product_extra_fields, "$.fit_cross_border") == q_fit_cross_border)
-        if q_fit_engineering:
-            query = query.filter(func.json_extract(Product.product_extra_fields, "$.fit_engineering") == q_fit_engineering)
-        if q_fit_distributor:
-            query = query.filter(func.json_extract(Product.product_extra_fields, "$.fit_distributor") == q_fit_distributor)
-
-        products = query.order_by(Product.updated_at.desc()).all()
+        分页 = query.order_by(Product.updated_at.desc()).paginate(page=page, per_page=PER_PAGE, error_out=False)
         enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
-        categories = [r[0] for r in db.session.query(Product.product_category).filter(Product.product_category.isnot(None)).distinct().all()]
-        moq_options = ["10件以下", "10-100件", "100-500件", "500-1000件", "1000件以上", "按产品定制"]
-        production_cycle_options = ["7天内", "7-15天", "15-30天", "30-60天", "60天以上"]
+        categories = [
+            r[0]
+            for r in db.session.query(Product.product_category)
+            .filter(Product.product_category.isnot(None), Product.product_category != "")
+            .distinct()
+            .order_by(Product.product_category)
+            .all()
+        ]
+        target_market_options = [
+            r[0]
+            for r in db.session.query(Product.target_market)
+            .filter(Product.target_market.isnot(None), Product.target_market != "")
+            .distinct()
+            .order_by(Product.target_market)
+            .all()
+        ]
         return render_template(
             "products/list.html",
-            products=products,
+            分页=分页,
             enterprises=enterprises,
             categories=categories,
             industries=行业下拉选项(),
-            moq_options=moq_options,
-            production_cycle_options=production_cycle_options,
+            product_type_options=Product.PRODUCT_TYPE_OPTIONS,
+            export_suitability_options=Product.EXPORT_SUITABILITY_OPTIONS,
+            recommendation_level_options=Product.RECOMMENDATION_LEVEL_OPTIONS,
+            certification_status_options=Product.CERTIFICATION_STATUS_OPTIONS,
+            target_market_options=target_market_options,
             filters=request.args,
         )
 

@@ -13,7 +13,7 @@
 <div class="card mb-3">
     <div class="card-body">
         <form class="row g-2" method="get">
-            <div class="col-md-3"><input name="keyword" class="form-control" placeholder="产品名称关键词" value="{{ filters.get('keyword','') }}"></div>
+            <div class="col-md-3"><input name="keyword" class="form-control" placeholder="产品关键词" value="{{ filters.get('keyword','') }}"></div>
             <div class="col-md-2">
                 <select name="enterprise" class="form-select">
                     <option value="">所属企业（全部）</option>
@@ -24,54 +24,69 @@
             </div>
             <div class="col-md-2">
                 <select name="industry" class="form-select">
-                    <option value="">行业分类（全部）</option>
+                    <option value="">行业（全部）</option>
                     {% for item in industries %}
                     <option value="{{ item.code }}" {% if filters.get('industry') == item.code %}selected{% endif %}>{{ item.code }} {{ item.name }}</option>
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-2"><input name="category" class="form-control" placeholder="产品类别" value="{{ filters.get('category','') }}"></div>
-            <div class="col-md-2"><input name="hs_code" class="form-control" placeholder="HS编码" value="{{ filters.get('hs_code','') }}"></div>
-            <div class="col-md-3"><input name="certification" class="form-control" placeholder="认证类型" value="{{ filters.get('certification','') }}"></div>
             <div class="col-md-2">
-                <select name="moq_range" class="form-select">
-                    <option value="">MOQ范围（全部）</option>
-                    {% for option in moq_options %}
-                    <option value="{{ option }}" {% if filters.get('moq_range') == option %}selected{% endif %}>{{ option }}</option>
+                <select name="category" class="form-select">
+                    <option value="">产品品类（全部）</option>
+                    {% for category in categories %}
+                    <option value="{{ category }}" {% if filters.get('category') == category %}selected{% endif %}>{{ category }}</option>
                     {% endfor %}
                 </select>
             </div>
             <div class="col-md-2">
-                <select name="production_cycle" class="form-select">
-                    <option value="">生产周期（全部）</option>
-                    {% for option in production_cycle_options %}
-                    <option value="{{ option }}" {% if filters.get('production_cycle') == option %}selected{% endif %}>{{ option }}</option>
+                <select name="product_type" class="form-select">
+                    <option value="">产品类型（全部）</option>
+                    {% for option in product_type_options %}
+                    <option value="{{ option }}" {% if filters.get('product_type') == option %}selected{% endif %}>{{ option }}</option>
                     {% endfor %}
                 </select>
             </div>
-            {% for name, label in [('customization_supported','支持定制'), ('fit_cross_border','跨境电商'), ('fit_engineering','工程采购'), ('fit_distributor','经销代理')] %}
             <div class="col-md-2">
-                <select name="{{ name }}" class="form-select">
-                    <option value="">{{ label }}（全部）</option>
-                    {% for option in ['是','否','待判断'] %}
-                    <option value="{{ option }}" {% if filters.get(name) == option %}selected{% endif %}>{{ option }}</option>
+                <select name="export_suitability" class="form-select">
+                    <option value="">是否适合出口（全部）</option>
+                    {% for option in export_suitability_options %}
+                    <option value="{{ option }}" {% if filters.get('export_suitability') == option %}selected{% endif %}>{{ option }}</option>
                     {% endfor %}
                 </select>
             </div>
-            {% endfor %}
+            <div class="col-md-2">
+                <select name="recommendation_level" class="form-select">
+                    <option value="">推荐等级（全部）</option>
+                    {% for option in recommendation_level_options %}
+                    <option value="{{ option }}" {% if filters.get('recommendation_level') == option %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="certification_status" class="form-select">
+                    <option value="">认证情况（全部）</option>
+                    {% for option in certification_status_options %}
+                    <option value="{{ option }}" {% if filters.get('certification_status') == option %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <select name="target_market" class="form-select">
+                    <option value="">目标市场（全部）</option>
+                    {% for option in target_market_options %}
+                    <option value="{{ option }}" {% if filters.get('target_market') == option %}selected{% endif %}>{{ option }}</option>
+                    {% endfor %}
+                </select>
+            </div>
             <div class="col-md-2">
                 <select name="status" class="form-select">
-                    <option value="active" {% if filters.get('status', 'active') == 'active' %}selected{% endif %}>仅启用产品</option>
-                    <option value="inactive" {% if filters.get('status') == 'inactive' %}selected{% endif %}>仅停用产品</option>
-                    <option value="" {% if filters.get('status') == '' %}selected{% endif %}>全部状态</option>
+                    <option value="active" {% if filters.get('status', 'active') == 'active' %}selected{% endif %}>产品状态：已上架</option>
+                    <option value="inactive" {% if filters.get('status') == 'inactive' %}selected{% endif %}>产品状态：已下架</option>
+                    <option value="" {% if filters.get('status') == '' %}selected{% endif %}>产品状态：全部</option>
                 </select>
             </div>
-            <div class="col-md-2">
-                <button class="btn btn-outline-primary w-100">筛选</button>
-            </div>
-            <div class="col-md-1">
-                <a href="{{ url_for('product_list') }}" class="btn btn-outline-secondary w-100">重置</a>
-            </div>
+            <div class="col-md-2"><button class="btn btn-outline-primary w-100">筛选</button></div>
+            <div class="col-md-1"><a href="{{ url_for('product_list') }}" class="btn btn-outline-secondary w-100">重置</a></div>
         </form>
     </div>
 </div>
@@ -81,55 +96,98 @@
     <thead class="table-light">
     <tr>
         <th>产品编号</th>
+        <th>产品主图</th>
         <th>产品名称</th>
         <th>所属企业</th>
-        <th>行业分类</th>
-        <th>产品类别</th>
-        <th>HS编码</th>
+        <th>行业 / 品类</th>
+        <th>产品类型</th>
+        <th>是否适合出口</th>
+        <th>推荐等级</th>
         <th>MOQ</th>
-        <th>生产周期</th>
-        <th>FOB价</th>
-        <th>主要认证</th>
-        <th>可样品</th>
-        <th>支持定制</th>
-        <th>跨境电商</th>
-        <th>工程采购</th>
-        <th>经销代理</th>
-        <th>最近更新时间</th>
+        <th>交期</th>
+        <th>认证情况</th>
+        <th>目标市场</th>
+        <th>产品状态</th>
+        <th>价格</th>
+        <th>更新时间</th>
         <th>操作</th>
     </tr>
     </thead>
     <tbody>
-    {% for p in products %}
+    {% for p in 分页.items %}
     {% set extra = p.product_extra_fields or {} %}
+    {% set recommendation_badges = {
+        'A优先推荐': 'text-bg-success',
+        'B可推荐': 'text-bg-primary',
+        'C待完善': 'text-bg-warning',
+        'D暂缓': 'text-bg-secondary',
+        '待评估': 'text-bg-light'
+    } %}
+    {% set export_badges = {
+        '适合': 'text-bg-success',
+        '基本适合': 'text-bg-primary',
+        '待补充资料': 'text-bg-warning',
+        '暂不适合': 'text-bg-danger',
+        '待判断': 'text-bg-secondary'
+    } %}
+    {% set status_badges = {'active': 'text-bg-success', 'inactive': 'text-bg-secondary'} %}
     <tr>
         <td>{{ p.product_code }}</td>
         <td>
-            {{ p.product_name_cn }}
-            {% if p.status == 'inactive' %}<span class="badge text-bg-secondary">停用</span>{% endif %}
+            {% if p.main_image %}
+            <img src="{{ p.main_image }}" alt="{{ p.product_name_cn }}" class="rounded border" style="width:60px;height:60px;object-fit:cover;">
+            {% else %}
+            <div class="d-flex align-items-center justify-content-center rounded border bg-light text-muted" style="width:60px;height:60px;">暂无图片</div>
+            {% endif %}
+        </td>
+        <td>
+            <div>{{ p.product_name_cn }}</div>
             {% if p.product_name_en %}<div class="text-muted">{{ p.product_name_en }}</div>{% endif %}
         </td>
         <td>{{ p.enterprise.company_name if p.enterprise else '-' }}</td>
-        <td>{% if p.industry_code %}{{ p.industry_code }} {{ p.industry_name or '' }}{% else %}-{% endif %}</td>
-        <td>{{ p.product_category or '-' }}</td>
-        <td>{{ p.hs_code or '-' }}</td>
-        <td>{{ p.moq or extra.get('trade_moq') or '-' }}</td>
-        <td>{{ p.production_cycle or extra.get('trade_mass_cycle') or '-' }}</td>
-        <td>{{ p.fob_price|currency(p.currency) }}</td>
-        <td>{{ p.certifications or '-' }}</td>
-        <td>{{ '否' if extra.get('trade_sample_policy') == '不支持样品' else '是' }}</td>
-        <td>{{ extra.get('support_customization') or ('是' if p.customization_supported else '否') }}</td>
-        <td>{{ extra.get('fit_cross_border') or '待判断' }}</td>
-        <td>{{ extra.get('fit_engineering') or '待判断' }}</td>
-        <td>{{ extra.get('fit_distributor') or '待判断' }}</td>
-        <td>{{ p.updated_at.strftime('%Y-%m-%d %H:%M') }}</td>
         <td>
+            {% if p.industry_code or p.product_category %}
+                {{ (p.industry_code ~ ' ' ~ (p.industry_name or '')) if p.industry_code else '-' }} / {{ p.product_category or '-' }}
+            {% else %}
+                -
+            {% endif %}
+        </td>
+        <td>{{ p.product_type or '-' }}</td>
+        <td>
+            {% set export_value = p.export_suitability or '待判断' %}
+            <span class="badge {{ export_badges.get(export_value, 'text-bg-secondary') }}">{{ export_value }}</span>
+        </td>
+        <td>
+            {% set recommendation_value = p.recommendation_level or '待评估' %}
+            <span class="badge {{ recommendation_badges.get(recommendation_value, 'text-bg-light') }}">{{ recommendation_value }}</span>
+        </td>
+        <td>{{ p.moq or extra.get('trade_moq') or '-' }}</td>
+        <td>{{ p.delivery_cycle or p.production_cycle or extra.get('trade_mass_cycle') or '-' }}</td>
+        <td>{{ p.certification_status or p.certifications or '-' }}</td>
+        <td>{{ p.target_market or '-' }}</td>
+        <td>
+            <span class="badge {{ status_badges.get(p.status, 'text-bg-secondary') }}">{{ '上架' if p.status == 'active' else '下架' }}</span>
+        </td>
+        <td>
+            {% if p.price_display %}
+                {{ p.price_display }}
+            {% elif p.fob_price is not none %}
+                FOB {{ p.fob_price|currency(p.currency) }}
+            {% elif p.exw_price is not none %}
+                EXW {{ p.exw_price|currency(p.currency) }}
+            {% else %}
+                -
+            {% endif %}
+        </td>
+        <td>{{ p.updated_at.strftime('%Y-%m-%d') }}</td>
+        <td class="text-nowrap">
             <a class="btn btn-sm btn-outline-primary" href="{{ url_for('product_detail', product_id=p.id) }}">查看</a>
             <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('product_edit', product_id=p.id) }}">编辑</a>
-            <a class="btn btn-sm btn-outline-info" href="{{ url_for('document_upload', enterprise_id=p.enterprise_id, product_id=p.id) }}">上传文件</a>
+            <a class="btn btn-sm btn-outline-info" href="{{ url_for('product_detail', product_id=p.id, tab='sku') }}">SKU</a>
+            <a class="btn btn-sm btn-outline-info" href="{{ url_for('document_upload', enterprise_id=p.enterprise_id, product_id=p.id) }}">上传附件</a>
             <form method="post" action="{{ url_for('product_toggle_status', product_id=p.id) }}" class="d-inline">
                 <input type="hidden" name="action" value="{{ 'enable' if p.status == 'inactive' else 'disable' }}">
-                <button class="btn btn-sm btn-outline-warning" type="submit">{{ '启用' if p.status == 'inactive' else '停用' }}</button>
+                <button class="btn btn-sm btn-outline-warning" type="submit">{{ '上架' if p.status == 'inactive' else '下架' }}</button>
             </form>
             {% if 是管理员 %}
             <form method="post" action="{{ url_for('product_delete', product_id=p.id) }}" class="d-inline" onsubmit="return confirm('确认删除该产品？');">
@@ -140,9 +198,31 @@
         </td>
     </tr>
     {% else %}
-    <tr><td colspan="17" class="text-center text-muted">暂无产品数据</td></tr>
+    <tr><td colspan="16" class="text-center text-muted">暂无产品数据</td></tr>
     {% endfor %}
     </tbody>
 </table>
 </div>
+
+{% if 分页.pages > 1 %}
+<nav aria-label="产品分页" class="d-flex justify-content-center mt-3">
+    <ul class="pagination mb-0">
+        <li class="page-item {% if not 分页.has_prev %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for('product_list', page=分页.prev_num, keyword=filters.get('keyword',''), enterprise=filters.get('enterprise',''), industry=filters.get('industry',''), category=filters.get('category',''), product_type=filters.get('product_type',''), export_suitability=filters.get('export_suitability',''), recommendation_level=filters.get('recommendation_level',''), certification_status=filters.get('certification_status',''), target_market=filters.get('target_market',''), status=filters.get('status','active')) }}">上一页</a>
+        </li>
+        {% for pageno in 分页.iter_pages(left_edge=1, left_current=1, right_current=2, right_edge=1) %}
+            {% if pageno %}
+            <li class="page-item {% if pageno == 分页.page %}active{% endif %}">
+                <a class="page-link" href="{{ url_for('product_list', page=pageno, keyword=filters.get('keyword',''), enterprise=filters.get('enterprise',''), industry=filters.get('industry',''), category=filters.get('category',''), product_type=filters.get('product_type',''), export_suitability=filters.get('export_suitability',''), recommendation_level=filters.get('recommendation_level',''), certification_status=filters.get('certification_status',''), target_market=filters.get('target_market',''), status=filters.get('status','active')) }}">{{ pageno }}</a>
+            </li>
+            {% else %}
+            <li class="page-item disabled"><span class="page-link">…</span></li>
+            {% endif %}
+        {% endfor %}
+        <li class="page-item {% if not 分页.has_next %}disabled{% endif %}">
+            <a class="page-link" href="{{ url_for('product_list', page=分页.next_num, keyword=filters.get('keyword',''), enterprise=filters.get('enterprise',''), industry=filters.get('industry',''), category=filters.get('category',''), product_type=filters.get('product_type',''), export_suitability=filters.get('export_suitability',''), recommendation_level=filters.get('recommendation_level',''), certification_status=filters.get('certification_status',''), target_market=filters.get('target_market',''), status=filters.get('status','active')) }}">下一页</a>
+        </li>
+    </ul>
+</nav>
+{% endif %}
 {% endblock %}
