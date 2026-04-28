@@ -3743,12 +3743,27 @@ def 导入产品Excel(file_storage):
             业务状态 = 单元格文本(row[idx["产品状态"]]) if "产品状态" in idx else ""
             if 业务状态:
                 extra["product_status_review"] = 业务状态
+            legacy_上架状态映射 = {
+                "active": "active",
+                "上架": "active",
+                "启用": "active",
+                "enable": "active",
+                "enabled": "active",
+                "inactive": "inactive",
+                "下架": "inactive",
+                "停用": "inactive",
+                "disable": "inactive",
+                "disabled": "inactive",
+            }
             if "上架状态" in idx:
                 上架状态原值 = 单元格文本(row[idx["上架状态"]]).lower()
-                if 上架状态原值 in {"active", "上架", "启用", "enable", "enabled"}:
-                    product.status = "active"
-                elif 上架状态原值 in {"inactive", "下架", "停用", "disable", "disabled"}:
-                    product.status = "inactive"
+                if 上架状态原值 in legacy_上架状态映射:
+                    product.status = legacy_上架状态映射[上架状态原值]
+            # 兼容历史导出：旧模板只有“产品状态”，其值实际对应 products.status。
+            elif 业务状态:
+                业务状态归一化 = 业务状态.lower()
+                if 业务状态归一化 in legacy_上架状态映射:
+                    product.status = legacy_上架状态映射[业务状态归一化]
             product.product_selling_points = 单元格文本(row[idx["核心卖点"]]) or None if "核心卖点" in idx else None
             product.moq = 单元格文本(row[idx["MOQ"]]) or None if "MOQ" in idx else None
             product.delivery_cycle = 取首个存在字段值(row, idx, "交期", "批量生产周期") or product.delivery_cycle
