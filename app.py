@@ -2582,6 +2582,7 @@ def fill_product_from_form(product, form):
     product.unit = form.get("unit", "").strip() or None
     product.moq = form.get("moq", "").strip() or None
     product.production_cycle = form.get("production_cycle", "").strip() or None
+    product.delivery_cycle = form.get("delivery_cycle", "").strip() or product.production_cycle
     product.sample_cycle = form.get("sample_cycle", "").strip() or None
     product.monthly_capacity = form.get("monthly_capacity", "").strip() or None
     product.customization_supported = 读取布尔(form, "customization_supported")
@@ -2594,8 +2595,14 @@ def fill_product_from_form(product, form):
     product.quote_valid_until = 读取日期(form.get("quote_valid_until"))
     product.sample_policy = form.get("sample_policy", "").strip() or None
     product.target_market = form.get("target_market", "").strip() or None
+    product.main_image = form.get("main_image", "").strip() or None
+    product.product_type = form.get("product_type", "").strip() or None
+    product.export_suitability = form.get("export_suitability", "").strip() or None
+    product.recommendation_level = form.get("recommendation_level", "").strip() or None
     product.existing_sales_countries = form.get("existing_sales_countries", "").strip() or None
     product.certifications = form.get("certifications", "").strip() or None
+    product.certification_status = form.get("certification_status", "").strip() or None
+    product.price_display = form.get("price_display", "").strip() or 生成价格展示文案(product)
     product.packaging = form.get("packaging", "").strip() or None
     product.carton_size = form.get("carton_size", "").strip() or None
     product.gross_weight = form.get("gross_weight", "").strip() or None
@@ -2607,6 +2614,20 @@ def fill_product_from_form(product, form):
     product.product_extra_fields = 提取产品扩展字段(form, product.industry_code)
     if not product.product_name_cn:
         raise ValueError("产品中文名为必填项")
+
+
+def 生成价格展示文案(product):
+    片段 = []
+    货币 = (product.currency or "USD").strip() or "USD"
+    if product.fob_price is not None:
+        片段.append(f"FOB {product.fob_price:.2f} {货币}")
+    if product.cif_price is not None:
+        片段.append(f"CIF {product.cif_price:.2f} {货币}")
+    if product.ddp_price is not None:
+        片段.append(f"DDP {product.ddp_price:.2f} {货币}")
+    if product.exw_price is not None:
+        片段.append(f"出厂价 {product.exw_price:.2f} {货币}")
+    return " / ".join(片段) if 片段 else None
 
 
 def 生成需求编号():
@@ -3559,10 +3580,82 @@ def init_db(app):
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_products_industry_name ON products (industry_name)"))
         if "product_extra_fields" not in product_columns:
             db.session.execute(text("ALTER TABLE products ADD COLUMN product_extra_fields JSON"))
+        if "main_image" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN main_image VARCHAR(500)"))
+        if "product_type" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN product_type VARCHAR(50)"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_products_product_type ON products (product_type)"))
+        if "delivery_cycle" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN delivery_cycle VARCHAR(100)"))
+            db.session.execute(
+                text(
+                    "UPDATE products SET delivery_cycle=production_cycle "
+                    "WHERE (delivery_cycle IS NULL OR delivery_cycle='') "
+                    "AND production_cycle IS NOT NULL AND production_cycle!=''"
+                )
+            )
+        if "export_suitability" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN export_suitability VARCHAR(50)"))
+            db.session.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_products_export_suitability ON products (export_suitability)")
+            )
+        if "recommendation_level" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN recommendation_level VARCHAR(50)"))
+            db.session.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_products_recommendation_level ON products (recommendation_level)")
+            )
+        if "certification_status" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN certification_status VARCHAR(50)"))
+            db.session.execute(
+                text("CREATE INDEX IF NOT EXISTS ix_products_certification_status ON products (certification_status)")
+            )
+        if "price_display" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN price_display VARCHAR(255)"))
         if "status" not in product_columns:
             db.session.execute(text("ALTER TABLE products ADD COLUMN status VARCHAR(20) DEFAULT 'active'"))
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_products_status ON products (status)"))
             db.session.execute(text("UPDATE products SET status='active' WHERE status IS NULL OR status=''"))
+        db.session.commit()
+
+        db.session.execute(
+            text(
+                """
+                UPDATE products
+                SET price_display = TRIM(
+                    COALESCE(
+                        CASE WHEN fob_price IS NOT NULL THEN 'FOB ' || printf('%.2f', fob_price) || ' ' || COALESCE(currency, 'USD') END,
+                        ''
+                    ) ||
+                    CASE
+                        WHEN fob_price IS NOT NULL AND cif_price IS NOT NULL THEN ' / '
+                        ELSE ''
+                    END ||
+                    COALESCE(
+                        CASE WHEN cif_price IS NOT NULL THEN 'CIF ' || printf('%.2f', cif_price) || ' ' || COALESCE(currency, 'USD') END,
+                        ''
+                    ) ||
+                    CASE
+                        WHEN (fob_price IS NOT NULL OR cif_price IS NOT NULL) AND ddp_price IS NOT NULL THEN ' / '
+                        ELSE ''
+                    END ||
+                    COALESCE(
+                        CASE WHEN ddp_price IS NOT NULL THEN 'DDP ' || printf('%.2f', ddp_price) || ' ' || COALESCE(currency, 'USD') END,
+                        ''
+                    ) ||
+                    CASE
+                        WHEN (fob_price IS NOT NULL OR cif_price IS NOT NULL OR ddp_price IS NOT NULL) AND exw_price IS NOT NULL THEN ' / '
+                        ELSE ''
+                    END ||
+                    COALESCE(
+                        CASE WHEN exw_price IS NOT NULL THEN '出厂价 ' || printf('%.2f', exw_price) || ' ' || COALESCE(currency, 'USD') END,
+                        ''
+                    )
+                )
+                WHERE (price_display IS NULL OR price_display = '')
+                  AND (fob_price IS NOT NULL OR cif_price IS NOT NULL OR ddp_price IS NOT NULL OR exw_price IS NOT NULL)
+                """
+            )
+        )
         db.session.commit()
 
         db.session.execute(
