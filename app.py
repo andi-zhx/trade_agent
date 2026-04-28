@@ -2791,6 +2791,8 @@ def 提取产品扩展字段(form, 行业代码, 原扩展字段=None):
     数据 = dict(原扩展字段 or {})
     for 字段 in 产品扩展字段配置(行业代码):
         键名 = 字段["key"]
+        if 键名 not in form:
+            continue
         if 字段.get("type") == "checkbox_group":
             值 = [item.strip() for item in form.getlist(键名) if item and item.strip()]
         else:
@@ -2841,7 +2843,10 @@ def fill_product_from_form(product, form):
     product.weight = form.get("weight", "").strip() or None
     product.color = form.get("color", "").strip() or None
     product.function_description = form.get("function_description", "").strip() or None
-    旧应用场景 = form.get("application_scenario", "").strip()
+    if "application_scenario" in form:
+        旧应用场景 = form.get("application_scenario", "").strip()
+    else:
+        旧应用场景 = (product.application_scenario or "").strip()
     应用场景标签 = [item.strip() for item in form.getlist("positioning_scenarios") if item and item.strip()]
     product.application_scenario = "、".join(应用场景标签) if 应用场景标签 else (旧应用场景 or None)
     product.unit = form.get("unit", "").strip() or None
