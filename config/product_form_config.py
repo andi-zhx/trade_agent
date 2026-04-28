@@ -18,7 +18,9 @@ COMMON_PRODUCT_FIELD_GROUPS = [
         "title": "B. 产品说明",
         "fields": [
             {"key": "desc_usage", "label": "产品用途", "type": "textarea"},
+            {"key": "positioning_scenarios", "label": "应用场景（标签）", "type": "checkbox_group", "options": ["工业生产", "家用消费", "工程项目", "医疗健康", "食品农业", "户外场景", "办公场景", "跨境电商", "其他"]},
             {"key": "desc_scenarios", "label": "应用场景", "type": "textarea"},
+            {"key": "target_customer_tags", "label": "目标客户（标签）", "type": "checkbox_group", "options": ["进口商", "经销商", "批发商", "品牌商", "工程商", "商超", "电商卖家", "政府采购", "终端客户"]},
             {"key": "desc_target_customer", "label": "目标客户", "type": "textarea"},
             {"key": "desc_core_selling_points", "label": "核心卖点", "type": "textarea"},
             {"key": "desc_differentiated_advantage", "label": "差异化优势", "type": "textarea"},
@@ -92,6 +94,9 @@ COMMON_PRODUCT_FIELD_GROUPS = [
             {"key": "fit_cross_border", "label": "是否适合跨境电商", "type": "select", "options": ["是", "否", "待判断"]},
             {"key": "fit_engineering", "label": "是否适合工程采购", "type": "select", "options": ["是", "否", "待判断"]},
             {"key": "fit_distributor", "label": "是否适合经销代理", "type": "select", "options": ["是", "否", "待判断"]},
+            {"key": "target_market_tags", "label": "目标市场（标签）", "type": "checkbox_group", "options": ["东南亚", "欧洲", "北美", "南美", "中东", "非洲", "日本韩国", "澳新", "其他"]},
+            {"key": "cooperation_modes", "label": "合作模式", "type": "checkbox_group", "options": ["采购撮合", "经销代理", "OEM", "ODM", "联合开发", "工程项目", "跨境电商", "展会推荐"]},
+            {"key": "product_status_review", "label": "产品状态（业务）", "type": "select", "options": ["草稿", "待补充", "已入库", "已推荐", "暂停", "下架"]},
         ],
     },
     {
@@ -104,6 +109,7 @@ COMMON_PRODUCT_FIELD_GROUPS = [
             {"key": "media_brochure", "label": "宣传册", "type": "select", "options": ["已提供", "未提供", "待补充"]},
             {"key": "media_english_ppt", "label": "英文PPT", "type": "select", "options": ["已提供", "未提供", "待补充"]},
             {"key": "media_case_study", "label": "案例资料", "type": "select", "options": ["已提供", "未提供", "待补充"]},
+            {"key": "risk_warning", "label": "风险提示", "type": "textarea"},
             {"key": "other_notes", "label": "其他说明", "type": "textarea"},
         ],
     },

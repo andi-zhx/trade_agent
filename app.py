@@ -1696,6 +1696,12 @@ def create_app():
                 )
             db.session.add(product)
             db.session.flush()
+            附件主图 = request.form.get("main_image_from_attachment", "").strip()
+            if 附件主图:
+                product.main_image = 附件主图
+            上传主图 = 处理产品主图上传(product, enterprise)
+            if 上传主图:
+                product.main_image = 上传主图
             记录审计日志("新增产品", "product", target_id=product.id, detail=product.product_name_cn)
             db.session.commit()
             flash(f"产品概览已保存，编号：{product.product_code}。请继续维护 SKU 与附件信息。", "success")
@@ -1714,6 +1720,7 @@ def create_app():
             product_extra_values={},
             产品文件类型选项=PRODUCT_UPLOAD_TYPES,
             is_new_product=True,
+            product_files=[],
             initial_tab=当前标签,
         )
 
@@ -1845,6 +1852,7 @@ def create_app():
     def product_edit(product_id):
         product = Product.query.get_or_404(product_id)
         enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
+        product_files = Document.query.filter_by(product_id=product.id).order_by(Document.uploaded_at.desc()).all()
         当前标签 = request.form.get("_active_tab") or request.args.get("tab", "overview")
         if request.method == "POST":
             enterprise_id = request.form.get("enterprise_id", type=int)
@@ -1864,6 +1872,7 @@ def create_app():
                     product_extra_values=(product.product_extra_fields or {}) if product else {},
                     产品文件类型选项=PRODUCT_UPLOAD_TYPES,
                     is_new_product=False,
+                    product_files=product_files,
                     initial_tab=当前标签,
                 )
 
@@ -1888,9 +1897,16 @@ def create_app():
                     product_extra_values=(product.product_extra_fields or {}) if product else {},
                     产品文件类型选项=PRODUCT_UPLOAD_TYPES,
                     is_new_product=False,
+                    product_files=product_files,
                     initial_tab=当前标签,
                 )
             try:
+                附件主图 = request.form.get("main_image_from_attachment", "").strip()
+                if 附件主图:
+                    product.main_image = 附件主图
+                上传主图 = 处理产品主图上传(product, enterprise)
+                if 上传主图:
+                    product.main_image = 上传主图
                 上传数 = 处理表单文件上传(
                     enterprise=enterprise,
                     product=product,
@@ -1913,6 +1929,7 @@ def create_app():
                     product_extra_values=(product.product_extra_fields or {}) if product else {},
                     产品文件类型选项=PRODUCT_UPLOAD_TYPES,
                     is_new_product=False,
+                    product_files=product_files,
                     initial_tab=当前标签,
                 )
             记录审计日志("编辑产品", "product", target_id=product.id, detail=product.product_name_cn)
@@ -1933,6 +1950,7 @@ def create_app():
             product_extra_values=product.product_extra_fields or {},
             产品文件类型选项=PRODUCT_UPLOAD_TYPES,
             is_new_product=False,
+            product_files=product_files,
             initial_tab=当前标签,
         )
 
@@ -2565,8 +2583,8 @@ def 产品扩展字段配置(行业代码):
     return 配置
 
 
-def 提取产品扩展字段(form, 行业代码):
-    数据 = {}
+def 提取产品扩展字段(form, 行业代码, 原扩展字段=None):
+    数据 = dict(原扩展字段 or {})
     for 字段 in 产品扩展字段配置(行业代码):
         键名 = 字段["key"]
         if 字段.get("type") == "checkbox_group":
@@ -2575,6 +2593,7 @@ def 提取产品扩展字段(form, 行业代码):
             原值 = form.get(键名, "")
             值 = 原值.strip() if isinstance(原值, str) else 原值
         if 值 in (None, "", []):
+            数据.pop(键名, None)
             continue
         数据[键名] = 值
     return 数据
@@ -2618,14 +2637,20 @@ def fill_product_from_form(product, form):
     product.weight = form.get("weight", "").strip() or None
     product.color = form.get("color", "").strip() or None
     product.function_description = form.get("function_description", "").strip() or None
-    product.application_scenario = form.get("application_scenario", "").strip() or None
+    旧应用场景 = form.get("application_scenario", "").strip()
+    应用场景标签 = [item.strip() for item in form.getlist("positioning_scenarios") if item and item.strip()]
+    product.application_scenario = "、".join(应用场景标签) if 应用场景标签 else (旧应用场景 or None)
     product.unit = form.get("unit", "").strip() or None
     product.moq = form.get("moq", "").strip() or None
     product.production_cycle = form.get("production_cycle", "").strip() or None
     product.delivery_cycle = form.get("delivery_cycle", "").strip() or product.production_cycle
     product.sample_cycle = form.get("sample_cycle", "").strip() or None
     product.monthly_capacity = form.get("monthly_capacity", "").strip() or None
-    product.customization_supported = 读取布尔(form, "customization_supported")
+    定制支持文本 = form.get("support_customization", "").strip()
+    if 定制支持文本:
+        product.customization_supported = 定制支持文本 == "是"
+    else:
+        product.customization_supported = 读取布尔(form, "customization_supported")
     product.currency = form.get("currency", "").strip() or "USD"
     product.exw_price = 读取金额(form.get("exw_price"))
     product.fob_price = 读取金额(form.get("fob_price"))
@@ -2633,9 +2658,11 @@ def fill_product_from_form(product, form):
     product.ddp_price = 读取金额(form.get("ddp_price"))
     product.quote_date = 读取日期(form.get("quote_date"))
     product.quote_valid_until = 读取日期(form.get("quote_valid_until"))
-    product.sample_policy = form.get("sample_policy", "").strip() or None
-    product.target_market = form.get("target_market", "").strip() or None
-    product.main_image = form.get("main_image", "").strip() or None
+    样品政策值 = form.get("trade_sample_policy", "").strip() or form.get("sample_policy", "").strip()
+    product.sample_policy = 样品政策值 or None
+    目标市场标签 = [item.strip() for item in form.getlist("target_market_tags") if item and item.strip()]
+    product.target_market = "、".join(目标市场标签) if 目标市场标签 else (form.get("target_market", "").strip() or None)
+    product.main_image = form.get("main_image", "").strip() or product.main_image
     product.product_type = form.get("product_type", "").strip() or None
     product.export_suitability = form.get("export_suitability", "").strip() or None
     product.recommendation_level = form.get("recommendation_level", "").strip() or None
@@ -2649,11 +2676,40 @@ def fill_product_from_form(product, form):
     product.net_weight = form.get("net_weight", "").strip() or None
     product.loading_quantity = form.get("loading_quantity", "").strip() or None
     product.warranty = form.get("warranty", "").strip() or None
-    product.product_selling_points = form.get("product_selling_points", "").strip() or None
+    核心卖点 = form.get("core_selling_points", "").strip() or form.get("product_selling_points", "").strip()
+    product.product_selling_points = 核心卖点 or None
     product.notes = form.get("notes", "").strip() or None
-    product.product_extra_fields = 提取产品扩展字段(form, product.industry_code)
+    product.product_extra_fields = 提取产品扩展字段(form, product.industry_code, 原扩展字段=product.product_extra_fields)
+    if 核心卖点:
+        product.product_extra_fields["desc_core_selling_points"] = 核心卖点
+    if 应用场景标签:
+        product.product_extra_fields["desc_scenarios"] = "、".join(应用场景标签)
+    目标客户标签 = [item.strip() for item in form.getlist("target_customer_tags") if item and item.strip()]
+    if 目标客户标签:
+        product.product_extra_fields["desc_target_customer"] = "、".join(目标客户标签)
+    if 样品政策值:
+        product.product_extra_fields["trade_sample_policy"] = 样品政策值
+    if 定制支持文本:
+        product.product_extra_fields["support_customization"] = 定制支持文本
     if not product.product_name_cn:
         raise ValueError("产品中文名为必填项")
+
+
+def 处理产品主图上传(product, enterprise):
+    主图文件 = request.files.get("main_image_upload")
+    if not 主图文件 or not 主图文件.filename:
+        return None
+    当前上传人 = (session.get("用户") or "未署名").strip() or "未署名"
+    文档 = 保存文件并登记记录(
+        app=app,
+        enterprise=enterprise,
+        product=product,
+        上传文件=主图文件,
+        document_type="产品图片",
+        document_name="产品主图",
+        uploaded_by=当前上传人,
+    )
+    return f"/{文档.file_path}"
 
 
 def 填充SKU字段(sku, form, product=None, 自动生成编码=True):
