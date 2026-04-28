@@ -103,7 +103,6 @@
         <div class="row g-3 small">
             <div class="col-md-4"><strong>企业编号：</strong>{{ show_text(企业.enterprise_code) }}</div>
             <div class="col-md-4"><strong>企业名称：</strong>{{ show_text(ext.get('company_full_name') or 企业.company_name) }}</div>
-            <div class="col-md-4"><strong>入库状态：</strong>{{ show_text(企业.status) }}</div>
             <div class="col-md-4"><strong>行业大类：</strong>{{ show_text(企业.industry_code) }} {{ 企业.industry_category or '' }}</div>
             <div class="col-md-4"><strong>省市：</strong>{{ show_text(企业.province) }} / {{ show_text(企业.city) }}</div>
             <div class="col-md-4"><strong>项目负责人：</strong>{{ show_text(企业.project_owner) }}</div>
@@ -134,7 +133,6 @@
             <div class="accordion-body">
                 <div class="row g-3 small">
                     <div class="col-md-3"><strong>企业编号：</strong>{{ show_text(企业.enterprise_code) }}</div>
-                    <div class="col-md-3"><strong>入库状态：</strong>{{ show_text(企业.status) }}</div>
                     <div class="col-md-3"><strong>项目负责人：</strong>{{ show_text(企业.project_owner) }}</div>
                     <div class="col-md-3"><strong>行业代码：</strong>{{ show_text(企业.industry_code) }}</div>
                     <div class="col-md-3"><strong>行业名称：</strong>{{ show_text(企业.industry_category) }}</div>
