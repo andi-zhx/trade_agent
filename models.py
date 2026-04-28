@@ -118,16 +118,24 @@ class Product(db.Model):
 
     __tablename__ = "products"
 
+    PRODUCT_TYPE_OPTIONS = ["标准品", "定制品", "OEM", "ODM", "工程项目型", "服务型", "数字产品", "其他"]
+    EXPORT_SUITABILITY_OPTIONS = ["适合", "基本适合", "待补充资料", "暂不适合", "待判断"]
+    RECOMMENDATION_LEVEL_OPTIONS = ["A优先推荐", "B可推荐", "C待完善", "D暂缓", "待评估"]
+    PRODUCT_STATUS_OPTIONS = ["草稿", "待补充", "已入库", "已推荐", "暂停", "下架"]
+    CERTIFICATION_STATUS_OPTIONS = ["齐全", "部分齐全", "待补充", "无需认证", "未核验"]
+
     id = db.Column(db.Integer, primary_key=True)
     enterprise_id = db.Column(
         db.Integer, db.ForeignKey("enterprises.id", ondelete="CASCADE"), nullable=False
     )
     product_code = db.Column(db.String(32), nullable=False, index=True)
+    main_image = db.Column(db.String(500))
     product_name_cn = db.Column(db.String(255), nullable=False, index=True)
     product_name_en = db.Column(db.String(255))
     industry_code = db.Column(db.String(50), index=True)
     industry_name = db.Column(db.String(100), index=True)
     product_category = db.Column(db.String(100), index=True)
+    product_type = db.Column(db.String(50), index=True)
     hs_code = db.Column(db.String(32), index=True)
     model = db.Column(db.String(100))
     brand = db.Column(db.String(100))
@@ -141,6 +149,7 @@ class Product(db.Model):
     unit = db.Column(db.String(20))
     moq = db.Column(db.String(50))
     production_cycle = db.Column(db.String(100))
+    delivery_cycle = db.Column(db.String(100))
     sample_cycle = db.Column(db.String(100))
     monthly_capacity = db.Column(db.String(255))
     customization_supported = db.Column(db.Boolean, default=False, nullable=False)
@@ -148,13 +157,17 @@ class Product(db.Model):
     fob_price = db.Column(db.Numeric(18, 2))
     cif_price = db.Column(db.Numeric(18, 2))
     ddp_price = db.Column(db.Numeric(18, 2))
+    price_display = db.Column(db.String(255))
     currency = db.Column(db.String(10), default="USD")
     quote_date = db.Column(db.Date)
     quote_valid_until = db.Column(db.Date)
     sample_policy = db.Column(db.Text)
     target_market = db.Column(db.String(255))
+    export_suitability = db.Column(db.String(50), index=True)
+    recommendation_level = db.Column(db.String(50), index=True)
     existing_sales_countries = db.Column(db.Text)
     certifications = db.Column(db.Text)
+    certification_status = db.Column(db.String(50), index=True)
     packaging = db.Column(db.Text)
     carton_size = db.Column(db.String(100))
     gross_weight = db.Column(db.String(100))
