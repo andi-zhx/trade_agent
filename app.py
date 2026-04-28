@@ -63,15 +63,15 @@ ENTERPRISE_UPLOAD_TYPES = [
 ]
 
 PRODUCT_UPLOAD_TYPES = [
+    "产品认证",
+    "检测报告",
     "产品图片",
     "产品视频",
     "产品规格书",
     "产品说明书",
-    "检测报告",
-    "产品认证",
+    "英文资料",
     "报价单",
     "包装资料",
-    "英文PPT",
     "案例资料",
     "其他文件",
 ]
@@ -137,6 +137,7 @@ DOCUMENT_FOLDER_MAPPING = {
     "包装资料": "08_包装物流与交付资料",
     "物流资料": "08_包装物流与交付资料",
     "宣传PPT": "09_宣传展示资料",
+    "英文资料": "09_宣传展示资料",
     "英文PPT": "09_宣传展示资料",
     "宣传册": "09_宣传展示资料",
     "尽调照片": "10_图片视频与样品资料",
@@ -615,7 +616,15 @@ def create_app():
             return f"{企业编号}_{企业简称}_{资料说明}_{日期文本}{extension}"
         return None
 
-    def 处理表单文件上传(enterprise, 类型字段名, 名称字段名, 文件字段名, product=None, use_enterprise_naming=False):
+    def 生成产品附件文件名(enterprise, product, document_type, extension, 自定义名称):
+        日期文本 = datetime.now().strftime("%Y%m%d")
+        企业编号 = 清洗路径片段(enterprise.enterprise_code or "E000")
+        产品编号 = 清洗路径片段(product.product_code or "P000")
+        文件分类 = 清洗路径片段(document_type or "其他文件")
+        文件说明 = 清洗路径片段(自定义名称 or "未命名文件")
+        return f"{企业编号}_{产品编号}_{文件分类}_{文件说明}_{日期文本}{extension}"
+
+    def 处理表单文件上传(enterprise, 类型字段名, 名称字段名, 文件字段名, product=None, use_enterprise_naming=False, use_product_naming=False):
         类型列表 = request.form.getlist(类型字段名)
         名称列表 = request.form.getlist(名称字段名)
         文件列表 = request.files.getlist(文件字段名)
@@ -635,6 +644,10 @@ def create_app():
             if use_enterprise_naming:
                 校验企业附件扩展名(文件类型, 扩展名)
             目标文件名 = 生成企业附件文件名(enterprise, 文件类型, 扩展名, 文件名称, 上传成功数 + 1) if use_enterprise_naming else None
+            if use_product_naming:
+                if not product:
+                    raise ValueError("产品附件上传失败：缺少产品信息。")
+                目标文件名 = 生成产品附件文件名(enterprise, product, 文件类型, 扩展名, 文件名称)
             保存文件并登记记录(
                 app=app,
                 enterprise=enterprise,
@@ -2009,6 +2022,7 @@ def create_app():
                     类型字段名="product_upload_type",
                     名称字段名="product_upload_name",
                     文件字段名="product_upload_file",
+                    use_product_naming=True,
                 )
             except ValueError as exc:
                 flash(str(exc), "danger")
@@ -2068,6 +2082,34 @@ def create_app():
         db.session.commit()
         flash("产品已删除。", "info")
         return redirect(url_for("product_list"))
+
+    @app.post("/products/<int:product_id>/attachments/<int:document_id>/set-main-image")
+    def product_attachment_set_main_image(product_id, document_id):
+        product = Product.query.get_or_404(product_id)
+        document = Document.query.filter_by(id=document_id, product_id=product.id).first_or_404()
+        if document.document_type != "产品图片":
+            flash("仅产品图片可设为主图。", "warning")
+            return redirect(url_for("product_edit", product_id=product.id, tab="attachment"))
+        product.main_image = f"/{document.file_path}"
+        记录审计日志("设为产品主图", "product", target_id=product.id, detail=document.document_name)
+        db.session.commit()
+        flash("主图已更新。", "success")
+        return redirect(url_for("product_edit", product_id=product.id, tab="attachment"))
+
+    @app.post("/products/<int:product_id>/attachments/<int:document_id>/delete")
+    def product_attachment_delete(product_id, document_id):
+        product = Product.query.get_or_404(product_id)
+        document = Document.query.filter_by(id=document_id, product_id=product.id).first_or_404()
+        文件路径 = BASE_DIR / document.file_path
+        if 文件路径.exists() and 文件路径.is_file():
+            文件路径.unlink()
+        if product.main_image == f"/{document.file_path}":
+            product.main_image = None
+        记录审计日志("删除产品附件", "document", target_id=document.id, detail=document.document_name)
+        db.session.delete(document)
+        db.session.commit()
+        flash("附件已删除。", "success")
+        return redirect(url_for("product_edit", product_id=product.id, tab="attachment"))
 
     @app.post("/products/<int:product_id>/toggle-status")
     def product_toggle_status(product_id):
@@ -2767,7 +2809,10 @@ def fill_product_from_form(product, form):
     product.recommendation_level = form.get("recommendation_level", "").strip() or None
     product.existing_sales_countries = form.get("existing_sales_countries", "").strip() or None
     product.certifications = form.get("certifications", "").strip() or None
-    product.certification_status = form.get("certification_status", "").strip() or None
+    认证标签 = [item.strip() for item in form.getlist("cert_product") if item and item.strip()]
+    if 认证标签:
+        product.certifications = "、".join(认证标签)
+    product.certification_status = form.get("cert_status", "").strip() or form.get("certification_status", "").strip() or None
     product.price_display = form.get("price_display", "").strip() or 生成价格展示文案(product)
     product.packaging = form.get("packaging", "").strip() or None
     product.carton_size = form.get("carton_size", "").strip() or None
