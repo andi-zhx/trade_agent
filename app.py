@@ -1649,6 +1649,7 @@ def create_app():
     @app.route("/products/new", methods=["GET", "POST"])
     def product_new():
         enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
+        当前标签 = request.form.get("_active_tab") or request.args.get("tab", "overview")
         if request.method == "POST":
             enterprise_id = request.form.get("enterprise_id", type=int)
             enterprise = Enterprise.query.get(enterprise_id) if enterprise_id else None
@@ -1666,6 +1667,8 @@ def create_app():
                     industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
                     product_extra_values={},
                     产品文件类型选项=PRODUCT_UPLOAD_TYPES,
+                    is_new_product=True,
+                    initial_tab=当前标签,
                 )
 
             product = Product(
@@ -1688,36 +1691,15 @@ def create_app():
                     industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
                     product_extra_values=product.product_extra_fields or {},
                     产品文件类型选项=PRODUCT_UPLOAD_TYPES,
+                    is_new_product=True,
+                    initial_tab=当前标签,
                 )
             db.session.add(product)
             db.session.flush()
-            try:
-                上传数 = 处理表单文件上传(
-                    enterprise=enterprise,
-                    product=product,
-                    类型字段名="product_upload_type",
-                    名称字段名="product_upload_name",
-                    文件字段名="product_upload_file",
-                )
-            except ValueError as exc:
-                flash(str(exc), "danger")
-                return render_template(
-                    "products/form.html",
-                    form_action=url_for("product_new"),
-                    enterprises=enterprises,
-                    form_title="新增产品",
-                    sections=PRODUCT_FORM_SECTIONS,
-                    product=product,
-                    industries=行业下拉选项(),
-                    common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
-                    industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
-                    product_extra_values=product.product_extra_fields or {},
-                    产品文件类型选项=PRODUCT_UPLOAD_TYPES,
-                )
             记录审计日志("新增产品", "product", target_id=product.id, detail=product.product_name_cn)
             db.session.commit()
-            flash(f"产品已创建，编号：{product.product_code}，上传文件 {上传数} 个。", "success")
-            return redirect(url_for("product_detail", product_id=product.id))
+            flash(f"产品概览已保存，编号：{product.product_code}。请继续维护 SKU 与附件信息。", "success")
+            return redirect(url_for("product_edit", product_id=product.id, tab="sku"))
 
         return render_template(
             "products/form.html",
@@ -1731,6 +1713,8 @@ def create_app():
             industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
             product_extra_values={},
             产品文件类型选项=PRODUCT_UPLOAD_TYPES,
+            is_new_product=True,
+            initial_tab=当前标签,
         )
 
     @app.route("/products/<int:product_id>")
@@ -1861,6 +1845,7 @@ def create_app():
     def product_edit(product_id):
         product = Product.query.get_or_404(product_id)
         enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
+        当前标签 = request.form.get("_active_tab") or request.args.get("tab", "overview")
         if request.method == "POST":
             enterprise_id = request.form.get("enterprise_id", type=int)
             enterprise = Enterprise.query.get(enterprise_id) if enterprise_id else None
@@ -1878,6 +1863,8 @@ def create_app():
                     industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
                     product_extra_values=(product.product_extra_fields or {}) if product else {},
                     产品文件类型选项=PRODUCT_UPLOAD_TYPES,
+                    is_new_product=False,
+                    initial_tab=当前标签,
                 )
 
             old_enterprise_id = product.enterprise_id
@@ -1900,6 +1887,8 @@ def create_app():
                     industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
                     product_extra_values=(product.product_extra_fields or {}) if product else {},
                     产品文件类型选项=PRODUCT_UPLOAD_TYPES,
+                    is_new_product=False,
+                    initial_tab=当前标签,
                 )
             try:
                 上传数 = 处理表单文件上传(
@@ -1923,11 +1912,13 @@ def create_app():
                     industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
                     product_extra_values=(product.product_extra_fields or {}) if product else {},
                     产品文件类型选项=PRODUCT_UPLOAD_TYPES,
+                    is_new_product=False,
+                    initial_tab=当前标签,
                 )
             记录审计日志("编辑产品", "product", target_id=product.id, detail=product.product_name_cn)
             db.session.commit()
             flash(f"产品信息已更新，新增上传文件 {上传数} 个。", "success")
-            return redirect(url_for("product_detail", product_id=product.id))
+            return redirect(url_for("product_edit", product_id=product.id, tab=当前标签))
 
         return render_template(
             "products/form.html",
@@ -1941,6 +1932,8 @@ def create_app():
             industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
             product_extra_values=product.product_extra_fields or {},
             产品文件类型选项=PRODUCT_UPLOAD_TYPES,
+            is_new_product=False,
+            initial_tab=当前标签,
         )
 
     @app.post("/products/<int:product_id>/delete")
