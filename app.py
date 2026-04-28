@@ -999,81 +999,55 @@ def create_app():
     @app.route("/enterprises")
     def enterprise_list():
         page = request.args.get("page", 1, type=int)
-        q = request.args.get("q", "", type=str).strip()
+        keyword = request.args.get("keyword", "", type=str).strip()
+        short_name_keyword = request.args.get("short_name_keyword", "", type=str).strip()
         industry = request.args.get("industry", "", type=str).strip()
+        industry_name_keyword = request.args.get("industry_name_keyword", "", type=str).strip()
         province = request.args.get("province", "", type=str).strip()
         city = request.args.get("city", "", type=str).strip()
-        company_nature = request.args.get("company_nature", "", type=str).strip()
-        enterprise_size = request.args.get("enterprise_size", "", type=str).strip()
-        has_overseas_business = request.args.get("has_overseas_business", "", type=str).strip()
-        has_own_factory = request.args.get("has_own_factory", "", type=str).strip()
-        has_export = request.args.get("has_export", "", type=str).strip()
-        is_listed = request.args.get("is_listed", "", type=str).strip()
-        has_cross_border = request.args.get("has_cross_border", "", type=str).strip()
-        has_own_brand = request.args.get("has_own_brand", "", type=str).strip()
-        certificate_validity_status = request.args.get("certificate_validity_status", "", type=str).strip()
+        operating_status = request.args.get("operating_status", "", type=str).strip()
+        company_type = request.args.get("company_type", "", type=str).strip()
         recommendation_level = request.args.get("recommendation_level", "", type=str).strip()
         recommended_for_pool = request.args.get("recommended_for_pool", "", type=str).strip()
-        status = request.args.get("status", "", type=str).strip()
         completeness = request.args.get("completeness", "", type=str).strip()
 
         查询 = Enterprise.query
-        if q:
+        if keyword:
             查询 = 查询.filter(
                 or_(
-                    Enterprise.company_name.ilike(f"%{q}%"),
-                    Enterprise.industry_category.ilike(f"%{q}%"),
+                    Enterprise.company_name.ilike(f"%{keyword}%"),
+                    func.json_extract(Enterprise.enterprise_extra_fields, "$.company_full_name").ilike(f"%{keyword}%"),
                 )
             )
+        if short_name_keyword:
+            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.company_short_name").ilike(f"%{short_name_keyword}%"))
         if industry:
             查询 = 查询.filter(Enterprise.industry_code == industry)
+        if industry_name_keyword:
+            查询 = 查询.filter(
+                or_(
+                    Enterprise.industry_category.ilike(f"%{industry_name_keyword}%"),
+                    func.json_extract(Enterprise.enterprise_extra_fields, "$.industry_name").ilike(f"%{industry_name_keyword}%"),
+                    func.json_extract(Enterprise.enterprise_extra_fields, "$.primary_industry").ilike(f"%{industry_name_keyword}%"),
+                )
+            )
         if province:
             查询 = 查询.filter(Enterprise.province == province)
         if city:
             查询 = 查询.filter(Enterprise.city == city)
-        if company_nature:
-            nature_filter_map = {
-                "制造商": Enterprise.is_manufacturer.is_(True),
-                "贸易商": Enterprise.is_trader.is_(True),
-                "品牌商": Enterprise.is_brand_owner.is_(True),
-                "OEM/ODM工厂": Enterprise.is_oem_odm.is_(True),
-                "服务商": Enterprise.is_service_provider.is_(True),
-            }
+        if operating_status:
+            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.operating_status") == operating_status)
+        if company_type:
             查询 = 查询.filter(
                 or_(
-                    nature_filter_map.get(company_nature, text("0=1")),
-                    func.json_extract(Enterprise.enterprise_extra_fields, "$.enterprise_natures").like(f'%"{company_nature}"%'),
+                    func.json_extract(Enterprise.enterprise_extra_fields, "$.company_type") == company_type,
+                    Enterprise.company_type == company_type,
                 )
-            )
-        if enterprise_size:
-            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.employee_count_range") == enterprise_size)
-        if has_overseas_business:
-            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.has_overseas_business") == has_overseas_business)
-        if has_own_factory:
-            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.has_own_factory") == has_own_factory)
-        if has_export:
-            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.export_experience") == has_export)
-        if is_listed:
-            查询 = 查询.filter(Enterprise.is_listed_or_pre_ipo.is_(is_listed == "是"))
-        if has_cross_border:
-            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.has_cross_border_ecommerce") == has_cross_border)
-        if has_own_brand:
-            查询 = 查询.filter(
-                or_(
-                    func.json_extract(Enterprise.enterprise_extra_fields, "$.has_own_brand_business") == has_own_brand,
-                    func.json_extract(Enterprise.enterprise_extra_fields, "$.has_own_brand") == has_own_brand,
-                )
-            )
-        if certificate_validity_status:
-            查询 = 查询.filter(
-                func.json_extract(Enterprise.enterprise_extra_fields, "$.certificate_validity_status") == certificate_validity_status
             )
         if recommendation_level:
             查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.recommendation_level") == recommendation_level)
         if recommended_for_pool:
             查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.recommended_for_pool") == recommended_for_pool)
-        if status:
-            查询 = 查询.filter(Enterprise.status == status)
         if completeness:
             if completeness == "80%以上":
                 查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.material_completeness_score") >= 80)
@@ -1107,19 +1081,11 @@ def create_app():
         省份列表 = [项[0] for 项 in db.session.query(Enterprise.province).filter(Enterprise.province.isnot(None), Enterprise.province != "").distinct().order_by(Enterprise.province).all()]
         城市列表 = [项[0] for 项 in db.session.query(Enterprise.city).filter(Enterprise.city.isnot(None), Enterprise.city != "").distinct().order_by(Enterprise.city).all()]
         行业列表 = 行业下拉选项()
-        企业规模选项 = 提取JSON枚举值("employee_count_range")
-        海外业务选项 = 提取JSON枚举值("has_overseas_business") or ["是", "否"]
-        自有工厂选项 = 提取JSON枚举值("has_own_factory") or ["是", "否", "部分自有"]
-        出口经验选项 = 提取JSON枚举值("export_experience") or ["是", "否"]
-        上市选项 = ["是", "否"]
-        跨境电商选项 = 提取JSON枚举值("has_cross_border_ecommerce") or ["是", "否"]
-        自有品牌选项 = sorted(set(提取JSON枚举值("has_own_brand_business") + 提取JSON枚举值("has_own_brand"))) or ["是", "否"]
-        证书有效期选项 = 提取JSON枚举值("certificate_validity_status") or ["全部有效", "部分临期", "部分过期", "未核验"]
+        运营状态选项 = 提取JSON枚举值("operating_status") or ["运营中", "停业", "注销", "迁出", "吊销", "未知"]
+        公司类型选项 = sorted(set(提取JSON枚举值("company_type") + [项[0] for 项 in db.session.query(Enterprise.company_type).filter(Enterprise.company_type.isnot(None), Enterprise.company_type != "").distinct().all()]))
         推荐等级选项 = 提取JSON枚举值("recommendation_level") or ["A", "B", "C", "D", "待评估"]
         建议入库选项 = 提取JSON枚举值("recommended_for_pool") or ["是", "否", "待定"]
         资料完整度选项 = ["80%以上", "50%-79%", "50%以下"]
-        企业性质选项 = ["制造商", "贸易商", "品牌商", "代理商", "OEM/ODM工厂", "服务商"]
-        入库状态选项 = ["草稿", "待审核", "已入库", "跟进中", "冻结"]
 
         企业ID列表 = [企业.id for 企业 in 分页.items]
         外贸负责人映射 = {}
@@ -1145,39 +1111,25 @@ def create_app():
             "enterprise_list.html",
             分页=分页,
             筛选={
-                "q": q,
+                "keyword": keyword,
+                "short_name_keyword": short_name_keyword,
                 "province": province,
                 "city": city,
                 "industry": industry,
-                "company_nature": company_nature,
-                "enterprise_size": enterprise_size,
-                "has_overseas_business": has_overseas_business,
-                "has_own_factory": has_own_factory,
-                "has_export": has_export,
-                "is_listed": is_listed,
-                "has_cross_border": has_cross_border,
-                "has_own_brand": has_own_brand,
-                "certificate_validity_status": certificate_validity_status,
+                "industry_name_keyword": industry_name_keyword,
+                "operating_status": operating_status,
+                "company_type": company_type,
                 "recommendation_level": recommendation_level,
                 "recommended_for_pool": recommended_for_pool,
-                "status": status,
                 "completeness": completeness,
             },
             省份列表=省份列表,
             城市列表=城市列表,
             行业列表=行业列表,
-            企业性质选项=企业性质选项,
-            企业规模选项=企业规模选项,
-            海外业务选项=海外业务选项,
-            自有工厂选项=自有工厂选项,
-            出口经验选项=出口经验选项,
-            上市选项=上市选项,
-            跨境电商选项=跨境电商选项,
-            自有品牌选项=自有品牌选项,
-            证书有效期选项=证书有效期选项,
+            运营状态选项=运营状态选项,
+            公司类型选项=公司类型选项,
             推荐等级选项=推荐等级选项,
             建议入库选项=建议入库选项,
-            入库状态选项=入库状态选项,
             资料完整度选项=资料完整度选项,
             外贸负责人映射=外贸负责人映射,
             完整度映射=完整度映射,
