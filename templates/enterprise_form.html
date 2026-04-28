@@ -381,7 +381,14 @@
         document.querySelectorAll('[data-show-when], [data-show-when-any]').forEach((el) => {
             const allC = parseConditions(el.dataset.showWhen);
             const anyC = parseConditions(el.dataset.showWhenAny);
-            const ok = (allC.length ? allC.every(matched) : true) || (anyC.length ? anyC.some(matched) : false);
+            let ok = true;
+            if (allC.length && anyC.length) {
+                ok = allC.every(matched) || anyC.some(matched);
+            } else if (allC.length) {
+                ok = allC.every(matched);
+            } else if (anyC.length) {
+                ok = anyC.some(matched);
+            }
             el.style.display = ok ? '' : 'none';
         });
     };

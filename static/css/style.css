@@ -104,3 +104,5 @@ body {
 
 #enterpriseForm .enterprise-radio-group { column-gap: .25rem; row-gap: .35rem; }
 #enterpriseForm .enterprise-radio-item { margin-right: .9rem !important; }
+#enterpriseForm .enterprise-radio-item .form-check-input[type="radio"] { border-radius: 50%; }
+#enterpriseTabContent { width: 100%; min-height: 520px; }
