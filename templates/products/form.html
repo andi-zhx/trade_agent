@@ -42,7 +42,7 @@
                 {% set selected_customers = request.form.getlist('target_customer_tags') if request.method == 'POST' else ((extra.get('target_customer_tags') if extra.get('target_customer_tags') is iterable and (extra.get('target_customer_tags') is not string) else [])) %}
 
                 <div class="accordion-item">
-                    <h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#A">A. 基础信息</button></h2>
+                    <h2 class="accordion-header"><button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#A">基础信息</button></h2>
                     <div id="A" class="accordion-collapse collapse show"><div class="accordion-body row g-3">
                         <div class="col-md-6">
                             <label class="form-label">所属企业 <span class="text-danger">*</span></label>
@@ -60,44 +60,16 @@
                         </div>
                         <div class="col-md-6"><label class="form-label">产品名称 <span class="text-danger">*</span></label><input name="product_name_cn" required class="form-control" value="{{ request.form.get('product_name_cn') if request.method == 'POST' else (product.product_name_cn if product else '') }}"></div>
                         <div class="col-md-6"><label class="form-label">产品英文名称</label><input name="product_name_en" class="form-control" value="{{ request.form.get('product_name_en') if request.method == 'POST' else (product.product_name_en if product else '') }}"></div>
-                        <div class="col-md-6">
-                            <label class="form-label">产品主图</label>
-                            {% if product and product.main_image %}
-                            <div class="mb-2"><img src="{{ product.main_image }}" alt="主图" class="rounded border" style="width:100px;height:100px;object-fit:cover;"></div>
-                            {% endif %}
-                            <input type="hidden" name="main_image" value="{{ request.form.get('main_image') if request.method == 'POST' else (product.main_image if product else '') }}">
-                            <select name="main_image_from_attachment" class="form-select mb-2">
-                                <option value="">从附件中设为主图（可选）</option>
-                                {% for doc in product_files %}
-                                {% if doc.document_type == '产品图片' %}
-                                {% set doc_path = '/' + doc.file_path %}
-                                <option value="{{ doc_path }}" {% if ((request.form.get('main_image_from_attachment') if request.method == 'POST' else product.main_image) == doc_path) %}selected{% endif %}>{{ doc.document_name }}（{{ doc.uploaded_at.strftime('%Y-%m-%d') if doc.uploaded_at else '' }}）</option>
-                                {% endif %}
-                                {% endfor %}
-                            </select>
-                            <input type="file" name="main_image_upload" class="form-control" accept="image/*">
-                            <div class="form-text">可直接上传主图，保存后将写入 main_image 字段。</div>
-                        </div>
-                        <div class="col-md-6">
-                            <label class="form-label">行业</label>
-                            {% set current_industry_code = request.form.get('industry_code') if request.method == 'POST' else (product.industry_code if product else '') %}
-                            <select name="industry_code" class="form-select" required>
-                                <option value="">请选择行业分类</option>
-                                {% for item in industries %}
-                                <option value="{{ item.code }}" data-name="{{ item.name }}" {% if item.code == current_industry_code %}selected{% endif %}>{{ item.code }} {{ item.name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
+                        
+                        
                         <div class="col-md-4"><label class="form-label">产品品类</label><input name="product_category" class="form-control" value="{{ request.form.get('product_category') if request.method == 'POST' else (product.product_category if product else '') }}"></div>
                         <div class="col-md-4"><label class="form-label">产品类型</label><select name="product_type" class="form-select"><option value="">请选择</option>{% for opt in ['标准品','定制品','OEM','ODM','工程项目型','服务型','数字产品','其他'] %}<option value="{{ opt }}" {% if (request.form.get('product_type') if request.method == 'POST' else (product.product_type if product else '')) == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
                         <div class="col-md-4"><label class="form-label">HS编码</label><input name="hs_code" class="form-control" value="{{ request.form.get('hs_code') if request.method == 'POST' else (product.hs_code if product else '') }}"></div>
-                        <div class="col-md-6"><label class="form-label">品牌</label><input name="brand" class="form-control" value="{{ request.form.get('brand') if request.method == 'POST' else (product.brand if product else '') }}"></div>
-                        <div class="col-md-6"><label class="form-label">型号</label><input name="model" class="form-control" value="{{ request.form.get('model') if request.method == 'POST' else (product.model if product else '') }}"></div>
                     </div></div>
                 </div>
 
                 <div class="accordion-item">
-                    <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#B">B. 产品定位</button></h2>
+                    <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#B">产品定位</button></h2>
                     <div id="B" class="accordion-collapse collapse"><div class="accordion-body row g-3">
                         <div class="col-12"><label class="form-label">产品用途</label><textarea name="function_description" class="form-control" rows="3">{{ request.form.get('function_description') if request.method == 'POST' else (product.function_description or extra.get('desc_usage') or '') }}</textarea></div>
                         <div class="col-12"><label class="form-label">应用场景</label><div class="border rounded p-2">{% for opt in ['工业生产','家用消费','工程项目','医疗健康','食品农业','户外场景','办公场景','跨境电商','其他'] %}<div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="positioning_scenarios" id="scenario_{{ loop.index }}" value="{{ opt }}" {% if opt in selected_scenarios %}checked{% endif %}><label class="form-check-label" for="scenario_{{ loop.index }}">{{ opt }}</label></div>{% endfor %}</div></div>
@@ -108,7 +80,7 @@
                 </div>
 
                 <div class="accordion-item">
-                    <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#D">D. 交易摘要</button></h2>
+                    <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#D">交易摘要</button></h2>
                     <div id="D" class="accordion-collapse collapse"><div class="accordion-body row g-3">
                         <div class="col-md-3"><label class="form-label">MOQ</label><input name="moq" class="form-control" value="{{ request.form.get('moq') if request.method == 'POST' else (product.moq if product else '') }}"></div>
                         <div class="col-md-3"><label class="form-label">交期</label><input name="delivery_cycle" class="form-control" value="{{ request.form.get('delivery_cycle') if request.method == 'POST' else (product.delivery_cycle if product else '') }}"></div>
@@ -120,7 +92,7 @@
                 </div>
 
                 <div class="accordion-item">
-                    <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#E">E. 备注</button></h2>
+                    <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#E">备注</button></h2>
                     <div id="E" class="accordion-collapse collapse"><div class="accordion-body row g-3">
                         <div class="col-md-6"><label class="form-label">内部备注</label><textarea name="notes" class="form-control" rows="3">{{ request.form.get('notes') if request.method == 'POST' else (product.notes if product else '') }}</textarea></div>
                         <div class="col-md-6"><label class="form-label">风险提示</label><textarea name="risk_warning" class="form-control" rows="3">{{ request.form.get('risk_warning') if request.method == 'POST' else (extra.get('risk_warning') or '') }}</textarea></div>
