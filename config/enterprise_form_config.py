@@ -53,11 +53,7 @@ COMMON_ENTERPRISE_FIELD_GROUPS = [
             {"key": "contact_phone", "label": "电话", "type": "text"},
             {"key": "contact_email", "label": "邮箱", "type": "email", "placeholder": "name@example.com", "help_text": "格式示例：name@example.com。"},
             {"key": "wechat", "label": "微信", "type": "text"},
-            {"key": "language_skills", "label": "语言能力", "type": "checkbox_tags", "options": ["中文", "英文", "日语", "韩语", "俄语", "西班牙语", "其他"]},
-            {"key": "english_communication", "label": "是否可直接英文沟通", "type": "radio_group", "options": ["是", "否", "需翻译协助"]},
             {"key": "official_account", "label": "公众号", "type": "text"},
-            {"key": "linkedin", "label": "LinkedIn", "type": "text"},
-            {"key": "enterprise_email", "label": "企业邮箱", "type": "text"},
             {"key": "dynamic_contacts", "label": "联系人子表单", "type": "dynamic_contacts"},
         ],
     },
@@ -142,7 +138,6 @@ COMMON_ENTERPRISE_FIELD_GROUPS = [
             {"key": "has_admin_penalty", "label": "是否存在行政处罚", "type": "radio_group", "options": ["是", "否", "未核验"]},
             {"key": "has_dishonest_record", "label": "是否存在失信记录", "type": "radio_group", "options": ["是", "否", "未核验"]},
             {"key": "financial_stability", "label": "财务稳定性判断", "type": "radio_group", "options": ["高", "中", "低", "未判断"]},
-            {"key": "risk_tags", "label": "风险标签", "type": "checkbox_tags", "options": ["诉讼风险", "回款风险", "资金压力", "资料不完整", "暂无明显风险"]},
         ],
     },
     {
@@ -163,8 +158,6 @@ COMMON_ENTERPRISE_FIELD_GROUPS = [
         "key": "I",
         "title": "I. 项目判断与备注",
         "fields": [
-            {"key": "recommendation_level", "label": "推荐等级", "type": "radio_group", "options": ["A", "B", "C", "D", "待评估"]},
-            {"key": "recommended_for_pool", "label": "是否建议入库", "type": "radio_group", "required": True, "options": ["是", "否", "待定"]},
             {"key": "recommended_cooperation_directions", "label": "推荐合作方向", "type": "checkbox_tags", "options": ["采购撮合", "渠道合作", "OEM", "ODM", "联合开发", "投融资", "展会推荐"]},
             {"key": "recommended_client_types", "label": "推荐对接客户类型", "type": "checkbox_tags", "options": ["进口商", "经销商", "批发商", "商超", "品牌商", "工程商", "电商卖家"]},
             {"key": "current_progress_status", "label": "当前推进状态", "type": "radio_group", "options": ["初步接触", "资料待补", "已入库", "已推荐", "洽谈中", "暂缓"]},

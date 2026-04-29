@@ -18,10 +18,6 @@
                 <label class="form-label">企业名称关键词</label>
                 <input type="text" class="form-control" name="keyword" value="{{ 筛选.keyword }}" placeholder="请输入企业名称关键字">
             </div>
-            <div class="col-md-3">
-                <label class="form-label">企业简称关键词</label>
-                <input type="text" class="form-control" name="short_name_keyword" value="{{ 筛选.short_name_keyword }}" placeholder="请输入企业简称关键字">
-            </div>
             <div class="col-md-2">
                 <label class="form-label">行业分类</label>
                 <select class="form-select" name="industry">
@@ -54,47 +50,11 @@
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label">运营状态</label>
-                <select class="form-select" name="operating_status">
-                    <option value="">全部</option>
-                    {% for item in 运营状态选项 %}
-                    <option value="{{ item }}" {% if item == 筛选.operating_status %}selected{% endif %}>{{ item }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
                 <label class="form-label">公司类型</label>
                 <select class="form-select" name="company_type">
                     <option value="">全部</option>
                     {% for item in 公司类型选项 %}
                     <option value="{{ item }}" {% if item == 筛选.company_type %}selected{% endif %}>{{ item }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">推荐等级</label>
-                <select class="form-select" name="recommendation_level">
-                    <option value="">全部</option>
-                    {% for item in 推荐等级选项 %}
-                    <option value="{{ item }}" {% if item == 筛选.recommendation_level %}selected{% endif %}>{{ item }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">是否建议入库</label>
-                <select class="form-select" name="recommended_for_pool">
-                    <option value="">全部</option>
-                    {% for item in 建议入库选项 %}
-                    <option value="{{ item }}" {% if item == 筛选.recommended_for_pool %}selected{% endif %}>{{ item }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">资料完整度区间</label>
-                <select class="form-select" name="completeness">
-                    <option value="">全部</option>
-                    {% for item in 资料完整度选项 %}
-                    <option value="{{ item }}" {% if item == 筛选.completeness %}selected{% endif %}>{{ item }}</option>
                     {% endfor %}
                 </select>
             </div>

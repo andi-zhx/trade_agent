@@ -1000,16 +1000,11 @@ def create_app():
     def enterprise_list():
         page = request.args.get("page", 1, type=int)
         keyword = request.args.get("keyword", "", type=str).strip()
-        short_name_keyword = request.args.get("short_name_keyword", "", type=str).strip()
         industry = request.args.get("industry", "", type=str).strip()
         industry_name_keyword = request.args.get("industry_name_keyword", "", type=str).strip()
         province = request.args.get("province", "", type=str).strip()
         city = request.args.get("city", "", type=str).strip()
-        operating_status = request.args.get("operating_status", "", type=str).strip()
         company_type = request.args.get("company_type", "", type=str).strip()
-        recommendation_level = request.args.get("recommendation_level", "", type=str).strip()
-        recommended_for_pool = request.args.get("recommended_for_pool", "", type=str).strip()
-        completeness = request.args.get("completeness", "", type=str).strip()
 
         查询 = Enterprise.query
         if keyword:
@@ -1019,8 +1014,6 @@ def create_app():
                     func.json_extract(Enterprise.enterprise_extra_fields, "$.company_full_name").ilike(f"%{keyword}%"),
                 )
             )
-        if short_name_keyword:
-            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.company_short_name").ilike(f"%{short_name_keyword}%"))
         if industry:
             查询 = 查询.filter(Enterprise.industry_code == industry)
         if industry_name_keyword:
@@ -1035,8 +1028,6 @@ def create_app():
             查询 = 查询.filter(Enterprise.province == province)
         if city:
             查询 = 查询.filter(Enterprise.city == city)
-        if operating_status:
-            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.operating_status") == operating_status)
         if company_type:
             查询 = 查询.filter(
                 or_(
@@ -1044,20 +1035,6 @@ def create_app():
                     Enterprise.company_type == company_type,
                 )
             )
-        if recommendation_level:
-            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.recommendation_level") == recommendation_level)
-        if recommended_for_pool:
-            查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.recommended_for_pool") == recommended_for_pool)
-        if completeness:
-            if completeness == "80%以上":
-                查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.material_completeness_score") >= 80)
-            elif completeness == "50%-79%":
-                查询 = 查询.filter(
-                    func.json_extract(Enterprise.enterprise_extra_fields, "$.material_completeness_score") >= 50,
-                    func.json_extract(Enterprise.enterprise_extra_fields, "$.material_completeness_score") < 80,
-                )
-            elif completeness == "50%以下":
-                查询 = 查询.filter(func.json_extract(Enterprise.enterprise_extra_fields, "$.material_completeness_score") < 50)
 
         分页 = 查询.order_by(Enterprise.updated_at.desc()).paginate(page=page, per_page=PER_PAGE, error_out=False)
 
@@ -1081,11 +1058,7 @@ def create_app():
         省份列表 = [项[0] for 项 in db.session.query(Enterprise.province).filter(Enterprise.province.isnot(None), Enterprise.province != "").distinct().order_by(Enterprise.province).all()]
         城市列表 = [项[0] for 项 in db.session.query(Enterprise.city).filter(Enterprise.city.isnot(None), Enterprise.city != "").distinct().order_by(Enterprise.city).all()]
         行业列表 = 行业下拉选项()
-        运营状态选项 = 提取JSON枚举值("operating_status") or ["运营中", "停业", "注销", "迁出", "吊销", "未知"]
         公司类型选项 = sorted(set(提取JSON枚举值("company_type") + [项[0] for 项 in db.session.query(Enterprise.company_type).filter(Enterprise.company_type.isnot(None), Enterprise.company_type != "").distinct().all()]))
-        推荐等级选项 = 提取JSON枚举值("recommendation_level") or ["A", "B", "C", "D", "待评估"]
-        建议入库选项 = 提取JSON枚举值("recommended_for_pool") or ["是", "否", "待定"]
-        资料完整度选项 = ["80%以上", "50%-79%", "50%以下"]
 
         企业ID列表 = [企业.id for 企业 in 分页.items]
         外贸负责人映射 = {}
@@ -1112,25 +1085,16 @@ def create_app():
             分页=分页,
             筛选={
                 "keyword": keyword,
-                "short_name_keyword": short_name_keyword,
                 "province": province,
                 "city": city,
                 "industry": industry,
                 "industry_name_keyword": industry_name_keyword,
-                "operating_status": operating_status,
                 "company_type": company_type,
-                "recommendation_level": recommendation_level,
-                "recommended_for_pool": recommended_for_pool,
-                "completeness": completeness,
             },
             省份列表=省份列表,
             城市列表=城市列表,
             行业列表=行业列表,
-            运营状态选项=运营状态选项,
             公司类型选项=公司类型选项,
-            推荐等级选项=推荐等级选项,
-            建议入库选项=建议入库选项,
-            资料完整度选项=资料完整度选项,
             外贸负责人映射=外贸负责人映射,
             完整度映射=完整度映射,
         )
