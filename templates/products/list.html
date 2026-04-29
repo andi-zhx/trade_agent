@@ -57,18 +57,14 @@
     <thead class="table-light">
     <tr>
         <th>产品编号</th>
-        <th>产品主图</th>
         <th>产品名称</th>
         <th>所属企业</th>
         <th>行业 / 品类</th>
         <th>产品类型</th>
-        <th>是否适合出口</th>
-        <th>推荐等级</th>
         <th>MOQ</th>
         <th>交期</th>
         <th>认证情况</th>
         <th>目标市场</th>
-        <th>产品状态</th>
         <th>价格</th>
         <th>更新时间</th>
         <th>操作</th>
@@ -77,30 +73,8 @@
     <tbody>
     {% for p in 分页.items %}
     {% set extra = p.product_extra_fields or {} %}
-    {% set recommendation_badges = {
-        'A优先推荐': 'text-bg-success',
-        'B可推荐': 'text-bg-primary',
-        'C待完善': 'text-bg-warning',
-        'D暂缓': 'text-bg-secondary',
-        '待评估': 'text-bg-light'
-    } %}
-    {% set export_badges = {
-        '适合': 'text-bg-success',
-        '基本适合': 'text-bg-primary',
-        '待补充资料': 'text-bg-warning',
-        '暂不适合': 'text-bg-danger',
-        '待判断': 'text-bg-secondary'
-    } %}
-    {% set status_badges = {'active': 'text-bg-success', 'inactive': 'text-bg-secondary'} %}
     <tr>
         <td>{{ p.product_code }}</td>
-        <td>
-            {% if p.main_image %}
-            <img src="{{ p.main_image }}" alt="{{ p.product_name_cn }}" class="rounded border" style="width:60px;height:60px;object-fit:cover;">
-            {% else %}
-            <div class="d-flex align-items-center justify-content-center rounded border bg-light text-muted" style="width:60px;height:60px;">暂无图片</div>
-            {% endif %}
-        </td>
         <td>
             <div>{{ p.product_name_cn }}</div>
             {% if p.product_name_en %}<div class="text-muted">{{ p.product_name_en }}</div>{% endif %}
@@ -114,21 +88,10 @@
             {% endif %}
         </td>
         <td>{{ p.product_type or '-' }}</td>
-        <td>
-            {% set export_value = p.export_suitability or '待判断' %}
-            <span class="badge {{ export_badges.get(export_value, 'text-bg-secondary') }}">{{ export_value }}</span>
-        </td>
-        <td>
-            {% set recommendation_value = p.recommendation_level or '待评估' %}
-            <span class="badge {{ recommendation_badges.get(recommendation_value, 'text-bg-light') }}">{{ recommendation_value }}</span>
-        </td>
         <td>{{ p.moq or extra.get('trade_moq') or '-' }}</td>
         <td>{{ p.delivery_cycle or p.production_cycle or extra.get('trade_mass_cycle') or '-' }}</td>
         <td>{{ p.certification_status or p.certifications or '-' }}</td>
         <td>{{ p.target_market or '-' }}</td>
-        <td>
-            <span class="badge {{ status_badges.get(p.status, 'text-bg-secondary') }}">{{ '上架' if p.status == 'active' else '下架' }}</span>
-        </td>
         <td>
             {% if p.price_display %}
                 {{ p.price_display }}
@@ -159,7 +122,7 @@
         </td>
     </tr>
     {% else %}
-    <tr><td colspan="16" class="text-center text-muted">暂无产品数据</td></tr>
+    <tr><td colspan="12" class="text-center text-muted">暂无产品数据</td></tr>
     {% endfor %}
     </tbody>
 </table>
