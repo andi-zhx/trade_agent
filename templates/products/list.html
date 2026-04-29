@@ -46,45 +46,6 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-2">
-                <select name="export_suitability" class="form-select">
-                    <option value="">是否适合出口（全部）</option>
-                    {% for option in export_suitability_options %}
-                    <option value="{{ option }}" {% if filters.get('export_suitability') == option %}selected{% endif %}>{{ option }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <select name="recommendation_level" class="form-select">
-                    <option value="">推荐等级（全部）</option>
-                    {% for option in recommendation_level_options %}
-                    <option value="{{ option }}" {% if filters.get('recommendation_level') == option %}selected{% endif %}>{{ option }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <select name="certification_status" class="form-select">
-                    <option value="">认证情况（全部）</option>
-                    {% for option in certification_status_options %}
-                    <option value="{{ option }}" {% if filters.get('certification_status') == option %}selected{% endif %}>{{ option }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <select name="target_market" class="form-select">
-                    <option value="">目标市场（全部）</option>
-                    {% for option in target_market_options %}
-                    <option value="{{ option }}" {% if filters.get('target_market') == option %}selected{% endif %}>{{ option }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <select name="status" class="form-select">
-                    <option value="active" {% if filters.get('status', 'active') == 'active' %}selected{% endif %}>产品状态：已上架</option>
-                    <option value="inactive" {% if filters.get('status') == 'inactive' %}selected{% endif %}>产品状态：已下架</option>
-                    <option value="" {% if filters.get('status') == '' %}selected{% endif %}>产品状态：全部</option>
-                </select>
-            </div>
             <div class="col-md-2"><button class="btn btn-outline-primary w-100">筛选</button></div>
             <div class="col-md-1"><a href="{{ url_for('product_list') }}" class="btn btn-outline-secondary w-100">重置</a></div>
         </form>
@@ -208,19 +169,19 @@
 <nav aria-label="产品分页" class="d-flex justify-content-center mt-3">
     <ul class="pagination mb-0">
         <li class="page-item {% if not 分页.has_prev %}disabled{% endif %}">
-            <a class="page-link" href="{{ url_for('product_list', page=分页.prev_num, keyword=filters.get('keyword',''), enterprise=filters.get('enterprise',''), industry=filters.get('industry',''), category=filters.get('category',''), product_type=filters.get('product_type',''), export_suitability=filters.get('export_suitability',''), recommendation_level=filters.get('recommendation_level',''), certification_status=filters.get('certification_status',''), target_market=filters.get('target_market',''), status=filters.get('status','active')) }}">上一页</a>
+            <a class="page-link" href="{{ url_for('product_list', page=分页.prev_num, keyword=filters.get('keyword',''), enterprise=filters.get('enterprise',''), industry=filters.get('industry',''), category=filters.get('category',''), product_type=filters.get('product_type','')) }}">上一页</a>
         </li>
         {% for pageno in 分页.iter_pages(left_edge=1, left_current=1, right_current=2, right_edge=1) %}
             {% if pageno %}
             <li class="page-item {% if pageno == 分页.page %}active{% endif %}">
-                <a class="page-link" href="{{ url_for('product_list', page=pageno, keyword=filters.get('keyword',''), enterprise=filters.get('enterprise',''), industry=filters.get('industry',''), category=filters.get('category',''), product_type=filters.get('product_type',''), export_suitability=filters.get('export_suitability',''), recommendation_level=filters.get('recommendation_level',''), certification_status=filters.get('certification_status',''), target_market=filters.get('target_market',''), status=filters.get('status','active')) }}">{{ pageno }}</a>
+                <a class="page-link" href="{{ url_for('product_list', page=pageno, keyword=filters.get('keyword',''), enterprise=filters.get('enterprise',''), industry=filters.get('industry',''), category=filters.get('category',''), product_type=filters.get('product_type','')) }}">{{ pageno }}</a>
             </li>
             {% else %}
             <li class="page-item disabled"><span class="page-link">…</span></li>
             {% endif %}
         {% endfor %}
         <li class="page-item {% if not 分页.has_next %}disabled{% endif %}">
-            <a class="page-link" href="{{ url_for('product_list', page=分页.next_num, keyword=filters.get('keyword',''), enterprise=filters.get('enterprise',''), industry=filters.get('industry',''), category=filters.get('category',''), product_type=filters.get('product_type',''), export_suitability=filters.get('export_suitability',''), recommendation_level=filters.get('recommendation_level',''), certification_status=filters.get('certification_status',''), target_market=filters.get('target_market',''), status=filters.get('status','active')) }}">下一页</a>
+            <a class="page-link" href="{{ url_for('product_list', page=分页.next_num, keyword=filters.get('keyword',''), enterprise=filters.get('enterprise',''), industry=filters.get('industry',''), category=filters.get('category',''), product_type=filters.get('product_type','')) }}">下一页</a>
         </li>
     </ul>
 </nav>
