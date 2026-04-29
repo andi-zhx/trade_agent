@@ -88,11 +88,11 @@
                 {% set primary_idx = request.form.get('dynamic_contacts_primary_index', '') %}
                 {% for _ in contacts %}
                 {% set idx = loop.index0 %}
-                <div class="card card-body dynamic-contact-row py-2"><div class="row g-2 align-items-start"><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名" value="{{ request.form.getlist('dynamic_contacts_name[]')[idx] }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_department[]" placeholder="部门" value="{{ request.form.getlist('dynamic_contacts_department[]')[idx] }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位" value="{{ request.form.getlist('dynamic_contacts_position[]')[idx] }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机" value="{{ request.form.getlist('dynamic_contacts_mobile[]')[idx] }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱" value="{{ request.form.getlist('dynamic_contacts_email[]')[idx] }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_wechat[]" placeholder="微信" value="{{ request.form.getlist('dynamic_contacts_wechat[]')[idx] }}"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_responsibility[]" placeholder="负责内容" value="{{ request.form.getlist('dynamic_contacts_responsibility[]')[idx] }}"></div><div class="col-md-2"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div><div class="col-md-2"><div class="form-check mt-1"><input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value="{{ idx }}" {% if primary_idx == idx|string %}checked{% endif %}><label class="form-check-label">主联系人</label></div></div></div></div>
+                <div class="card card-body dynamic-contact-row py-2"><div class="row g-2 align-items-start"><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名" value="{{ request.form.getlist('dynamic_contacts_name[]')[idx] }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_department[]" placeholder="部门" value="{{ request.form.getlist('dynamic_contacts_department[]')[idx] }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位" value="{{ request.form.getlist('dynamic_contacts_position[]')[idx] }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机" value="{{ request.form.getlist('dynamic_contacts_mobile[]')[idx] }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱" value="{{ request.form.getlist('dynamic_contacts_email[]')[idx] }}"></div><div class="col-md-2"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_responsibility[]" placeholder="负责内容" value="{{ request.form.getlist('dynamic_contacts_responsibility[]')[idx] }}"></div><div class="col-md-2"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div><div class="col-md-2"><div class="form-check mt-1"><input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value="{{ idx }}" {% if primary_idx == idx|string %}checked{% endif %}><label class="form-check-label">主联系人</label></div></div></div></div>
                 {% endfor %}
             {% else %}
                 {% for row in (企业扩展字段 or {}).get('dynamic_contacts', []) %}
-                <div class="card card-body dynamic-contact-row py-2"><div class="row g-2 align-items-start"><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名" value="{{ row.get('name', '') }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_department[]" placeholder="部门" value="{{ row.get('department', '') }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位" value="{{ row.get('position', '') }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机" value="{{ row.get('mobile', '') }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱" value="{{ row.get('email', '') }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_wechat[]" placeholder="微信" value="{{ row.get('wechat', '') }}"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_responsibility[]" placeholder="负责内容" value="{{ row.get('responsibility', '') }}"></div><div class="col-md-2"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div><div class="col-md-2"><div class="form-check mt-1"><input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value="{{ loop.index0 }}" {% if row.get('is_primary_contact') %}checked{% endif %}><label class="form-check-label">主联系人</label></div></div></div></div>
+                <div class="card card-body dynamic-contact-row py-2"><div class="row g-2 align-items-start"><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名" value="{{ row.get('name', '') }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_department[]" placeholder="部门" value="{{ row.get('department', '') }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位" value="{{ row.get('position', '') }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机" value="{{ row.get('mobile', '') }}"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱" value="{{ row.get('email', '') }}"></div><div class="col-md-2"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_responsibility[]" placeholder="负责内容" value="{{ row.get('responsibility', '') }}"></div><div class="col-md-2"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div><div class="col-md-2"><div class="form-check mt-1"><input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value="{{ loop.index0 }}" {% if row.get('is_primary_contact') %}checked{% endif %}><label class="form-check-label">主联系人</label></div></div></div></div>
                 {% endfor %}
             {% endif %}
         </div>
@@ -114,6 +114,11 @@
 {% set overview_recommend = extra_value('recommended_for_pool', '待定') %}
 
 {% block content %}
+<style>
+    .enterprise-overview-sticky .row { font-size: 1rem; }
+    #enterpriseTabs .nav-link { color: #000; }
+    #enterpriseTabs .nav-link.active { background-color: #e7f1ff; color: #000; }
+</style>
 <div class="d-flex justify-content-between align-items-center mb-3">
     <a href="{{ url_for('enterprise_list') }}" class="btn btn-outline-secondary btn-sm">返回企业列表</a>
     <span class="text-muted small">新增/编辑使用同一套表单组件</span>
@@ -136,7 +141,7 @@
 
     <div class="card shadow-sm enterprise-overview-sticky">
         <div class="card-body py-2">
-            <div class="row g-2 small">
+            <div class="row g-2">
                 <div class="col-md-2"><strong>企业编号：</strong>{{ 企业.enterprise_code if 企业 else '自动生成' }}</div>
                 <div class="col-md-2"><strong>行业大类：</strong>{{ request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '-') }}</div>
                 <div class="col-md-2"><strong>项目负责人：</strong>{{ request.form.get('project_owner') if request.method == 'POST' else (企业.project_owner if 企业 else '-') }}</div>
@@ -144,7 +149,6 @@
                     <strong>资料完整度：</strong>
                     <span id="overviewCompleteness" class="badge bg-{% if overview_score >= 80 %}success{% elif overview_score >= 50 %}warning text-dark{% else %}danger{% endif %}">{{ overview_completeness }}</span>
                 </div>
-                <div class="col-md-2"><strong>是否建议入库：</strong>{{ overview_recommend }}</div>
             </div>
         </div>
     </div>
@@ -152,17 +156,16 @@
     {% set current_industry = request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '') %}
     {% set industry_tabs = (行业字段配置.get(current_industry, []) if 行业字段配置 else []) %}
     {% set tab_title_map = {
-        'ENTRY': 'Tab 0：入库信息',
-        'A': 'Tab A：基本信息',
-        'B': 'Tab B：工商信息',
-        'C': 'Tab C：联系信息',
-        'D': 'Tab D：经营情况',
-        'E': 'Tab E：生产能力',
-        'F': 'Tab F：外贸能力',
-        'G': 'Tab G：财务信用',
-        'H': 'Tab H：资质合规',
-        'I': 'Tab I：项目判断与备注',
-        'J': 'Tab J：附件资料'
+        'ENTRY': '入库信息',
+        'A': '基本信息',
+        'B': '工商信息',
+        'C': '联系信息',
+        'D': '经营情况',
+        'E': '生产能力',
+        'F': '外贸能力',
+        'G': '财务信用',
+        'H': '资质合规',
+        'J': '附件资料'
     } %}
     {% set tab_groups = [{'key': 'ENTRY', 'title': tab_title_map['ENTRY'], 'fields': []}] + 通用字段组 + industry_tabs + [{'key': 'J', 'title': tab_title_map['J'], 'fields': []}] %}
 
@@ -193,8 +196,6 @@
                     <div class="col-md-3"><label class="form-label">项目负责人</label><input class="form-control" name="project_owner" value="{{ request.form.get('project_owner') if request.method == 'POST' else (企业.project_owner if 企业 else '') }}"></div>
                     <div class="col-md-3"><label class="form-label field-required">行业分类</label><select class="form-select" id="industryCode" name="industry_code" required><option value="">请选择行业分类</option>{% set 当前行业代码 = request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '') %}{% for item in 行业列表 %}<option value="{{ item.code }}" data-name="{{ item.name }}" {% if item.code == 当前行业代码 %}selected{% endif %}>{{ item.code }} {{ item.name }}</option>{% endfor %}</select></div>
                     <div class="col-md-3"><label class="form-label">行业名称（可编辑）</label><input id="industryName" class="form-control" name="industry_category" value="{{ request.form.get('industry_category') if request.method == 'POST' else (企业.industry_category if 企业 else '') }}" placeholder="选择行业后自动填充，可手动修改"></div>
-                    <div class="col-md-3"><label class="form-label field-required">省份</label><input class="form-control" name="province" value="{{ request.form.get('province') if request.method == 'POST' else (企业.province if 企业 else '') }}"></div>
-                    <div class="col-md-3"><label class="form-label field-required">城市</label><input class="form-control" name="city" value="{{ request.form.get('city') if request.method == 'POST' else (企业.city if 企业 else '') }}"></div>
                     <div class="col-md-3"><label class="form-label">企业当前阶段</label><select class="form-select" name="enterprise_stage"><option value="">请选择</option>{% set 当前阶段值 = request.form.get('enterprise_stage') if request.method == 'POST' else ((企业扩展字段 or {}).get('enterprise_stage', '')) %}{% for s in ENTRY_STAGE_OPTIONS %}<option value="{{ s }}" {% if s == 当前阶段值 %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
             </div>
         </div>
@@ -338,10 +339,9 @@
     });
 
     const coreBasicFields = [
-        ['company_full_name', '企业全称'], ['company_short_name', '企业简称'], ['founded_date', '成立时间'],
+        ['company_full_name', '企业全称'], ['founded_date', '成立时间'],
         ['industry_code', '行业分类'], ['industry_category', '行业名称'], ['primary_industry', '一级行业'],
-        ['website', '企业网址'], ['operating_status', '运营状态'], ['company_type', '公司类型'],
-        ['one_sentence_intro', '一句话简介'], ['enterprise_description', '企业介绍'], ['province', '省份'], ['city', '城市'],
+        ['website', '企业网址'], ['company_type', '公司类型'], ['enterprise_description', '企业介绍'],
     ];
     const coreBusinessFields = [
         ['registered_name', '注册名称'], ['legal_representative', '法人代表'], ['registration_date', '注册时间'],
@@ -498,7 +498,7 @@
         });
     };
     document.getElementById('dynamicContactAddBtn')?.addEventListener('click', () => {
-        contactsContainer?.insertAdjacentHTML('beforeend', '<div class="card card-body dynamic-contact-row py-2"><div class="row g-2 align-items-start"><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_department[]" placeholder="部门"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_wechat[]" placeholder="微信"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_responsibility[]" placeholder="负责内容"></div><div class="col-md-2"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div><div class="col-md-2"><div class="form-check mt-1"><input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value=""><label class="form-check-label">主联系人</label></div></div></div></div>');
+        contactsContainer?.insertAdjacentHTML('beforeend', '<div class="card card-body dynamic-contact-row py-2"><div class="row g-2 align-items-start"><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_name[]" placeholder="姓名"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_department[]" placeholder="部门"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_position[]" placeholder="职位"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_mobile[]" placeholder="手机"></div><div class="col-md-2"><input class="form-control form-control-sm" name="dynamic_contacts_email[]" placeholder="邮箱"></div><div class="col-md-2"></div><div class="col-md-3"><input class="form-control form-control-sm" name="dynamic_contacts_responsibility[]" placeholder="负责内容"></div><div class="col-md-2"><button class="btn btn-sm btn-outline-danger dynamic-contact-remove" type="button">删除</button></div><div class="col-md-2"><div class="form-check mt-1"><input class="form-check-input dynamic-contacts-primary-radio" type="radio" name="dynamic_contacts_primary_index" value=""><label class="form-check-label">主联系人</label></div></div></div></div>');
         refreshContactPrimaryIndex();
     });
     contactsContainer?.addEventListener('click', (e) => {
