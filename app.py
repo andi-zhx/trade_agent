@@ -1001,10 +1001,6 @@ def create_app():
         page = request.args.get("page", 1, type=int)
         keyword = request.args.get("keyword", "", type=str).strip()
         industry = request.args.get("industry", "", type=str).strip()
-        industry_name_keyword = request.args.get("industry_name_keyword", "", type=str).strip()
-        province = request.args.get("province", "", type=str).strip()
-        city = request.args.get("city", "", type=str).strip()
-        company_type = request.args.get("company_type", "", type=str).strip()
 
         查询 = Enterprise.query
         if keyword:
@@ -1016,25 +1012,6 @@ def create_app():
             )
         if industry:
             查询 = 查询.filter(Enterprise.industry_code == industry)
-        if industry_name_keyword:
-            查询 = 查询.filter(
-                or_(
-                    Enterprise.industry_category.ilike(f"%{industry_name_keyword}%"),
-                    func.json_extract(Enterprise.enterprise_extra_fields, "$.industry_name").ilike(f"%{industry_name_keyword}%"),
-                    func.json_extract(Enterprise.enterprise_extra_fields, "$.primary_industry").ilike(f"%{industry_name_keyword}%"),
-                )
-            )
-        if province:
-            查询 = 查询.filter(Enterprise.province == province)
-        if city:
-            查询 = 查询.filter(Enterprise.city == city)
-        if company_type:
-            查询 = 查询.filter(
-                or_(
-                    func.json_extract(Enterprise.enterprise_extra_fields, "$.company_type") == company_type,
-                    Enterprise.company_type == company_type,
-                )
-            )
 
         分页 = 查询.order_by(Enterprise.updated_at.desc()).paginate(page=page, per_page=PER_PAGE, error_out=False)
 
@@ -1054,11 +1031,7 @@ def create_app():
                 if value and value not in clean_values:
                     clean_values.append(value)
             return sorted(clean_values)
-
-        省份列表 = [项[0] for 项 in db.session.query(Enterprise.province).filter(Enterprise.province.isnot(None), Enterprise.province != "").distinct().order_by(Enterprise.province).all()]
-        城市列表 = [项[0] for 项 in db.session.query(Enterprise.city).filter(Enterprise.city.isnot(None), Enterprise.city != "").distinct().order_by(Enterprise.city).all()]
         行业列表 = 行业下拉选项()
-        公司类型选项 = sorted(set(提取JSON枚举值("company_type") + [项[0] for 项 in db.session.query(Enterprise.company_type).filter(Enterprise.company_type.isnot(None), Enterprise.company_type != "").distinct().all()]))
 
         企业ID列表 = [企业.id for 企业 in 分页.items]
         外贸负责人映射 = {}
@@ -1085,16 +1058,9 @@ def create_app():
             分页=分页,
             筛选={
                 "keyword": keyword,
-                "province": province,
-                "city": city,
                 "industry": industry,
-                "industry_name_keyword": industry_name_keyword,
-                "company_type": company_type,
             },
-            省份列表=省份列表,
-            城市列表=城市列表,
             行业列表=行业列表,
-            公司类型选项=公司类型选项,
             外贸负责人映射=外贸负责人映射,
             完整度映射=完整度映射,
         )
@@ -1102,7 +1068,7 @@ def create_app():
     @app.route("/enterprises/new", methods=["GET", "POST"])
     def enterprise_new():
         if request.method == "POST":
-            操作动作 = (request.form.get("action") or "save_draft").strip()
+            操作动作 = (request.form.get("action") or "save").strip()
             重复确认通过 = (request.form.get("duplicate_confirmed") or "").strip() == "1"
             本次有附件上传 = any(文件 and 文件.filename for 文件 in request.files.getlist("enterprise_upload_file"))
             行业代码, 行业名称 = 解析行业(request.form.get("industry_code"), request.form.get("industry_category"))
@@ -1161,12 +1127,6 @@ def create_app():
             扩展字段["material_missing_items"] = 完整度信息["missing_items"]
             企业.enterprise_extra_fields = 扩展字段
 
-            if 操作动作 == "save_draft" and not (企业.company_name or 企业.unified_social_credit_code):
-                flash("保存草稿时，企业全称或统一社会信用代码至少填写一项。", "danger")
-                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
-            if 操作动作 != "save_draft" and not 企业.company_name:
-                flash("企业名称为必填项", "danger")
-                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
             if not 行业代码:
                 flash("行业分类必须从下拉框选择。", "danger")
                 return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
@@ -1175,7 +1135,7 @@ def create_app():
                 return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
 
             重复风险提示 = 企业重复风险检查(企业.company_name, 企业.unified_social_credit_code)
-            if 操作动作 == "save_draft" and 重复风险提示:
+            if 操作动作 == "save" and 重复风险提示:
                 for 提示 in 重复风险提示:
                     flash(提示, "warning")
 
@@ -1217,11 +1177,7 @@ def create_app():
             记录审计日志("新增企业", "enterprise", target_id=企业.id, detail=企业.company_name)
             db.session.commit()
             flash(f"企业 {企业.company_name or 企业.unified_social_credit_code or 企业.enterprise_code} 保存成功，上传文件 {上传数} 个。", "success")
-            if 操作动作 == "save_return":
-                return redirect(url_for("enterprise_list"))
-            if 操作动作 == "save_next":
-                return redirect(url_for("enterprise_edit", id=企业.id) + "#A")
-            return redirect(url_for("enterprise_detail", id=企业.id))
+            return redirect(url_for("enterprise_edit", id=企业.id))
 
         return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段={}, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 已上传附件列表=[], 重复风险提示=[])
 
@@ -1359,7 +1315,7 @@ def create_app():
         外贸联系人 = Contact.query.filter_by(enterprise_id=id, contact_type="外贸负责人").first()
 
         if request.method == "POST":
-            操作动作 = (request.form.get("action") or "save_draft").strip()
+            操作动作 = (request.form.get("action") or "save").strip()
             重复确认通过 = (request.form.get("duplicate_confirmed") or "").strip() == "1"
             行业代码, 行业名称 = 解析行业(request.form.get("industry_code"), request.form.get("industry_category"))
             扩展字段 = 提取企业扩展字段(request.form, 行业代码)
@@ -1427,12 +1383,6 @@ def create_app():
                 else:
                     db.session.delete(外贸联系人)
 
-            if 操作动作 == "save_draft" and not (企业.company_name or 企业.unified_social_credit_code):
-                flash("保存草稿时，企业全称或统一社会信用代码至少填写一项。", "danger")
-                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {}), 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
-            if 操作动作 != "save_draft" and not 企业.company_name:
-                flash("企业名称为必填项", "danger")
-                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {}), 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
             if not 行业代码:
                 flash("行业分类必须从下拉框选择。", "danger")
                 return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {}), 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
@@ -1440,7 +1390,7 @@ def create_app():
                 flash("联系人子表单中“是否主联系人”只能选择一位。", "danger")
                 return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {}), 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
             重复风险提示 = 企业重复风险检查(企业.company_name, 企业.unified_social_credit_code, exclude_enterprise_id=企业.id)
-            if 操作动作 == "save_draft" and 重复风险提示:
+            if 操作动作 == "save" and 重复风险提示:
                 for 提示 in 重复风险提示:
                     flash(提示, "warning")
             if 操作动作 == "submit_review":
@@ -1466,11 +1416,7 @@ def create_app():
             记录审计日志("编辑企业", "enterprise", target_id=企业.id, detail=企业.company_name)
             db.session.commit()
             flash(f"企业信息更新成功，新增上传文件 {上传数} 个。", "success")
-            if 操作动作 == "save_return":
-                return redirect(url_for("enterprise_list"))
-            if 操作动作 == "save_next":
-                return redirect(url_for("enterprise_edit", id=企业.id) + "#A")
-            return redirect(url_for("enterprise_detail", id=企业.id))
+            return redirect(url_for("enterprise_edit", id=企业.id))
 
         return render_template(
             "enterprise_form.html",
