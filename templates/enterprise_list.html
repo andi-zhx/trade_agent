@@ -27,37 +27,6 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-3">
-                <label class="form-label">行业名称关键词</label>
-                <input type="text" class="form-control" name="industry_name_keyword" value="{{ 筛选.industry_name_keyword }}" placeholder="请输入行业名称关键字">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">省份</label>
-                <select class="form-select" name="province">
-                    <option value="">全部</option>
-                    {% for p in 省份列表 %}
-                    <option value="{{ p }}" {% if p == 筛选.province %}selected{% endif %}>{{ p }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">城市</label>
-                <select class="form-select" name="city">
-                    <option value="">全部</option>
-                    {% for c in 城市列表 %}
-                    <option value="{{ c }}" {% if c == 筛选.city %}selected{% endif %}>{{ c }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label">公司类型</label>
-                <select class="form-select" name="company_type">
-                    <option value="">全部</option>
-                    {% for item in 公司类型选项 %}
-                    <option value="{{ item }}" {% if item == 筛选.company_type %}selected{% endif %}>{{ item }}</option>
-                    {% endfor %}
-                </select>
-            </div>
             <div class="col-md-1 d-grid">
                 <button class="btn btn-primary">筛选</button>
             </div>
@@ -136,19 +105,19 @@
         <nav>
             <ul class="pagination mb-0 justify-content-center">
                 <li class="page-item {% if not 分页.has_prev %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('enterprise_list', page=分页.prev_num, keyword=筛选.keyword, short_name_keyword=筛选.short_name_keyword, industry=筛选.industry, industry_name_keyword=筛选.industry_name_keyword, province=筛选.province, city=筛选.city, operating_status=筛选.operating_status, company_type=筛选.company_type, recommendation_level=筛选.recommendation_level, recommended_for_pool=筛选.recommended_for_pool, completeness=筛选.completeness) }}">上一页</a>
+                    <a class="page-link" href="{{ url_for('enterprise_list', page=分页.prev_num, keyword=筛选.keyword, industry=筛选.industry) }}">上一页</a>
                 </li>
                 {% for p in 分页.iter_pages(left_edge=1, right_edge=1, left_current=2, right_current=2) %}
                     {% if p %}
                     <li class="page-item {% if p == 分页.page %}active{% endif %}">
-                        <a class="page-link" href="{{ url_for('enterprise_list', page=p, keyword=筛选.keyword, short_name_keyword=筛选.short_name_keyword, industry=筛选.industry, industry_name_keyword=筛选.industry_name_keyword, province=筛选.province, city=筛选.city, operating_status=筛选.operating_status, company_type=筛选.company_type, recommendation_level=筛选.recommendation_level, recommended_for_pool=筛选.recommended_for_pool, completeness=筛选.completeness) }}">{{ p }}</a>
+                        <a class="page-link" href="{{ url_for('enterprise_list', page=p, keyword=筛选.keyword, industry=筛选.industry) }}">{{ p }}</a>
                     </li>
                     {% else %}
                     <li class="page-item disabled"><span class="page-link">…</span></li>
                     {% endif %}
                 {% endfor %}
                 <li class="page-item {% if not 分页.has_next %}disabled{% endif %}">
-                    <a class="page-link" href="{{ url_for('enterprise_list', page=分页.next_num, keyword=筛选.keyword, short_name_keyword=筛选.short_name_keyword, industry=筛选.industry, industry_name_keyword=筛选.industry_name_keyword, province=筛选.province, city=筛选.city, operating_status=筛选.operating_status, company_type=筛选.company_type, recommendation_level=筛选.recommendation_level, recommended_for_pool=筛选.recommended_for_pool, completeness=筛选.completeness) }}">下一页</a>
+                    <a class="page-link" href="{{ url_for('enterprise_list', page=分页.next_num, keyword=筛选.keyword, industry=筛选.industry) }}">下一页</a>
                 </li>
             </ul>
         </nav>

@@ -125,7 +125,7 @@
 </div>
 
 <form method="post" enctype="multipart/form-data" class="vstack gap-3" id="enterpriseForm">
-    <input type="hidden" name="action" id="formAction" value="save_draft">
+    <input type="hidden" name="action" id="formAction" value="save">
     <input type="hidden" name="duplicate_confirmed" id="duplicateConfirmed" value="{{ '1' if request.form.get('duplicate_confirmed') == '1' else '0' }}">
 
     {% if 重复风险提示 %}
@@ -274,28 +274,18 @@
 
     <div class="card shadow-sm enterprise-action-sticky">
         <div class="card-body d-flex flex-wrap gap-2 justify-content-end">
-            <button class="btn btn-outline-secondary" type="submit" data-action="save_draft">保存草稿</button>
-            <button class="btn btn-outline-primary" type="submit" data-action="save_next">保存并下一模块</button>
-            <button class="btn btn-primary" type="submit" data-action="save_return">保存并返回列表</button>
-            <button class="btn btn-danger" type="button" id="submitReviewBtn">提交审核</button>
+            <button class="btn btn-outline-secondary" type="button" id="exitBtn">{{ '退出' if 模式 == 'new' else '退出编辑' }}</button>
+            <button class="btn btn-primary" type="submit" data-action="save">保存</button>
         </div>
     </div>
 </form>
 
-<div class="modal fade" id="missingFieldsModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">提交审核前请完善以下字段</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><ul id="missingFieldsList" class="mb-0"></ul></div></div></div>
-</div>
-<div class="modal fade" id="duplicateRiskModal" tabindex="-1" aria-hidden="true">
-  <div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">检测到重复企业风险</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="mb-2">请确认是否继续提交审核：</div><ul id="duplicateRiskList" class="mb-0">{% for item in 重复风险提示 or [] %}<li>{{ item }}</li>{% endfor %}</ul></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">返回修改</button><button type="button" class="btn btn-danger" id="confirmDuplicateSubmitBtn">确认继续提交</button></div></div></div>
 </div>
 
 <script>
 (() => {
     const form = document.getElementById('enterpriseForm');
     const actionInput = document.getElementById('formAction');
-    const duplicateConfirmedInput = document.getElementById('duplicateConfirmed');
-    const submitReviewBtn = document.getElementById('submitReviewBtn');
-    const confirmDuplicateSubmitBtn = document.getElementById('confirmDuplicateSubmitBtn');
     const industrySelect = document.getElementById('industryCode');
     const industryName = document.getElementById('industryName');
     const completenessBadge = document.getElementById('overviewCompleteness');
@@ -338,37 +328,12 @@
         btn.addEventListener('click', () => { actionInput.value = btn.dataset.action; });
     });
 
-    const coreBasicFields = [
-        ['company_full_name', '企业全称'], ['founded_date', '成立时间'],
-        ['industry_code', '行业分类'], ['industry_category', '行业名称'], ['primary_industry', '一级行业'],
-        ['website', '企业网址'], ['company_type', '公司类型'], ['enterprise_description', '企业介绍'],
-    ];
-    const coreBusinessFields = [
-        ['registered_name', '注册名称'], ['legal_representative', '法人代表'], ['registration_date', '注册时间'],
-        ['unified_social_credit_code', '统一社会信用代码'], ['business_registration_number', '工商注册号'], ['registered_capital', '注册资本'],
-        ['company_type', '企业注册类型'], ['industry', '行业'], ['registration_authority', '登记机关'],
-        ['registered_address', '注册地址'], ['business_scope', '经营范围'], ['business_term', '营业期限'],
-        ['approval_date', '核准日期'], ['paid_in_capital', '实缴资本'],
-    ];
-    const requiredForReview = [...coreBasicFields, ...coreBusinessFields];
-
-    submitReviewBtn?.addEventListener('click', () => {
-        duplicateConfirmedInput.value = '0';
-        const missing = requiredForReview.filter(([key]) => getFieldValues(key).length === 0).map(([, label]) => label);
-        if (missing.length) {
-            const ul = document.getElementById('missingFieldsList');
-            ul.innerHTML = missing.map((item) => `<li>${item}</li>`).join('');
-            new bootstrap.Modal(document.getElementById('missingFieldsModal')).show();
-            return;
+    const exitBtn = document.getElementById('exitBtn');
+    exitBtn?.addEventListener('click', () => {
+        const msg = '已经填写的内容不会保存，确认退出？';
+        if (confirm(msg)) {
+            window.location.href = '{{ url_for('enterprise_list') }}';
         }
-        actionInput.value = 'submit_review';
-        form.submit();
-    });
-
-    confirmDuplicateSubmitBtn?.addEventListener('click', () => {
-        duplicateConfirmedInput.value = '1';
-        actionInput.value = 'submit_review';
-        form.submit();
     });
 
     const parseConditions = (rawValue) => { try { const v = JSON.parse(rawValue || '[]'); return Array.isArray(v) ? v : [v]; } catch { return []; } };
@@ -550,9 +515,6 @@
     syncProgress();
     syncCompletenessOverview();
     refreshContactPrimaryIndex();
-    if ({{ 'true' if 触发重复风险确认|default(false) else 'false' }}) {
-        new bootstrap.Modal(document.getElementById('duplicateRiskModal')).show();
-    }
 })();
 </script>
 {% endblock %}
