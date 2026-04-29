@@ -79,32 +79,20 @@
 
 <ul class="nav nav-tabs mb-3" role="tablist">
     <li class="nav-item" role="presentation">
-        <a class="nav-link {% if active_tab == 'overview' %}active{% endif %}" href="{{ url_for('product_detail', product_id=product.id, tab='overview') }}">Tab 1：产品概览</a>
+        <a class="nav-link {% if active_tab == 'overview' %}active{% endif %}" href="{{ url_for('product_detail', product_id=product.id, tab='overview') }}">产品概览</a>
     </li>
     <li class="nav-item" role="presentation">
-        <a class="nav-link {% if active_tab == 'sku' %}active{% endif %}" href="{{ url_for('product_detail', product_id=product.id, tab='sku') }}">Tab 2：SKU明细</a>
+        <a class="nav-link {% if active_tab == 'sku' %}active{% endif %}" href="{{ url_for('product_detail', product_id=product.id, tab='sku') }}">SKU明细</a>
     </li>
     <li class="nav-item" role="presentation">
-        <a class="nav-link {% if active_tab == 'cert' %}active{% endif %}" href="{{ url_for('product_detail', product_id=product.id, tab='cert') }}">Tab 3：认证与附件</a>
+        <a class="nav-link {% if active_tab == 'cert' %}active{% endif %}" href="{{ url_for('product_detail', product_id=product.id, tab='cert') }}">认证与附件</a>
     </li>
 </ul>
 
 <div class="tab-content">
     <div class="tab-pane fade {% if active_tab == 'overview' %}show active{% endif %}">
         <div class="row g-3">
-            <div class="col-lg-4">
-                <div class="card h-100">
-                    <div class="card-header">产品主图</div>
-                    <div class="card-body text-center">
-                        {% if product.main_image %}
-                        <img src="{{ product.main_image }}" alt="主图" class="img-fluid rounded border" style="max-height: 280px; object-fit: contain;">
-                        {% else %}
-                        <div class="text-muted py-5">未填写</div>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-            <div class="col-lg-8">
+            <div class="col-12">
                 <div class="card h-100">
                     <div class="card-header">产品概览</div>
                     <div class="card-body">
@@ -112,7 +100,6 @@
                             <div class="col-md-6"><strong>产品编号：</strong>{{ show_text(product.product_code) }}</div>
                             <div class="col-md-6"><strong>产品名称：</strong>{{ show_text(product.product_name_cn) }}</div>
                             <div class="col-md-6"><strong>所属企业：</strong>{{ show_text(enterprise.company_name if enterprise else None) }}</div>
-                            <div class="col-md-6"><strong>行业 / 品类：</strong>{{ show_text((product.industry_name or '') ~ (' / ' ~ product.product_category if product.product_category else '')) }}</div>
                             <div class="col-md-6"><strong>产品类型：</strong>{{ show_text(product.product_type) }}</div>
                             <div class="col-md-6"><strong>HS编码：</strong>{{ show_text(product.hs_code) }}</div>
                             <div class="col-md-6"><strong>用途：</strong>{{ show_text(extra.get('desc_usage') or product.function_description)|truncate(42, True, '…') }}</div>
@@ -120,11 +107,8 @@
                             <div class="col-md-6"><strong>目标客户：</strong>{{ show_badges(extra.get('target_customer_tags') or extra.get('desc_target_customer')) }}</div>
                             <div class="col-md-6"><strong>核心卖点：</strong>{{ show_text(extra.get('desc_core_selling_points') or product.product_selling_points)|truncate(42, True, '…') }}</div>
                             <div class="col-md-6"><strong>差异化优势：</strong>{{ show_text(extra.get('desc_differentiated_advantage'))|truncate(42, True, '…') }}</div>
-                            <div class="col-md-6"><strong>是否适合出口：</strong>{{ show_status_badge(product.export_suitability, export_badges) }}</div>
-                            <div class="col-md-6"><strong>推荐等级：</strong>{{ show_status_badge(product.recommendation_level, recommendation_badges) }}</div>
                             <div class="col-md-6"><strong>目标市场：</strong>{{ show_badges(extra.get('target_market_tags') or product.target_market) }}</div>
                             <div class="col-md-6"><strong>合作模式：</strong>{{ show_badges(extra.get('cooperation_modes')) }}</div>
-                            <div class="col-md-6"><strong>产品状态：</strong>{{ show_status_badge(extra.get('product_status_review'), product_status_badges) }}</div>
                             <div class="col-md-6"><strong>MOQ：</strong>{{ show_text(product.moq or extra.get('trade_moq')) }}</div>
                             <div class="col-md-6"><strong>交期：</strong>{{ show_text(product.delivery_cycle or product.production_cycle or extra.get('trade_mass_cycle')) }}</div>
                             <div class="col-md-6"><strong>价格展示：</strong>{{ show_text(product.price_display) }}</div>
