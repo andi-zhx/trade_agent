@@ -4067,6 +4067,12 @@ def init_db(app):
         enterprise_columns = {col["name"] for col in inspector.get_columns("enterprises")}
         if "enterprise_extra_fields" not in enterprise_columns:
             db.session.execute(text("ALTER TABLE enterprises ADD COLUMN enterprise_extra_fields JSON"))
+        if "province" not in enterprise_columns:
+            db.session.execute(text("ALTER TABLE enterprises ADD COLUMN province VARCHAR(50)"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_enterprises_province ON enterprises (province)"))
+        if "city" not in enterprise_columns:
+            db.session.execute(text("ALTER TABLE enterprises ADD COLUMN city VARCHAR(50)"))
+            db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_enterprises_city ON enterprises (city)"))
         if "industry_code" not in product_columns:
             db.session.execute(text("ALTER TABLE products ADD COLUMN industry_code VARCHAR(50)"))
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_products_industry_code ON products (industry_code)"))
