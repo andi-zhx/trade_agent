@@ -9,6 +9,7 @@ from functools import wraps
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from flask import Flask, abort, flash, redirect, render_template, request, send_file, send_from_directory, session, url_for
+from jinja2.runtime import Undefined
 from openpyxl import Workbook, load_workbook
 from sqlalchemy import func, inspect, or_, text
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -373,9 +374,13 @@ def create_app():
 
     @app.template_filter("currency")
     def currency_filter(value, currency="USD"):
-        if value is None:
+        if value is None or isinstance(value, Undefined):
             return "-"
-        return f"{currency} {value:,.2f}"
+        try:
+            numeric_value = float(value)
+        except (TypeError, ValueError):
+            return "-"
+        return f"{currency} {numeric_value:,.2f}"
 
     @app.context_processor
     def inject_user_context():
