@@ -17,6 +17,9 @@
             </div>
             <button class="btn btn-primary">开始导入</button>
             <a class="btn btn-outline-secondary" href="{{ 返回地址 or url_for('excel_tools') }}">{{ 返回文案 or '返回' }}</a>
+            {% if 模板下载地址 %}
+            <a class="btn btn-outline-info" href="{{ 模板下载地址 }}">{{ 模板下载文案 or '下载导入模板' }}</a>
+            {% endif %}
         </form>
         {% if 字段提示 %}
         <hr>
