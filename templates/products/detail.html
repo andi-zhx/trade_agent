@@ -215,6 +215,13 @@
                 <a class="btn btn-sm btn-outline-info" href="{{ url_for('document_upload', enterprise_id=enterprise.id, product_id=product.id) if enterprise else url_for('document_upload', product_id=product.id) }}">上传附件</a>
             </div>
             <div class="card-body">
+                {% if 附件统计 %}
+                <div class="row row-cols-1 row-cols-md-2 g-2 mb-3">
+                    {% for item in 附件统计 %}
+                    <div class="col"><div class="small text-muted">{{ item.label }}：已上传 {{ item.count }} 个</div></div>
+                    {% endfor %}
+                </div>
+                {% endif %}
                 {% if product_files %}
                 <div class="table-responsive">
                     <table class="table table-sm align-middle">

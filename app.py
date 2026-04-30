@@ -75,6 +75,26 @@ PRODUCT_UPLOAD_TYPES = [
     "案例资料",
     "其他文件",
 ]
+PRODUCT_MATERIAL_TYPE_MAPPING = [
+    ("产品图片", "产品图片"),
+    ("产品视频", "产品视频"),
+    ("产品规格书", "产品规格书"),
+    ("产品说明书", "产品说明书"),
+    ("英文资料", "英文资料"),
+    ("宣传册", "包装资料"),
+    ("检测报告", "检测报告"),
+    ("认证文件", "产品认证"),
+    ("报价单", "报价单"),
+    ("案例资料", "案例资料"),
+]
+PRODUCT_MATERIAL_STATUS_FIELD_MAPPING = {
+    "media_product_images": "产品图片",
+    "media_product_video": "产品视频",
+    "media_manual": "产品说明书",
+    "media_brochure": "包装资料",
+    "media_english_ppt": "英文资料",
+    "media_case_study": "案例资料",
+}
 
 DOCUMENT_TYPE_OPTIONS = [(item, item) for item in ENTERPRISE_UPLOAD_TYPES + PRODUCT_UPLOAD_TYPES]
 ENTERPRISE_SUB_FOLDERS = [
@@ -320,6 +340,36 @@ def create_app():
             资料缺失提示.append("缺少SKU明细")
 
         return 资料缺失提示
+
+    def 构建产品附件统计与状态(product_files, product_extra_values=None):
+        product_extra_values = product_extra_values or {}
+        类型计数 = {}
+        for doc in product_files or []:
+            类型计数[doc.document_type] = 类型计数.get(doc.document_type, 0) + 1
+        展示统计 = [{"label": label, "count": 类型计数.get(raw_type, 0), "raw_type": raw_type} for label, raw_type in PRODUCT_MATERIAL_TYPE_MAPPING]
+        已覆盖类型 = {item["raw_type"] for item in 展示统计}
+        for 文件类型, 数量 in sorted(类型计数.items()):
+            if 文件类型 in 已覆盖类型:
+                continue
+            展示统计.append({"label": 文件类型, "count": 数量, "raw_type": 文件类型})
+        状态建议 = {}
+        for 字段, 文件类型 in PRODUCT_MATERIAL_STATUS_FIELD_MAPPING.items():
+            当前值 = (product_extra_values.get(字段) or "").strip()
+            数量 = 类型计数.get(文件类型, 0)
+            if 数量 > 0:
+                建议值 = "已上传"
+            elif 当前值 == "待补充":
+                建议值 = "待补充"
+            else:
+                建议值 = "未上传"
+            状态建议[字段] = {"count": 数量, "recommended": 建议值}
+        return 展示统计, 状态建议
+
+    def 附加文件元信息(文档列表):
+        for 文档 in 文档列表 or []:
+            文件路径 = BASE_DIR / (文档.file_path or "")
+            文档.file_size_bytes = 文件路径.stat().st_size if 文件路径.exists() and 文件路径.is_file() else None
+        return 文档列表
 
     @app.template_filter("currency")
     def currency_filter(value, currency="USD"):
@@ -1210,9 +1260,10 @@ def create_app():
         企业.industry_display_name = (企业.industry_category or "").strip() or 行业默认名称(企业.industry_code)
         联系人列表 = Contact.query.filter_by(enterprise_id=id).all()
         产品列表 = Product.query.filter_by(enterprise_id=id).all()
+        产品映射 = {p.id: p.product_name_cn for p in 产品列表}
         资质列表 = []
         资质展示列表 = [构建证照展示项(资质) for 资质 in 资质列表]
-        文件列表 = Document.query.filter_by(enterprise_id=id).all()
+        文件列表 = 附加文件元信息(Document.query.filter_by(enterprise_id=id).all())
         文件类型集合 = {item.document_type for item in 文件列表}
         扩展字段 = 兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {})
         完整度信息 = 计算企业资料完整度(企业, 扩展字段, 文件类型集合)
@@ -1246,6 +1297,7 @@ def create_app():
             资质列表=资质列表,
             资质展示列表=资质展示列表,
             文件列表=文件列表,
+            产品映射=产品映射,
             缺失资料提示=缺失资料提示,
             完整度信息=完整度信息,
             详情Tabs=详情Tabs,
@@ -1648,7 +1700,9 @@ def create_app():
         skus = 查询SKU列表(product.id, request.args).all()
         sku_filter_options = SKU筛选选项(product.id)
         certificates = []
-        product_files = Document.query.filter_by(product_id=product.id).order_by(Document.uploaded_at.desc()).all()
+        product_files = 附加文件元信息(Document.query.filter_by(product_id=product.id).order_by(Document.uploaded_at.desc()).all())
+        product_extra_values = 兼容产品基础信息字段(product, product.product_extra_fields or {})
+        附件统计, _ = 构建产品附件统计与状态(product_files, product_extra_values)
         匹配需求列表 = []
         archive_code = f"{enterprise.enterprise_code}_{product.product_code}" if enterprise else product.product_code
         资料缺失提示 = 构建产品资料缺失提示(product, enterprise=enterprise, product_files=product_files, skus=skus)
@@ -1664,8 +1718,9 @@ def create_app():
             资料缺失提示=资料缺失提示,
             sku_filters=sku_filters,
             sku_filter_options=sku_filter_options,
+            附件统计=附件统计,
             product_extra_display_groups=构建产品扩展信息分组(
-                product.industry_code, 兼容产品基础信息字段(product, product.product_extra_fields)
+                product.industry_code, product_extra_values
             ),
         )
 
@@ -1874,9 +1929,11 @@ def create_app():
     def product_edit(product_id):
         product = Product.query.get_or_404(product_id)
         enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
-        product_files = Document.query.filter_by(product_id=product.id).order_by(Document.uploaded_at.desc()).all()
+        product_files = 附加文件元信息(Document.query.filter_by(product_id=product.id).order_by(Document.uploaded_at.desc()).all())
         sku_list = 查询SKU列表(product.id, request.args).all()
         enterprise = Enterprise.query.get(product.enterprise_id) if product.enterprise_id else None
+        product_extra_values = 兼容产品基础信息字段(product, product.product_extra_fields or {})
+        附件统计, 状态建议 = 构建产品附件统计与状态(product_files, product_extra_values)
         资料缺失提示 = 构建产品资料缺失提示(product, enterprise=enterprise, product_files=product_files, skus=sku_list)
         当前标签 = request.form.get("_active_tab") or request.args.get("tab", "overview")
         if request.method == "POST":
@@ -1894,7 +1951,7 @@ def create_app():
                     industries=行业下拉选项(),
                     common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
                     industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
-                    product_extra_values=兼容产品基础信息字段(product, product.product_extra_fields or {}) if product else {},
+                    product_extra_values=product_extra_values if product else {},
                     产品文件类型选项=PRODUCT_UPLOAD_TYPES,
                     is_new_product=False,
                     product_files=product_files,
@@ -1920,7 +1977,7 @@ def create_app():
                     industries=行业下拉选项(),
                     common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
                     industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
-                    product_extra_values=兼容产品基础信息字段(product, product.product_extra_fields or {}) if product else {},
+                    product_extra_values=product_extra_values if product else {},
                     产品文件类型选项=PRODUCT_UPLOAD_TYPES,
                     is_new_product=False,
                     product_files=product_files,
@@ -1954,7 +2011,7 @@ def create_app():
                     industries=行业下拉选项(),
                     common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
                     industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
-                    product_extra_values=兼容产品基础信息字段(product, product.product_extra_fields or {}) if product else {},
+                    product_extra_values=product_extra_values if product else {},
                     产品文件类型选项=PRODUCT_UPLOAD_TYPES,
                     is_new_product=False,
                     product_files=product_files,
@@ -1976,7 +2033,7 @@ def create_app():
             industries=行业下拉选项(),
             common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
             industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
-            product_extra_values=兼容产品基础信息字段(product, product.product_extra_fields or {}),
+            product_extra_values=product_extra_values,
             产品文件类型选项=PRODUCT_UPLOAD_TYPES,
             is_new_product=False,
             product_files=product_files,
@@ -1985,6 +2042,8 @@ def create_app():
             sku_filters=读取SKU筛选条件(request.args),
             sku_filter_options=SKU筛选选项(product.id),
             资料缺失提示=资料缺失提示,
+            附件统计=附件统计,
+            资料状态建议=状态建议,
         )
 
     @app.post("/products/<int:product_id>/delete")
