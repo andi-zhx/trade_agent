@@ -25,16 +25,10 @@ from config.industry_config import INDUSTRY_MAP, INDUSTRY_OPTIONS
 from config.product_form_config import COMMON_PRODUCT_FIELD_GROUPS, INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG
 from models import (
     Contact,
-    Demand,
     Document,
     Enterprise,
-    EnterpriseAnalysisNote,
-    ForeignClient,
-    MatchRecord,
     Product,
     ProductSKU,
-    ProjectProgress,
-    Qualification,
     AuditLog,
     User,
     db,
@@ -83,25 +77,6 @@ PRODUCT_UPLOAD_TYPES = [
 ]
 
 DOCUMENT_TYPE_OPTIONS = [(item, item) for item in ENTERPRISE_UPLOAD_TYPES + PRODUCT_UPLOAD_TYPES]
-DISABLED_ENDPOINTS = {
-    "qualification_list",
-    "qualification_new",
-    "qualification_delete",
-    "project_list",
-    "project_new",
-    "project_detail",
-    "foreign_client_list",
-    "foreign_client_new",
-    "foreign_client_detail",
-    "foreign_client_edit",
-    "demand_list",
-    "demand_new",
-    "demand_detail",
-    "generate_demand_matches",
-    "global_search",
-    "excel_tools",
-}
-
 ENTERPRISE_SUB_FOLDERS = [
     "01_企业基础资料",
     "02_企业资质与合规文件",
@@ -370,8 +345,6 @@ def create_app():
             return None
         if not session.get("用户"):
             return redirect(url_for("登录"))
-        if request.endpoint in DISABLED_ENDPOINTS:
-            abort(404)
         return None
 
     @app.errorhandler(413)
@@ -818,41 +791,6 @@ def create_app():
     def backup_management():
         return redirect(url_for("backup_tools"))
 
-    @app.route("/search")
-    def global_search():
-        q = request.args.get("q", "", type=str).strip()
-        results = {"企业": [], "产品": [], "外资需求": [], "文件": []}
-        if q:
-            like_q = f"%{q}%"
-            results["企业"] = Enterprise.query.filter(
-                or_(
-                    Enterprise.company_name.ilike(like_q),
-                    Enterprise.english_name.ilike(like_q),
-                    Enterprise.main_products.ilike(like_q),
-                )
-            ).order_by(Enterprise.updated_at.desc()).limit(50).all()
-            results["产品"] = Product.query.filter(
-                or_(
-                    Product.product_name_cn.ilike(like_q),
-                    Product.product_name_en.ilike(like_q),
-                    Product.hs_code.ilike(like_q),
-                )
-            ).order_by(Product.updated_at.desc()).limit(50).all()
-            results["外资需求"] = Demand.query.join(ForeignClient, Demand.foreign_client_id == ForeignClient.id).filter(
-                or_(
-                    ForeignClient.client_name.ilike(like_q),
-                    Demand.product_keywords.ilike(like_q),
-                    Demand.purchase_category.ilike(like_q),
-                )
-            ).order_by(Demand.updated_at.desc()).limit(50).all()
-            results["文件"] = Document.query.filter(Document.document_name.ilike(like_q)).order_by(Document.uploaded_at.desc()).limit(50).all()
-
-        return render_template("search.html", q=q, results=results)
-
-    @app.get("/excel")
-    def excel_tools():
-        return render_template("excel_tools.html")
-
     @app.route("/backup", methods=["GET", "POST"])
     @admin_required
     def backup_tools():
@@ -1272,9 +1210,7 @@ def create_app():
         企业.industry_display_name = (企业.industry_category or "").strip() or 行业默认名称(企业.industry_code)
         联系人列表 = Contact.query.filter_by(enterprise_id=id).all()
         产品列表 = Product.query.filter_by(enterprise_id=id).all()
-        资质列表 = Qualification.query.filter_by(enterprise_id=id).order_by(
-            Qualification.expiry_date.is_(None), Qualification.expiry_date.asc()
-        ).all()
+        资质列表 = []
         资质展示列表 = [构建证照展示项(资质) for 资质 in 资质列表]
         文件列表 = Document.query.filter_by(enterprise_id=id).all()
         文件类型集合 = {item.document_type for item in 文件列表}
@@ -1378,21 +1314,6 @@ def create_app():
             download_name=f"{企业.enterprise_code}_{企业.company_name}_企业文件夹.zip",
             mimetype="application/zip",
         )
-
-    @app.route("/enterprises/<int:id>/analysis-note", methods=["POST"])
-    def enterprise_analysis_note_save(id):
-        企业 = Enterprise.query.get_or_404(id)
-        备注内容 = request.form.get("analysis_note", "").strip() or None
-        分析备注 = EnterpriseAnalysisNote.query.filter_by(enterprise_id=id).first()
-        if 分析备注:
-            分析备注.note = 备注内容
-            分析备注.updated_at = datetime.utcnow()
-        else:
-            分析备注 = EnterpriseAnalysisNote(enterprise_id=企业.id, note=备注内容)
-            db.session.add(分析备注)
-        db.session.commit()
-        flash("出海方案分析备注已保存。", "success")
-        return redirect(url_for("enterprise_detail", id=企业.id))
 
     @app.route("/enterprises/<int:id>/edit", methods=["GET", "POST"])
     def enterprise_edit(id):
@@ -1525,11 +1446,11 @@ def create_app():
         if request.form.get("confirm_delete") != "YES":
             flash("请勾选二次确认后再删除企业。", "warning")
             return redirect(url_for("enterprise_list"))
-        if Product.query.filter_by(enterprise_id=企业.id).count() > 0 or ProjectProgress.query.filter_by(enterprise_id=企业.id).count() > 0:
+        if Product.query.filter_by(enterprise_id=企业.id).count() > 0:
             企业.status = "停用"
             记录审计日志("编辑企业", "enterprise", target_id=企业.id, detail=f"{企业.company_name} 标记为停用")
             db.session.commit()
-            flash("企业存在产品或项目进展，已自动标记为停用。", "warning")
+            flash("企业存在关联产品，已自动标记为停用。", "warning")
             return redirect(url_for("enterprise_detail", id=企业.id))
         记录审计日志("删除企业", "enterprise", target_id=企业.id, detail=企业.company_name)
         db.session.delete(企业)
@@ -1537,115 +1458,6 @@ def create_app():
         flash("企业已删除", "success")
         return redirect(url_for("enterprise_list"))
 
-    @app.route("/qualifications")
-    def qualification_list():
-        证书状态 = request.args.get("status", "", type=str).strip()
-        查询 = Qualification.query.join(Enterprise, Qualification.enterprise_id == Enterprise.id).outerjoin(
-            Product, Qualification.product_id == Product.id
-        )
-
-        if 证书状态:
-            当前日期 = date.today()
-            if 证书状态 == "未填写":
-                查询 = 查询.filter(Qualification.expiry_date.is_(None))
-            elif 证书状态 == "已过期":
-                查询 = 查询.filter(Qualification.expiry_date.isnot(None), Qualification.expiry_date < 当前日期)
-
-        证照列表 = 查询.order_by(
-            Qualification.expiry_date.is_(None), Qualification.expiry_date.asc(), Qualification.id.desc()
-        ).all()
-        证照展示列表 = [构建证照展示项(资质) for 资质 in 证照列表]
-        if 证书状态 == "即将到期":
-            证照展示列表 = [项 for 项 in 证照展示列表 if 项["证书状态"] == "即将到期"]
-        elif 证书状态 == "正常":
-            证照展示列表 = [项 for 项 in 证照展示列表 if 项["证书状态"] == "正常"]
-
-        return render_template(
-            "qualifications/list.html",
-            证照展示列表=证照展示列表,
-            当前状态=证书状态,
-            状态选项=["", "未填写", "已过期", "即将到期", "正常"],
-        )
-
-    @app.route("/qualifications/new", methods=["GET", "POST"])
-    def qualification_new():
-        企业列表 = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
-        证书类型选项 = 获取证书类型选项()
-
-        if request.method == "POST":
-            enterprise_id = request.form.get("enterprise_id", type=int)
-            企业 = Enterprise.query.get(enterprise_id) if enterprise_id else None
-            if not 企业:
-                flash("请选择有效企业。", "danger")
-                return render_template(
-                    "qualifications/form.html",
-                    企业列表=企业列表,
-                    产品列表=[],
-                    证书类型选项=证书类型选项,
-                    表单=request.form,
-                )
-
-            product_id = request.form.get("product_id", type=int)
-            产品 = Product.query.filter_by(id=product_id, enterprise_id=enterprise_id).first() if product_id else None
-            if product_id and not 产品:
-                flash("请选择该企业下的有效产品。", "danger")
-                return render_template(
-                    "qualifications/form.html",
-                    企业列表=企业列表,
-                    产品列表=Product.query.filter_by(enterprise_id=enterprise_id).order_by(Product.product_name_cn.asc()).all(),
-                    证书类型选项=证书类型选项,
-                    表单=request.form,
-                )
-
-            资质 = Qualification(
-                enterprise_id=enterprise_id,
-                product_id=产品.id if 产品 else None,
-                certificate_name=request.form.get("certificate_name", "").strip(),
-                certificate_type=request.form.get("certificate_type", "").strip() or None,
-                certificate_no=request.form.get("certificate_no", "").strip() or None,
-                covered_products=request.form.get("covered_products", "").strip() or None,
-                issuing_authority=request.form.get("issuing_authority", "").strip() or None,
-                issue_date=读取日期(request.form.get("issue_date")),
-                expiry_date=读取日期(request.form.get("expiry_date")),
-                status=计算证书状态(读取日期(request.form.get("expiry_date"))),
-                affects_recommendation=读取布尔(request.form, "affects_recommendation"),
-                file_path=request.form.get("file_path", "").strip() or None,
-                notes=request.form.get("notes", "").strip() or None,
-            )
-            if not 资质.certificate_name:
-                flash("证书名称为必填项。", "danger")
-                return render_template(
-                    "qualifications/form.html",
-                    企业列表=企业列表,
-                    产品列表=Product.query.filter_by(enterprise_id=enterprise_id).order_by(Product.product_name_cn.asc()).all(),
-                    证书类型选项=证书类型选项,
-                    表单=request.form,
-                )
-
-            db.session.add(资质)
-            db.session.commit()
-            flash("资质证照新增成功。", "success")
-            return redirect(url_for("qualification_list"))
-
-        默认企业 = request.args.get("enterprise_id", type=int)
-        产品列表 = Product.query.filter_by(enterprise_id=默认企业).order_by(Product.product_name_cn.asc()).all() if 默认企业 else []
-        return render_template(
-            "qualifications/form.html",
-            企业列表=企业列表,
-            产品列表=产品列表,
-            证书类型选项=证书类型选项,
-            表单={},
-        )
-
-    @app.post("/qualifications/<int:id>/delete")
-    def qualification_delete(id):
-        资质 = Qualification.query.get_or_404(id)
-        db.session.delete(资质)
-        db.session.commit()
-        flash("证照记录已删除。", "info")
-        return redirect(url_for("qualification_list"))
-
-    @app.route("/登录", methods=["GET", "POST"])
     def 登录():
         if session.get("用户"):
             return redirect(url_for("dashboard"))
@@ -1835,20 +1647,9 @@ def create_app():
         sku_filters = 读取SKU筛选条件(request.args)
         skus = 查询SKU列表(product.id, request.args).all()
         sku_filter_options = SKU筛选选项(product.id)
-        certificates = Qualification.query.filter_by(product_id=product.id).order_by(Qualification.expiry_date.desc()).all()
+        certificates = []
         product_files = Document.query.filter_by(product_id=product.id).order_by(Document.uploaded_at.desc()).all()
-        匹配记录 = (
-            MatchRecord.query.filter_by(product_id=product.id)
-            .order_by(MatchRecord.match_score.desc(), MatchRecord.updated_at.desc())
-            .all()
-        )
-        匹配需求列表 = [
-            {
-                "记录": 记录,
-                "需求": Demand.query.get(记录.demand_id),
-            }
-            for 记录 in 匹配记录
-        ]
+        匹配需求列表 = []
         archive_code = f"{enterprise.enterprise_code}_{product.product_code}" if enterprise else product.product_code
         资料缺失提示 = 构建产品资料缺失提示(product, enterprise=enterprise, product_files=product_files, skus=skus)
         return render_template(
@@ -2191,9 +1992,6 @@ def create_app():
         if request.form.get("confirm_delete") != "YES":
             flash("请勾选二次确认后再删除产品。", "warning")
             return redirect(url_for("product_list"))
-        if ProjectProgress.query.filter_by(product_id=product.id).count() > 0:
-            flash("该产品存在项目进展，暂不允许直接删除。", "danger")
-            return redirect(url_for("product_detail", product_id=product.id))
         记录审计日志("删除产品", "product", target_id=product.id, detail=product.product_name_cn)
         db.session.delete(product)
         db.session.commit()
@@ -2241,126 +2039,6 @@ def create_app():
         flash("产品状态已更新。", "success")
         return redirect(url_for("product_list"))
 
-    @app.route("/projects")
-    def project_list():
-        current_stage = request.args.get("current_stage", "", type=str).strip()
-        project_owner = request.args.get("project_owner", "", type=str).strip()
-        foreign_client = request.args.get("foreign_client", "", type=str).strip()
-        enterprise_name = request.args.get("enterprise_name", "", type=str).strip()
-
-        query = ProjectProgress.query
-        if current_stage:
-            query = query.filter(ProjectProgress.current_stage == current_stage)
-        if project_owner:
-            query = query.filter(ProjectProgress.project_owner == project_owner)
-        if foreign_client:
-            query = query.join(ForeignClient, ProjectProgress.foreign_client_id == ForeignClient.id).filter(
-                ForeignClient.client_name.ilike(f"%{foreign_client}%")
-            )
-        if enterprise_name:
-            query = query.join(Enterprise, ProjectProgress.enterprise_id == Enterprise.id).filter(
-                Enterprise.company_name.ilike(f"%{enterprise_name}%")
-            )
-
-        projects = query.order_by(ProjectProgress.updated_at.desc(), ProjectProgress.id.desc()).all()
-        enterprise_map = {item.id: item for item in Enterprise.query.filter(Enterprise.id.in_({p.enterprise_id for p in projects if p.enterprise_id})).all()} if projects else {}
-        product_map = {item.id: item for item in Product.query.filter(Product.id.in_({p.product_id for p in projects if p.product_id})).all()} if projects else {}
-        client_map = {item.id: item for item in ForeignClient.query.filter(ForeignClient.id.in_({p.foreign_client_id for p in projects if p.foreign_client_id})).all()} if projects else {}
-
-        owners = [
-            row[0]
-            for row in db.session.query(ProjectProgress.project_owner)
-            .filter(ProjectProgress.project_owner.isnot(None), ProjectProgress.project_owner != "")
-            .distinct()
-            .order_by(ProjectProgress.project_owner)
-            .all()
-        ]
-
-        return render_template(
-            "projects/list.html",
-            projects=projects,
-            enterprise_map=enterprise_map,
-            product_map=product_map,
-            client_map=client_map,
-            filters={
-                "current_stage": current_stage,
-                "project_owner": project_owner,
-                "foreign_client": foreign_client,
-                "enterprise_name": enterprise_name,
-            },
-            stage_options=PROJECT_STAGE_OPTIONS,
-            owner_options=owners,
-            project_code=项目编号,
-        )
-
-    @app.route("/projects/new", methods=["GET", "POST"])
-    def project_new():
-        enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
-        products = Product.query.order_by(Product.product_name_cn.asc()).all()
-        clients = ForeignClient.query.order_by(ForeignClient.client_name.asc()).all()
-        demands = Demand.query.order_by(Demand.updated_at.desc()).all()
-
-        if request.method == "POST":
-            project = ProjectProgress()
-            填充项目字段(project, request.form)
-            if not project.enterprise_id:
-                flash("请选择企业。", "danger")
-                return render_template(
-                    "projects/form.html",
-                    form_title="新增撮合项目",
-                    enterprises=enterprises,
-                    products=products,
-                    clients=clients,
-                    demands=demands,
-                    stage_options=PROJECT_STAGE_OPTIONS,
-                    sample_status_options=SAMPLE_STATUS_OPTIONS,
-                    quotation_status_options=QUOTATION_STATUS_OPTIONS,
-                    contract_status_options=CONTRACT_STATUS_OPTIONS,
-                    form_data=request.form,
-                )
-
-            db.session.add(project)
-            db.session.commit()
-            flash(f"项目 {项目编号(project)} 创建成功。", "success")
-            return redirect(url_for("project_detail", project_id=project.id))
-
-        return render_template(
-            "projects/form.html",
-            form_title="新增撮合项目",
-            enterprises=enterprises,
-            products=products,
-            clients=clients,
-            demands=demands,
-            stage_options=PROJECT_STAGE_OPTIONS,
-            sample_status_options=SAMPLE_STATUS_OPTIONS,
-            quotation_status_options=QUOTATION_STATUS_OPTIONS,
-            contract_status_options=CONTRACT_STATUS_OPTIONS,
-            form_data={},
-        )
-
-    @app.route("/projects/<int:project_id>")
-    def project_detail(project_id):
-        project = ProjectProgress.query.get_or_404(project_id)
-        enterprise = Enterprise.query.get(project.enterprise_id) if project.enterprise_id else None
-        product = Product.query.get(project.product_id) if project.product_id else None
-        client = ForeignClient.query.get(project.foreign_client_id) if project.foreign_client_id else None
-        demand = Demand.query.get(project.demand_id) if project.demand_id else None
-        documents = Document.query.filter_by(related_project_id=project.id).order_by(Document.uploaded_at.desc()).all()
-        timeline = 构建项目时间线(project)
-
-        return render_template(
-            "projects/detail.html",
-            project=project,
-            enterprise=enterprise,
-            product=product,
-            client=client,
-            demand=demand,
-            documents=documents,
-            timeline=timeline,
-            project_code=项目编号(project),
-        )
-
-    @app.route("/documents")
     def document_list():
         enterprise_id = request.args.get("enterprise_id", type=int)
         product_id = request.args.get("product_id", type=int)
@@ -2570,170 +2248,6 @@ def create_app():
         flash("文件已删除。", "success")
         return redirect(返回地址 or url_for("document_list"))
 
-    @app.route("/foreign-clients")
-    def foreign_client_list():
-        q = request.args.get("q", "", type=str).strip()
-        国家地区 = request.args.get("country_region", "", type=str).strip()
-        query = ForeignClient.query
-        if q:
-            query = query.filter(
-                or_(
-                    ForeignClient.client_name.ilike(f"%{q}%"),
-                    ForeignClient.contact_name.ilike(f"%{q}%"),
-                    ForeignClient.contact_email.ilike(f"%{q}%"),
-                )
-            )
-        if 国家地区:
-            query = query.filter(ForeignClient.country_region == 国家地区)
-        clients = query.order_by(ForeignClient.updated_at.desc()).all()
-        国家地区列表 = [
-            row[0]
-            for row in db.session.query(ForeignClient.country_region)
-            .filter(ForeignClient.country_region.isnot(None), ForeignClient.country_region != "")
-            .distinct()
-            .order_by(ForeignClient.country_region)
-            .all()
-        ]
-        return render_template(
-            "foreign_clients/list.html",
-            clients=clients,
-            filters={"q": q, "country_region": 国家地区},
-            国家地区列表=国家地区列表,
-        )
-
-    @app.route("/foreign-clients/new", methods=["GET", "POST"])
-    def foreign_client_new():
-        if request.method == "POST":
-            client = ForeignClient()
-            填充外资客户字段(client, request.form)
-            if not client.client_name:
-                flash("客户名称为必填项。", "danger")
-                return render_template("foreign_clients/form.html", client=client, form_title="新增外资客户")
-            db.session.add(client)
-            db.session.commit()
-            flash("外资客户创建成功。", "success")
-            return redirect(url_for("foreign_client_detail", client_id=client.id))
-        return render_template("foreign_clients/form.html", client=None, form_title="新增外资客户")
-
-    @app.route("/foreign-clients/<int:client_id>")
-    def foreign_client_detail(client_id):
-        client = ForeignClient.query.get_or_404(client_id)
-        demands = Demand.query.filter_by(foreign_client_id=client.id).order_by(Demand.updated_at.desc()).all()
-        return render_template("foreign_clients/detail.html", client=client, demands=demands)
-
-    @app.route("/foreign-clients/<int:client_id>/edit", methods=["GET", "POST"])
-    def foreign_client_edit(client_id):
-        client = ForeignClient.query.get_or_404(client_id)
-        if request.method == "POST":
-            填充外资客户字段(client, request.form)
-            if not client.client_name:
-                flash("客户名称为必填项。", "danger")
-                return render_template("foreign_clients/form.html", client=client, form_title="编辑外资客户")
-            db.session.commit()
-            flash("外资客户更新成功。", "success")
-            return redirect(url_for("foreign_client_detail", client_id=client.id))
-        return render_template("foreign_clients/form.html", client=client, form_title="编辑外资客户")
-
-    @app.route("/demands")
-    def demand_list():
-        status = request.args.get("status", "", type=str).strip()
-        client_id = request.args.get("foreign_client_id", type=int)
-        keyword = request.args.get("keyword", "", type=str).strip()
-        query = Demand.query
-        if status:
-            query = query.filter(Demand.status == status)
-        if client_id:
-            query = query.filter(Demand.foreign_client_id == client_id)
-        if keyword:
-            query = query.filter(
-                or_(
-                    Demand.demand_code.ilike(f"%{keyword}%"),
-                    Demand.purchase_category.ilike(f"%{keyword}%"),
-                    Demand.product_keywords.ilike(f"%{keyword}%"),
-                )
-            )
-        demands = query.order_by(Demand.updated_at.desc()).all()
-        clients = ForeignClient.query.order_by(ForeignClient.client_name.asc()).all()
-        status_options = [
-            row[0]
-            for row in db.session.query(Demand.status)
-            .filter(Demand.status.isnot(None), Demand.status != "")
-            .distinct()
-            .order_by(Demand.status)
-            .all()
-        ]
-        client_map = {client.id: client for client in clients}
-        return render_template(
-            "demands/list.html",
-            demands=demands,
-            clients=clients,
-            client_map=client_map,
-            filters={"status": status, "foreign_client_id": client_id, "keyword": keyword},
-            status_options=status_options,
-        )
-
-    @app.route("/demands/new", methods=["GET", "POST"])
-    def demand_new():
-        clients = ForeignClient.query.order_by(ForeignClient.client_name.asc()).all()
-        if request.method == "POST":
-            demand = Demand(demand_code=生成需求编号())
-            填充需求字段(demand, request.form)
-            if not demand.foreign_client_id:
-                flash("请选择外资客户。", "danger")
-                return render_template("demands/form.html", demand=demand, clients=clients, form_title="新增外资需求")
-            db.session.add(demand)
-            db.session.commit()
-            flash(f"需求创建成功，编号：{demand.demand_code}。", "success")
-            return redirect(url_for("demand_detail", demand_id=demand.id))
-
-        draft = Demand(demand_code=生成需求编号())
-        return render_template("demands/form.html", demand=draft, clients=clients, form_title="新增外资需求")
-
-    @app.route("/demands/<int:demand_id>")
-    def demand_detail(demand_id):
-        demand = Demand.query.get_or_404(demand_id)
-        client = ForeignClient.query.get(demand.foreign_client_id)
-        匹配记录 = (
-            MatchRecord.query.filter_by(demand_id=demand.id)
-            .order_by(MatchRecord.match_score.desc(), MatchRecord.updated_at.desc())
-            .all()
-        )
-        匹配结果 = [
-            {
-                "记录": 记录,
-                "企业": Enterprise.query.get(记录.enterprise_id),
-                "产品": Product.query.get(记录.product_id) if 记录.product_id else None,
-            }
-            for 记录 in 匹配记录
-        ]
-        return render_template("demands/detail.html", demand=demand, client=client, 匹配结果=匹配结果)
-
-    @app.post("/demands/<int:demand_id>/generate-matches")
-    def generate_demand_matches(demand_id):
-        demand = Demand.query.get_or_404(demand_id)
-        MatchRecord.query.filter_by(demand_id=demand.id).delete()
-        products = Product.query.order_by(Product.updated_at.desc()).all()
-        for product in products:
-            enterprise = Enterprise.query.get(product.enterprise_id)
-            if not enterprise:
-                continue
-            score, reasons, risks = 计算匹配得分(demand, product, enterprise)
-            status = 计算推荐状态(score)
-            记录 = MatchRecord(
-                demand_id=demand.id,
-                enterprise_id=enterprise.id,
-                product_id=product.id,
-                match_score=Decimal(score),
-                match_reason="；".join(reasons) if reasons else "暂无明显匹配点",
-                risk_notes="；".join(risks) if risks else "未发现显著风险",
-                recommendation_status=status,
-            )
-            db.session.add(记录)
-        db.session.commit()
-        flash("匹配结果已生成。", "success")
-        return redirect(url_for("demand_detail", demand_id=demand.id))
-
-    @app.cli.command("init-db")
     def init_db_command():
         """初始化数据库（可选：flask init-db）。"""
 
@@ -2777,36 +2291,6 @@ def 获取产品分类分布():
         .all()
     )
     return {"labels": [row[0] for row in rows], "data": [row[1] for row in rows]}
-
-
-def 获取项目阶段分布():
-    rows = (
-        db.session.query(ProjectProgress.current_stage, func.count(ProjectProgress.id))
-        .filter(ProjectProgress.current_stage.isnot(None), ProjectProgress.current_stage != "")
-        .group_by(ProjectProgress.current_stage)
-        .order_by(func.count(ProjectProgress.id).desc())
-        .all()
-    )
-    return {"labels": [row[0] for row in rows], "data": [row[1] for row in rows]}
-
-
-def 获取最近30天项目趋势():
-    today = date.today()
-    start = today.fromordinal(today.toordinal() - 29)
-    trend_map = {start.fromordinal(start.toordinal() + i): 0 for i in range(30)}
-    rows = (
-        db.session.query(func.date(ProjectProgress.created_at), func.count(ProjectProgress.id))
-        .filter(ProjectProgress.created_at >= datetime.combine(start, datetime.min.time()))
-        .group_by(func.date(ProjectProgress.created_at))
-        .all()
-    )
-    for day, count in rows:
-        day_value = 读取日期(str(day))
-        if day_value in trend_map:
-            trend_map[day_value] = count
-    labels = [d.strftime("%m-%d") for d in trend_map.keys()]
-    data = list(trend_map.values())
-    return {"labels": labels, "data": data}
 
 
 def generate_product_code(enterprise_id):
@@ -3126,44 +2610,6 @@ def 生成价格展示文案(product):
     return " / ".join(片段) if 片段 else None
 
 
-def 生成需求编号():
-    最新需求 = Demand.query.order_by(Demand.id.desc()).first()
-    if not 最新需求:
-        return "D001"
-    最新编号 = 最新需求.demand_code or "D000"
-    try:
-        当前数字 = int(最新编号[1:])
-    except (ValueError, TypeError):
-        当前数字 = Demand.query.count()
-    return f"D{当前数字 + 1:03d}"
-
-
-def 填充外资客户字段(client, form):
-    client.client_name = form.get("client_name", "").strip()
-    client.country_region = form.get("country_region", "").strip() or None
-    client.company_type = form.get("company_type", "").strip() or None
-    client.contact_name = form.get("contact_name", "").strip() or None
-    client.contact_email = form.get("contact_email", "").strip() or None
-    client.contact_phone = form.get("contact_phone", "").strip() or None
-    client.notes = form.get("notes", "").strip() or None
-
-
-def 填充需求字段(demand, form):
-    demand.foreign_client_id = form.get("foreign_client_id", type=int)
-    demand.purchase_category = form.get("purchase_category", "").strip() or None
-    demand.product_keywords = form.get("product_keywords", "").strip() or None
-    demand.target_price = 读取金额(form.get("target_price"))
-    demand.purchase_quantity = form.get("purchase_quantity", "").strip() or None
-    demand.required_certifications = form.get("required_certifications", "").strip() or None
-    demand.delivery_requirement = form.get("delivery_requirement", "").strip() or None
-    demand.trade_terms = form.get("trade_terms", "").strip() or None
-    demand.payment_terms = form.get("payment_terms", "").strip() or None
-    demand.target_market = form.get("target_market", "").strip() or None
-    demand.priority = form.get("priority", "").strip() or "中"
-    demand.status = form.get("status", "").strip() or "待跟进"
-    demand.notes = form.get("notes", "").strip() or None
-
-
 def 构建导出数据(export_key):
     导出映射 = {
         "enterprises": ("企业总表", 导出企业总表),
@@ -3323,92 +2769,6 @@ def 导出产品总表():
     return 表头, rows
 
 
-def 导出资质表():
-    表头 = ["企业编号", "企业名称", "产品编号", "产品名称", "证书名称", "证书编号", "发证机构", "发证日期", "到期日期", "状态", "剩余天数", "影响推荐"]
-    enterprise_map = {e.id: e for e in Enterprise.query.all()}
-    product_map = {p.id: p for p in Product.query.all()}
-    rows = []
-    for q in Qualification.query.order_by(Qualification.expiry_date.asc()).all():
-        enterprise = enterprise_map.get(q.enterprise_id)
-        product = product_map.get(q.product_id)
-        剩余天数 = (q.expiry_date - date.today()).days if q.expiry_date else None
-        rows.append([
-            enterprise.enterprise_code if enterprise else "",
-            enterprise.company_name if enterprise else "",
-            product.product_code if product else "",
-            product.product_name_cn if product else "",
-            q.certificate_name,
-            q.certificate_no,
-            q.issuing_authority,
-            q.issue_date.isoformat() if q.issue_date else "",
-            q.expiry_date.isoformat() if q.expiry_date else "",
-            计算证书状态(q.expiry_date),
-            剩余天数,
-            "是" if q.affects_recommendation else "否",
-        ])
-    return 表头, rows
-
-
-def 导出匹配表():
-    表头 = ["需求编号", "外资客户", "企业编号", "企业名称", "产品编号", "产品名称", "匹配得分", "推荐状态", "匹配原因", "风险提示", "更新时间"]
-    demand_map = {d.id: d for d in Demand.query.all()}
-    client_map = {c.id: c for c in ForeignClient.query.all()}
-    enterprise_map = {e.id: e for e in Enterprise.query.all()}
-    product_map = {p.id: p for p in Product.query.all()}
-    rows = []
-    for m in MatchRecord.query.order_by(MatchRecord.updated_at.desc()).all():
-        demand = demand_map.get(m.demand_id)
-        enterprise = enterprise_map.get(m.enterprise_id)
-        product = product_map.get(m.product_id)
-        client = client_map.get(demand.foreign_client_id) if demand else None
-        rows.append([
-            demand.demand_code if demand else "",
-            client.client_name if client else "",
-            enterprise.enterprise_code if enterprise else "",
-            enterprise.company_name if enterprise else "",
-            product.product_code if product else "",
-            product.product_name_cn if product else "",
-            float(m.match_score) if m.match_score is not None else None,
-            m.recommendation_status,
-            m.match_reason,
-            m.risk_notes,
-            m.updated_at.strftime("%Y-%m-%d %H:%M:%S") if m.updated_at else "",
-        ])
-    return 表头, rows
-
-
-def 导出项目表():
-    表头 = ["项目编号", "企业编号", "企业名称", "产品编号", "产品名称", "外资客户", "需求编号", "当前阶段", "项目负责人", "样品状态", "报价状态", "合同状态", "成交金额", "下步动作", "更新时间"]
-    demand_map = {d.id: d for d in Demand.query.all()}
-    client_map = {c.id: c for c in ForeignClient.query.all()}
-    enterprise_map = {e.id: e for e in Enterprise.query.all()}
-    product_map = {p.id: p for p in Product.query.all()}
-    rows = []
-    for p in ProjectProgress.query.order_by(ProjectProgress.updated_at.desc()).all():
-        enterprise = enterprise_map.get(p.enterprise_id)
-        product = product_map.get(p.product_id)
-        client = client_map.get(p.foreign_client_id)
-        demand = demand_map.get(p.demand_id)
-        rows.append([
-            项目编号(p),
-            enterprise.enterprise_code if enterprise else "",
-            enterprise.company_name if enterprise else "",
-            product.product_code if product else "",
-            product.product_name_cn if product else "",
-            client.client_name if client else "",
-            demand.demand_code if demand else "",
-            p.current_stage,
-            p.project_owner,
-            p.sample_status,
-            p.quotation_status,
-            p.contract_status,
-            float(p.deal_amount) if p.deal_amount is not None else None,
-            p.next_action,
-            p.updated_at.strftime("%Y-%m-%d %H:%M:%S") if p.updated_at else "",
-        ])
-    return 表头, rows
-
-
 def 填充项目字段(project, form):
     project.enterprise_id = form.get("enterprise_id", type=int)
     project.product_id = form.get("product_id", type=int)
@@ -3427,30 +2787,6 @@ def 填充项目字段(project, form):
     project.notes = form.get("notes", "").strip() or None
 
 
-def 项目编号(project):
-    if not project:
-        return "-"
-    return f"P{project.id:04d}" if project.id else "P-待生成"
-
-
-def 构建项目时间线(project):
-    timeline = []
-    if project.first_contact_date:
-        timeline.append({"date": project.first_contact_date, "title": "首次对接", "desc": "已与客户建立初步沟通。"})
-    if project.material_sent_date:
-        timeline.append({"date": project.material_sent_date, "title": "资料发送", "desc": "已发送企业/产品资料。"})
-    if project.sample_status and project.sample_status != "未涉及":
-        timeline.append({"date": None, "title": "样品状态", "desc": project.sample_status})
-    if project.quotation_status:
-        timeline.append({"date": None, "title": "报价状态", "desc": project.quotation_status})
-    if project.negotiation_status:
-        timeline.append({"date": None, "title": "谈判状态", "desc": project.negotiation_status})
-    if project.contract_status:
-        timeline.append({"date": None, "title": "合同状态", "desc": project.contract_status})
-    timeline.append({"date": project.updated_at.date() if project.updated_at else None, "title": "最近更新", "desc": project.current_stage or "阶段未设置"})
-    return timeline
-
-
 def 统一关键词集合(text):
     if not text:
         return set()
@@ -3467,73 +2803,6 @@ def 读取生产周期天数(text):
         return None
     match = re.search(r"(\d+)", text)
     return int(match.group(1)) if match else None
-
-
-def 计算匹配得分(demand, product, enterprise):
-    score = 0
-    reasons = []
-    risks = []
-
-    关键词 = 统一关键词集合(demand.product_keywords)
-    if 关键词 and (
-        文本匹配关键词(关键词, product.product_name_cn)
-        or 文本匹配关键词(关键词, product.product_category)
-        or 文本匹配关键词(关键词, enterprise.main_products)
-    ):
-        score += 30
-        reasons.append("关键词与产品名称/类别/主营产品匹配")
-    else:
-        risks.append("关键词匹配度较弱")
-
-    市场关键词 = 统一关键词集合(demand.target_market)
-    if not 市场关键词:
-        reasons.append("需求未限定目标市场")
-    elif (
-        文本匹配关键词(市场关键词, product.target_market)
-        or 文本匹配关键词(市场关键词, product.existing_sales_countries)
-        or 文本匹配关键词(市场关键词, enterprise.target_markets)
-        or 文本匹配关键词(市场关键词, enterprise.export_countries)
-    ):
-        score += 20
-        reasons.append("目标市场或出口国家匹配")
-    else:
-        risks.append("目标市场匹配不足")
-
-    认证关键词 = 统一关键词集合(demand.required_certifications)
-    if not 认证关键词:
-        reasons.append("需求未要求特定认证")
-    elif all(token in (product.certifications or "").lower() for token in 认证关键词):
-        score += 20
-        reasons.append("认证要求满足")
-    else:
-        risks.append("认证要求可能不完整")
-
-    交期天数 = 读取生产周期天数(demand.delivery_requirement)
-    生产天数 = 读取生产周期天数(product.production_cycle)
-    if 交期天数 is None or 生产天数 is None:
-        risks.append("缺少明确交期/生产周期数据")
-    elif 生产天数 <= 交期天数:
-        score += 10
-        reasons.append("生产周期满足交期要求")
-    else:
-        risks.append("生产周期可能偏长")
-
-    价格候选 = [price for price in [product.exw_price, product.fob_price, product.cif_price, product.ddp_price] if price is not None]
-    if not demand.target_price:
-        reasons.append("需求未提供目标价格")
-    elif 价格候选 and min(价格候选) <= demand.target_price:
-        score += 10
-        reasons.append("报价存在且不高于目标价格")
-    else:
-        risks.append("价格可能高于目标价或缺少报价")
-
-    if enterprise.has_foreign_trade_experience:
-        score += 10
-        reasons.append("企业具备外贸经验")
-    else:
-        risks.append("企业外贸经验有限")
-
-    return min(score, 100), reasons, risks
 
 
 def 计算推荐状态(score):
