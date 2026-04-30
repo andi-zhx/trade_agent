@@ -69,8 +69,8 @@
                 </div>
 
                 <div class="accordion-item">
-                    <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#B">产品定位</button></h2>
-                    <div id="B" class="accordion-collapse collapse"><div class="accordion-body row g-3">
+                    <h2 class="accordion-header"><button class="accordion-button" type="button">产品定位</button></h2>
+                    <div id="B" class="accordion-collapse collapse show"><div class="accordion-body row g-3">
                         <div class="col-12"><label class="form-label">产品用途</label><textarea name="function_description" class="form-control" rows="3">{{ request.form.get('function_description') if request.method == 'POST' else (product.function_description or extra.get('desc_usage') or '') }}</textarea></div>
                         <div class="col-12"><label class="form-label">应用场景</label><div class="border rounded p-2">{% for opt in ['工业生产','家用消费','工程项目','医疗健康','食品农业','户外场景','办公场景','跨境电商','其他'] %}<div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="positioning_scenarios" id="scenario_{{ loop.index }}" value="{{ opt }}" {% if opt in selected_scenarios %}checked{% endif %}><label class="form-check-label" for="scenario_{{ loop.index }}">{{ opt }}</label></div>{% endfor %}</div></div>
                         <div class="col-12"><label class="form-label">目标客户</label><div class="border rounded p-2">{% for opt in ['进口商','经销商','批发商','品牌商','工程商','商超','电商卖家','政府采购','终端客户'] %}<div class="form-check form-check-inline"><input class="form-check-input" type="checkbox" name="target_customer_tags" id="customer_{{ loop.index }}" value="{{ opt }}" {% if opt in selected_customers %}checked{% endif %}><label class="form-check-label" for="customer_{{ loop.index }}">{{ opt }}</label></div>{% endfor %}</div></div>
@@ -80,22 +80,9 @@
                 </div>
 
                 <div class="accordion-item">
-                    <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#D">交易摘要</button></h2>
-                    <div id="D" class="accordion-collapse collapse"><div class="accordion-body row g-3">
-                        <div class="col-md-3"><label class="form-label">MOQ</label><input name="moq" class="form-control" value="{{ request.form.get('moq') if request.method == 'POST' else (product.moq if product else '') }}"></div>
-                        <div class="col-md-3"><label class="form-label">交期</label><input name="delivery_cycle" class="form-control" value="{{ request.form.get('delivery_cycle') if request.method == 'POST' else (product.delivery_cycle if product else '') }}"></div>
-                        <div class="col-md-3"><label class="form-label">价格展示</label><input name="price_display" class="form-control" value="{{ request.form.get('price_display') if request.method == 'POST' else (product.price_display if product else '') }}"></div>
-                        <div class="col-md-3"><label class="form-label">币种</label><input name="currency" class="form-control" value="{{ request.form.get('currency') if request.method == 'POST' else (product.currency if product else 'USD') }}"></div>
-                        <div class="col-md-6"><label class="form-label">样品政策</label><select name="trade_sample_policy" class="form-select"><option value="">请选择</option>{% for opt in ['免费样品','收费样品','可退样品费','不支持样品','待确认'] %}<option value="{{ opt }}" {% if (request.form.get('trade_sample_policy') if request.method == 'POST' else (product.sample_policy or extra.get('trade_sample_policy') or '')) == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
-                        <div class="col-md-6"><label class="form-label">是否支持定制</label><select name="support_customization" class="form-select"><option value="">请选择</option>{% for opt in ['是','否','视情况','待确认'] %}<option value="{{ opt }}" {% if (request.form.get('support_customization') if request.method == 'POST' else (extra.get('support_customization') or ('是' if product and product.customization_supported else ''))) == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
-                    </div></div>
-                </div>
-
-                <div class="accordion-item">
-                    <h2 class="accordion-header"><button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#E">备注</button></h2>
-                    <div id="E" class="accordion-collapse collapse"><div class="accordion-body row g-3">
-                        <div class="col-md-6"><label class="form-label">内部备注</label><textarea name="notes" class="form-control" rows="3">{{ request.form.get('notes') if request.method == 'POST' else (product.notes if product else '') }}</textarea></div>
-                        <div class="col-md-6"><label class="form-label">风险提示</label><textarea name="risk_warning" class="form-control" rows="3">{{ request.form.get('risk_warning') if request.method == 'POST' else (extra.get('risk_warning') or '') }}</textarea></div>
+                    <h2 class="accordion-header"><button class="accordion-button" type="button">备注</button></h2>
+                    <div id="E" class="accordion-collapse collapse show"><div class="accordion-body row g-3">
+                        <div class="col-md-12"><label class="form-label">备注</label><textarea name="notes" class="form-control" rows="3">{{ request.form.get('notes') if request.method == 'POST' else (product.notes if product else '') }}</textarea></div>
                     </div></div>
                 </div>
             </div>

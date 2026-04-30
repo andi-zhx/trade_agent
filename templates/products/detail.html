@@ -100,6 +100,8 @@
                             <div class="col-md-6"><strong>产品编号：</strong>{{ show_text(product.product_code) }}</div>
                             <div class="col-md-6"><strong>产品名称：</strong>{{ show_text(product.product_name_cn) }}</div>
                             <div class="col-md-6"><strong>所属企业：</strong>{{ show_text(enterprise.company_name if enterprise else None) }}</div>
+                            <div class="col-md-6"><strong>产品英文名：</strong>{{ show_text(product.product_name_en) }}</div>
+                            <div class="col-md-6"><strong>产品品类：</strong>{{ show_text(product.product_category) }}</div>
                             <div class="col-md-6"><strong>产品类型：</strong>{{ show_text(product.product_type) }}</div>
                             <div class="col-md-6"><strong>HS编码：</strong>{{ show_text(product.hs_code) }}</div>
                             <div class="col-md-6"><strong>用途：</strong>{{ show_text(extra.get('desc_usage') or product.function_description)|truncate(42, True, '…') }}</div>
@@ -108,14 +110,8 @@
                             <div class="col-md-6"><strong>核心卖点：</strong>{{ show_text(extra.get('desc_core_selling_points') or product.product_selling_points)|truncate(42, True, '…') }}</div>
                             <div class="col-md-6"><strong>差异化优势：</strong>{{ show_text(extra.get('desc_differentiated_advantage'))|truncate(42, True, '…') }}</div>
                             <div class="col-md-6"><strong>目标市场：</strong>{{ show_badges(extra.get('target_market_tags') or product.target_market) }}</div>
-                            <div class="col-md-6"><strong>合作模式：</strong>{{ show_badges(extra.get('cooperation_modes')) }}</div>
-                            <div class="col-md-6"><strong>MOQ：</strong>{{ show_text(product.moq or extra.get('trade_moq')) }}</div>
-                            <div class="col-md-6"><strong>交期：</strong>{{ show_text(product.delivery_cycle or product.production_cycle or extra.get('trade_mass_cycle')) }}</div>
-                            <div class="col-md-6"><strong>价格展示：</strong>{{ show_text(product.price_display) }}</div>
-                            <div class="col-md-6"><strong>样品政策：</strong>{{ show_text(product.sample_policy or extra.get('trade_sample_policy')) }}</div>
-                            <div class="col-md-6"><strong>是否支持定制：</strong>{{ show_text(extra.get('support_customization') or ('是' if product.customization_supported else '否')) }}</div>
+                            <div class="col-md-6"><strong>适合渠道：</strong>{{ show_badges(extra.get('cooperation_modes')) }}</div>
                             <div class="col-md-6"><strong>内部备注：</strong>{{ show_text(product.notes or extra.get('other_notes'))|truncate(42, True, '…') }}</div>
-                            <div class="col-12"><strong>风险提示：</strong>{{ show_text(extra.get('risk_warning'))|truncate(88, True, '…') }}</div>
                         </div>
                     </div>
                 </div>

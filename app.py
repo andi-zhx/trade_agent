@@ -2384,10 +2384,12 @@ def 兼容产品基础信息字段(product, 扩展字段):
 
 def fill_product_from_form(product, form):
     enterprise = Enterprise.query.get(product.enterprise_id) if product.enterprise_id else None
-    选中行业代码 = (form.get("industry_code") or "").strip() or (enterprise.industry_code if enterprise else "")
-    行业信息 = INDUSTRY_MAP.get(选中行业代码)
+    选中行业代码 = (enterprise.industry_code if enterprise else "") or (form.get("industry_code") or "").strip()
+    行业信息 = INDUSTRY_MAP.get(选中行业代码) if 选中行业代码 else None
+    if not 行业信息 and enterprise:
+        行业信息 = {"code": enterprise.industry_code, "name": enterprise.industry_category}
     if not 行业信息:
-        raise ValueError("产品行业分类必须从下拉框选择。")
+        raise ValueError("所属企业未配置行业分类，请先完善企业信息。")
 
     product.industry_code = 行业信息["code"]
     product.industry_name = 行业信息["name"]
@@ -2395,13 +2397,6 @@ def fill_product_from_form(product, form):
     product.product_name_en = form.get("product_name_en", "").strip() or None
     product.product_category = form.get("product_category", "").strip() or None
     product.hs_code = form.get("hs_code", "").strip() or None
-    product.model = form.get("model", "").strip() or None
-    product.brand = form.get("brand", "").strip() or None
-    product.material = form.get("material", "").strip() or None
-    product.specification = form.get("specification", "").strip() or None
-    product.size = form.get("size", "").strip() or None
-    product.weight = form.get("weight", "").strip() or None
-    product.color = form.get("color", "").strip() or None
     product.function_description = form.get("function_description", "").strip() or None
     if "application_scenario" in form:
         旧应用场景 = form.get("application_scenario", "").strip()
@@ -2409,26 +2404,11 @@ def fill_product_from_form(product, form):
         旧应用场景 = (product.application_scenario or "").strip()
     应用场景标签 = [item.strip() for item in form.getlist("positioning_scenarios") if item and item.strip()]
     product.application_scenario = "、".join(应用场景标签) if 应用场景标签 else (旧应用场景 or None)
-    product.unit = form.get("unit", "").strip() or None
-    product.moq = form.get("moq", "").strip() or None
-    product.production_cycle = form.get("production_cycle", "").strip() or None
-    product.delivery_cycle = form.get("delivery_cycle", "").strip() or product.production_cycle
-    product.sample_cycle = form.get("sample_cycle", "").strip() or None
-    product.monthly_capacity = form.get("monthly_capacity", "").strip() or None
     定制支持文本 = form.get("support_customization", "").strip()
     if 定制支持文本:
         product.customization_supported = 定制支持文本 == "是"
     else:
         product.customization_supported = 读取布尔(form, "customization_supported")
-    product.currency = form.get("currency", "").strip() or "USD"
-    product.exw_price = 读取金额(form.get("exw_price"))
-    product.fob_price = 读取金额(form.get("fob_price"))
-    product.cif_price = 读取金额(form.get("cif_price"))
-    product.ddp_price = 读取金额(form.get("ddp_price"))
-    product.quote_date = 读取日期(form.get("quote_date"))
-    product.quote_valid_until = 读取日期(form.get("quote_valid_until"))
-    样品政策值 = form.get("trade_sample_policy", "").strip() or form.get("sample_policy", "").strip()
-    product.sample_policy = 样品政策值 or None
     目标市场标签 = [item.strip() for item in form.getlist("target_market_tags") if item and item.strip()]
     product.target_market = "、".join(目标市场标签) if 目标市场标签 else (form.get("target_market", "").strip() or None)
     product.main_image = form.get("main_image", "").strip() or product.main_image
@@ -2441,13 +2421,6 @@ def fill_product_from_form(product, form):
     if 认证标签:
         product.certifications = "、".join(认证标签)
     product.certification_status = form.get("cert_status", "").strip() or form.get("certification_status", "").strip() or None
-    product.price_display = form.get("price_display", "").strip() or 生成价格展示文案(product)
-    product.packaging = form.get("packaging", "").strip() or None
-    product.carton_size = form.get("carton_size", "").strip() or None
-    product.gross_weight = form.get("gross_weight", "").strip() or None
-    product.net_weight = form.get("net_weight", "").strip() or None
-    product.loading_quantity = form.get("loading_quantity", "").strip() or None
-    product.warranty = form.get("warranty", "").strip() or None
     核心卖点 = form.get("core_selling_points", "").strip() or form.get("product_selling_points", "").strip()
     product.product_selling_points = 核心卖点 or None
     product.notes = form.get("notes", "").strip() or None
@@ -2459,8 +2432,6 @@ def fill_product_from_form(product, form):
     目标客户标签 = [item.strip() for item in form.getlist("target_customer_tags") if item and item.strip()]
     if 目标客户标签:
         product.product_extra_fields["desc_target_customer"] = "、".join(目标客户标签)
-    if 样品政策值:
-        product.product_extra_fields["trade_sample_policy"] = 样品政策值
     if 定制支持文本:
         product.product_extra_fields["support_customization"] = 定制支持文本
     product.product_extra_fields = 兼容产品基础信息字段(product, product.product_extra_fields)
@@ -2523,24 +2494,20 @@ def 填充SKU字段(sku, form, product=None, 自动生成编码=True):
         sku.sku_code = (取值("sku_code", "").strip() or (generate_sku_code(product) if product else None))
     else:
         sku.sku_code = 取值("sku_code", "").strip() or sku.sku_code
-    sku.sku_name = 取值("sku_name", sku.sku_name or "").strip()
+    sku.sku_name = 取值("sku_name", sku.sku_name or "").strip() or None
     sku.model = 取值("model", sku.model or "").strip() or None
     sku.specification = 取值("specification", sku.specification or "").strip() or None
     sku.color = 取值("color", sku.color or "").strip() or None
     sku.size = 取值("size", sku.size or "").strip() or None
     sku.material = 取值("material", sku.material or "").strip() or None
-    sku.weight = 取值("weight", sku.weight or "").strip() or None
+    sku.unit = 取值("unit", sku.unit or "").strip() or None
     sku.package_spec = 取值("package_spec", sku.package_spec or "").strip() or None
     sku.moq = 取值("moq", sku.moq or "").strip() or None
+    sku.price = 读取金额(取值("price")) if "price" in form else sku.price
+    sku.gross_weight = 取值("gross_weight", sku.gross_weight or "").strip() or None
+    sku.net_weight = 取值("net_weight", sku.net_weight or "").strip() or None
     sku.delivery_cycle = 取值("delivery_cycle", sku.delivery_cycle or "").strip() or None
-    sku.exw_price = 读取金额(取值("exw_price")) if "exw_price" in form else sku.exw_price
-    sku.fob_price = 读取金额(取值("fob_price")) if "fob_price" in form else sku.fob_price
-    sku.cif_price = 读取金额(取值("cif_price")) if "cif_price" in form else sku.cif_price
-    sku.ddp_price = 读取金额(取值("ddp_price")) if "ddp_price" in form else sku.ddp_price
     sku.currency = 取值("currency", sku.currency or "USD").strip() or "USD"
-    sku.stock_status = 取值("stock_status", sku.stock_status or "").strip() or None
-    if "sample_available" in form or sku.id is None:
-        sku.sample_available = 读取布尔(form, "sample_available")
     if "customization_supported" in form or sku.id is None:
         sku.customization_supported = 读取布尔(form, "customization_supported")
     sku.notes = 取值("notes", sku.notes or "").strip() or None
@@ -2556,23 +2523,19 @@ def 获取SKU返回地址(product_id):
 def SKU导入导出字段():
     return [
         "SKU编号",
-        "SKU名称",
         "型号",
         "规格",
         "颜色",
         "尺寸",
         "材质",
-        "重量",
+        "单位",
         "包装规格",
         "MOQ",
+        "单价",
+        "毛重",
+        "净重",
         "交期",
-        "EXW价",
-        "FOB价",
-        "CIF价",
-        "DDP价",
         "币种",
-        "库存状态",
-        "是否可样品",
         "是否支持定制",
         "备注",
         "创建时间",
@@ -3511,17 +3474,14 @@ def init_db(app):
                         color VARCHAR(100),
                         size VARCHAR(100),
                         material VARCHAR(255),
-                        weight VARCHAR(100),
+                        unit VARCHAR(20),
                         package_spec VARCHAR(255),
                         moq VARCHAR(50),
+                        price NUMERIC(18, 2),
+                        gross_weight VARCHAR(100),
+                        net_weight VARCHAR(100),
                         delivery_cycle VARCHAR(100),
-                        exw_price NUMERIC(18, 2),
-                        fob_price NUMERIC(18, 2),
-                        cif_price NUMERIC(18, 2),
-                        ddp_price NUMERIC(18, 2),
                         currency VARCHAR(10),
-                        stock_status VARCHAR(50),
-                        sample_available BOOLEAN NOT NULL DEFAULT 0,
                         customization_supported BOOLEAN NOT NULL DEFAULT 0,
                         notes TEXT,
                         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -3533,6 +3493,15 @@ def init_db(app):
             )
         db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_product_skus_product_id ON product_skus (product_id)"))
         db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_product_skus_sku_code ON product_skus (sku_code)"))
+        sku_columns = {col["name"] for col in inspector.get_columns("product_skus")} if "product_skus" in existing_tables else set()
+        if "unit" not in sku_columns:
+            db.session.execute(text("ALTER TABLE product_skus ADD COLUMN unit VARCHAR(20)"))
+        if "price" not in sku_columns:
+            db.session.execute(text("ALTER TABLE product_skus ADD COLUMN price NUMERIC(18, 2)"))
+        if "gross_weight" not in sku_columns:
+            db.session.execute(text("ALTER TABLE product_skus ADD COLUMN gross_weight VARCHAR(100)"))
+        if "net_weight" not in sku_columns:
+            db.session.execute(text("ALTER TABLE product_skus ADD COLUMN net_weight VARCHAR(100)"))
         db.session.commit()
 
         db.session.execute(
