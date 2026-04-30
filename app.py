@@ -3514,8 +3514,24 @@ def init_db(app):
             db.session.execute(
                 text("CREATE INDEX IF NOT EXISTS ix_products_certification_status ON products (certification_status)")
             )
+        if "exw_price" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN exw_price NUMERIC(18, 2)"))
+            product_columns.add("exw_price")
+        if "fob_price" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN fob_price NUMERIC(18, 2)"))
+            product_columns.add("fob_price")
+        if "cif_price" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN cif_price NUMERIC(18, 2)"))
+            product_columns.add("cif_price")
+        if "ddp_price" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN ddp_price NUMERIC(18, 2)"))
+            product_columns.add("ddp_price")
+        if "currency" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN currency VARCHAR(10)"))
+            product_columns.add("currency")
         if "price_display" not in product_columns:
             db.session.execute(text("ALTER TABLE products ADD COLUMN price_display VARCHAR(255)"))
+            product_columns.add("price_display")
         if "status" not in product_columns:
             db.session.execute(text("ALTER TABLE products ADD COLUMN status VARCHAR(20) DEFAULT 'active'"))
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_products_status ON products (status)"))
@@ -3564,46 +3580,38 @@ def init_db(app):
             db.session.execute(text("ALTER TABLE product_skus ADD COLUMN net_weight VARCHAR(100)"))
         db.session.commit()
 
-        db.session.execute(
-            text(
-                """
-                UPDATE products
-                SET price_display = TRIM(
-                    COALESCE(
-                        CASE WHEN fob_price IS NOT NULL THEN 'FOB ' || printf('%.2f', fob_price) || ' ' || COALESCE(currency, 'USD') END,
-                        ''
-                    ) ||
-                    CASE
-                        WHEN fob_price IS NOT NULL AND cif_price IS NOT NULL THEN ' / '
-                        ELSE ''
-                    END ||
-                    COALESCE(
-                        CASE WHEN cif_price IS NOT NULL THEN 'CIF ' || printf('%.2f', cif_price) || ' ' || COALESCE(currency, 'USD') END,
-                        ''
-                    ) ||
-                    CASE
-                        WHEN (fob_price IS NOT NULL OR cif_price IS NOT NULL) AND ddp_price IS NOT NULL THEN ' / '
-                        ELSE ''
-                    END ||
-                    COALESCE(
-                        CASE WHEN ddp_price IS NOT NULL THEN 'DDP ' || printf('%.2f', ddp_price) || ' ' || COALESCE(currency, 'USD') END,
-                        ''
-                    ) ||
-                    CASE
-                        WHEN (fob_price IS NOT NULL OR cif_price IS NOT NULL OR ddp_price IS NOT NULL) AND exw_price IS NOT NULL THEN ' / '
-                        ELSE ''
-                    END ||
-                    COALESCE(
-                        CASE WHEN exw_price IS NOT NULL THEN '出厂价 ' || printf('%.2f', exw_price) || ' ' || COALESCE(currency, 'USD') END,
-                        ''
+        价格列 = [col for col in ["fob_price", "cif_price", "ddp_price", "exw_price"] if col in product_columns]
+        if "price_display" in product_columns and 价格列:
+            货币表达式 = "COALESCE(currency, 'USD')" if "currency" in product_columns else "'USD'"
+            价格片段映射 = {
+                "fob_price": f"CASE WHEN fob_price IS NOT NULL THEN 'FOB ' || printf('%.2f', fob_price) || ' ' || {货币表达式} END",
+                "cif_price": f"CASE WHEN cif_price IS NOT NULL THEN 'CIF ' || printf('%.2f', cif_price) || ' ' || {货币表达式} END",
+                "ddp_price": f"CASE WHEN ddp_price IS NOT NULL THEN 'DDP ' || printf('%.2f', ddp_price) || ' ' || {货币表达式} END",
+                "exw_price": f"CASE WHEN exw_price IS NOT NULL THEN '出厂价 ' || printf('%.2f', exw_price) || ' ' || {货币表达式} END",
+            }
+            组合片段 = []
+            for idx, 列名 in enumerate(价格列):
+                if idx:
+                    已有列条件 = " OR ".join(f"{已存在列} IS NOT NULL" for 已存在列 in 价格列[:idx])
+                    组合片段.append(
+                        f"CASE WHEN ({已有列条件}) AND {列名} IS NOT NULL THEN ' / ' ELSE '' END"
                     )
+                组合片段.append(f"COALESCE({价格片段映射[列名]}, '')")
+            显示文案表达式 = "\n                        || ".join(组合片段)
+            存在价格条件 = " OR ".join(f"{列名} IS NOT NULL" for 列名 in 价格列)
+            db.session.execute(
+                text(
+                    f"""
+                    UPDATE products
+                    SET price_display = TRIM(
+                        {显示文案表达式}
+                    )
+                    WHERE (price_display IS NULL OR price_display = '')
+                      AND ({存在价格条件})
+                    """
                 )
-                WHERE (price_display IS NULL OR price_display = '')
-                  AND (fob_price IS NOT NULL OR cif_price IS NOT NULL OR ddp_price IS NOT NULL OR exw_price IS NOT NULL)
-                """
             )
-        )
-        db.session.commit()
+            db.session.commit()
 
         db.session.execute(
             text(
