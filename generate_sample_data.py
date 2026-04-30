@@ -90,6 +90,8 @@ def build_enterprise(i: int) -> Enterprise:
 
 def build_product(ent: Enterprise, idx: int) -> Product:
     ptype = random.choice(Product.PRODUCT_TYPE_OPTIONS)
+    trade_moq = random.choice(["10", "50", "100"])
+    trade_mass_cycle = random.choice(["7天", "15天", "30天"])
     return Product(
         enterprise_id=ent.id,
         product_code=f"PRD-{ent.id:04d}-{idx:03d}",
@@ -110,7 +112,12 @@ def build_product(ent: Enterprise, idx: int) -> Product:
         certification_status=random.choice(Product.CERTIFICATION_STATUS_OPTIONS),
         product_selling_points="交付快、支持定制、性价比高",
         notes="由脚本自动生成，用于联调和展示",
-        product_extra_fields={"stage": "已入库", "material_ready": random.choice(["是", "否"])},
+        product_extra_fields={
+            "stage": "已入库",
+            "material_ready": random.choice(["是", "否"]),
+            "trade_moq": trade_moq,
+            "trade_mass_cycle": trade_mass_cycle,
+        },
         status="active",
     )
 

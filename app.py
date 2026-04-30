@@ -3491,13 +3491,14 @@ def init_db(app):
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_products_product_type ON products (product_type)"))
         if "delivery_cycle" not in product_columns:
             db.session.execute(text("ALTER TABLE products ADD COLUMN delivery_cycle VARCHAR(100)"))
-            db.session.execute(
-                text(
-                    "UPDATE products SET delivery_cycle=production_cycle "
-                    "WHERE (delivery_cycle IS NULL OR delivery_cycle='') "
-                    "AND production_cycle IS NOT NULL AND production_cycle!=''"
+            if "production_cycle" in product_columns:
+                db.session.execute(
+                    text(
+                        "UPDATE products SET delivery_cycle=production_cycle "
+                        "WHERE (delivery_cycle IS NULL OR delivery_cycle='') "
+                        "AND production_cycle IS NOT NULL AND production_cycle!=''"
+                    )
                 )
-            )
         if "export_suitability" not in product_columns:
             db.session.execute(text("ALTER TABLE products ADD COLUMN export_suitability VARCHAR(50)"))
             db.session.execute(
