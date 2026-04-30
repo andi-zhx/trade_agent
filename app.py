@@ -982,35 +982,14 @@ def create_app():
             "产品编号": "PRD-20260430-001",
             "产品名称": "智能温湿度传感器",
             "产品英文名称": "Smart Temperature & Humidity Sensor",
-            "所属企业编号": "ENT-20260430-001",
             "所属企业名称": "示例科技股份有限公司",
-            "行业编号": "ELEC",
-            "行业名称": "电子信息",
             "产品品类": "工业传感器",
             "产品类型": "温湿度传感器",
             "HS编码": "9025800000",
-            "品牌": "EXM",
-            "型号": "EXM-TH200",
-            "是否适合出口": "是",
-            "推荐等级": "A",
-            "目标市场": "东南亚,欧美",
-            "合作模式": "OEM,ODM",
-            "产品状态": "在售",
-            "上架状态": "上架",
-            "核心卖点": "高精度、低功耗",
             "MOQ": "100",
             "交期": "15天",
-            "价格展示": "USD 18-22",
-            "币种": "USD",
-            "样品政策": "可提供付费样品",
-            "是否支持定制": "是",
-            "认证情况": "CE,RoHS",
-            "产品认证": "CE",
-            "检测报告状态": "已提供",
-            "质量报告状态": "已提供",
-            "目标市场准入文件": "可提供",
-            "证书有效期状态": "有效",
-            "风险提示": "无",
+            "均价": "USD 18-22",
+            "备注": "适合欧美市场项目优先推荐",
         }
         样例 = [样例映射.get(字段, "") for 字段 in 表头]
         return 表头, 样例
@@ -3620,36 +3599,15 @@ def 产品导入字段提示():
     return [
         ("产品编号", "用于更新匹配；留空则新增并自动生成"),
         ("产品名称", "必填，兼容旧列名“产品中文名”"),
-        ("产品英文名称", "写入产品英文名，兼容旧列名“产品英文名”"),
-        ("所属企业编号", "必填，必须能匹配到企业"),
-        ("所属企业名称", "仅用于提示，系统以企业编号为准"),
-        ("行业编号", "写入行业编号"),
-        ("行业名称", "写入行业名称，兼容旧列名“行业分类”"),
-        ("产品品类", "写入产品品类，兼容旧列名“产品类别”"),
-        ("产品类型", "写入产品类型"),
-        ("HS编码", "写入HS编码"),
-        ("品牌", "写入品牌，兼容旧列名“SKU”"),
-        ("型号", "写入型号"),
-        ("是否适合出口", "写入是否适合出口"),
-        ("推荐等级", "写入推荐等级"),
-        ("目标市场", "多值字段，支持中文逗号/英文逗号分隔"),
-        ("合作模式", "多值字段，支持中文逗号/英文逗号分隔"),
-        ("产品状态", "写入业务产品状态（Tab1 的“产品状态”）"),
-        ("上架状态", "可选，写入上架状态（active/inactive 或 上架/下架）"),
-        ("核心卖点", "写入核心卖点"),
-        ("MOQ", "写入MOQ"),
-        ("交期", "写入交期，兼容旧列名“批量生产周期”"),
-        ("价格展示", "写入价格展示文案"),
-        ("币种", "写入币种"),
-        ("样品政策", "写入样品政策"),
-        ("是否支持定制", "支持 是/否/true/false"),
-        ("认证情况", "写入认证情况"),
-        ("产品认证", "写入产品认证"),
-        ("检测报告状态", "写入产品扩展字段"),
-        ("质量报告状态", "写入产品扩展字段"),
-        ("目标市场准入文件", "写入产品扩展字段"),
-        ("证书有效期状态", "写入产品扩展字段"),
-        ("风险提示", "写入风险提示"),
+        ("产品英文名称", "对应产品概览-基础信息-产品英文名称"),
+        ("所属企业名称", "必填，匹配企业名称（兼容“所属企业编号”按编号匹配）"),
+        ("产品品类", "对应产品概览-基础信息-产品品类，兼容旧列名“产品类别”"),
+        ("产品类型", "对应产品概览-基础信息-产品类型"),
+        ("HS编码", "对应产品概览-基础信息-HS编码"),
+        ("MOQ", "对应产品概览-交易摘要-MOQ"),
+        ("交期", "对应产品概览-交易摘要-交期，兼容旧列名“批量生产周期”"),
+        ("均价", "对应产品概览-交易摘要-价格展示（兼容列名“价格展示”）"),
+        ("备注", "对应产品概览-备注-内部备注"),
     ]
 
 
@@ -3758,22 +3716,27 @@ def 导入产品Excel(file_storage):
         return 0, [{"行号": 1, "原因": "文件为空", "数据": {}}]
     header = [单元格文本(c) for c in rows[0]]
     idx = {name: i for i, name in enumerate(header)}
-    必填 = ["所属企业编号"]
+    必填 = ["所属企业名称"]
     缺失 = [f for f in 必填 if f not in idx]
     if 缺失:
         return 0, [{"行号": 1, "原因": f"缺少必填列: {', '.join(缺失)}", "数据": {}}]
 
-    enterprise_map = {e.enterprise_code: e for e in Enterprise.query.all()}
+    enterprise_list = Enterprise.query.all()
+    enterprise_code_map = {e.enterprise_code: e for e in enterprise_list}
+    enterprise_name_map = {e.enterprise_name: e for e in enterprise_list}
     success = 0
     failed = []
     for row_num, row in enumerate(rows[1:], start=2):
         try:
-            enterprise_code = 单元格文本(row[idx["所属企业编号"]])
-            if not enterprise_code:
-                raise ValueError("所属企业编号不能为空")
-            enterprise = enterprise_map.get(enterprise_code)
+            enterprise_name = 单元格文本(row[idx["所属企业名称"]]) if "所属企业名称" in idx else ""
+            enterprise_code = 单元格文本(row[idx["所属企业编号"]]) if "所属企业编号" in idx else ""
+            if not enterprise_name and not enterprise_code:
+                raise ValueError("所属企业名称不能为空")
+            enterprise = enterprise_name_map.get(enterprise_name) if enterprise_name else None
+            if not enterprise and enterprise_code:
+                enterprise = enterprise_code_map.get(enterprise_code)
             if not enterprise:
-                raise ValueError(f"未找到企业编号 {enterprise_code}")
+                raise ValueError(f"未找到企业：{enterprise_name or enterprise_code}")
             name_cn = 取首个存在字段值(row, idx, "产品名称", "产品中文名")
             if not name_cn:
                 raise ValueError("产品名称不能为空")
@@ -3822,7 +3785,7 @@ def 导入产品Excel(file_storage):
             product.product_selling_points = 单元格文本(row[idx["核心卖点"]]) or None if "核心卖点" in idx else None
             product.moq = 单元格文本(row[idx["MOQ"]]) or None if "MOQ" in idx else None
             product.delivery_cycle = 取首个存在字段值(row, idx, "交期", "批量生产周期") or product.delivery_cycle
-            product.price_display = 单元格文本(row[idx["价格展示"]]) or None if "价格展示" in idx else None
+            product.price_display = 取首个存在字段值(row, idx, "均价", "价格展示") or None
             product.currency = 单元格文本(row[idx["币种"]]) or (product.currency or "USD") if "币种" in idx else (product.currency or "USD")
             product.sample_policy = 单元格文本(row[idx["样品政策"]]) or None if "样品政策" in idx else None
             product.certification_status = 单元格文本(row[idx["认证情况"]]) or None if "认证情况" in idx else None
@@ -3837,9 +3800,9 @@ def 导入产品Excel(file_storage):
                 extra["cert_validity_status"] = 单元格文本(row[idx["证书有效期状态"]]) or None
             if "是否支持定制" in idx:
                 product.customization_supported = 读取布尔文本(row[idx["是否支持定制"]])
-            风险提示 = 单元格文本(row[idx["风险提示"]]) if "风险提示" in idx else ""
-            if 风险提示:
-                extra["risk_warning"] = 风险提示
+            备注 = 单元格文本(row[idx["备注"]]) if "备注" in idx else ""
+            if 备注:
+                product.notes = 备注
             product.product_extra_fields = extra
             success += 1
         except Exception as exc:
