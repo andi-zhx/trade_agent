@@ -285,7 +285,7 @@ def create_app():
         return datetime.fromtimestamp(文件列表[0].stat().st_mtime)
 
     def 构建产品资料缺失提示(product, enterprise=None, product_files=None, skus=None):
-        extra = product.product_extra_fields or {}
+        extra = 兼容产品基础信息字段(product, product.product_extra_fields or {})
         product_files = product_files or []
         skus = skus or []
         资料缺失提示 = []
@@ -1605,7 +1605,7 @@ def create_app():
                     industries=行业下拉选项(),
                     common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
                     industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
-                    product_extra_values=product.product_extra_fields or {},
+                    product_extra_values=兼容产品基础信息字段(product, product.product_extra_fields or {}),
                     产品文件类型选项=PRODUCT_UPLOAD_TYPES,
                     is_new_product=True,
                     initial_tab=当前标签,
@@ -1664,7 +1664,9 @@ def create_app():
             资料缺失提示=资料缺失提示,
             sku_filters=sku_filters,
             sku_filter_options=sku_filter_options,
-            product_extra_display_groups=构建产品扩展信息分组(product.industry_code, product.product_extra_fields),
+            product_extra_display_groups=构建产品扩展信息分组(
+                product.industry_code, 兼容产品基础信息字段(product, product.product_extra_fields)
+            ),
         )
 
     @app.post("/products/<int:product_id>/skus")
@@ -1836,7 +1838,7 @@ def create_app():
     def product_export(product_id):
         product = Product.query.get_or_404(product_id)
         enterprise = Enterprise.query.get(product.enterprise_id)
-        product_extra = product.product_extra_fields or {}
+        product_extra = 兼容产品基础信息字段(product, product.product_extra_fields or {})
         表头 = ["产品编号", "产品名称", "所属企业", "行业分类", "产品类别", "HS编码", "MOQ", "生产周期", "FOB价", "主要认证", "是否可样品", "是否支持定制", "是否适合跨境电商", "是否适合工程采购", "是否适合经销代理", "最近更新时间"]
         行数据 = [[
             product.product_code,
@@ -1892,7 +1894,7 @@ def create_app():
                     industries=行业下拉选项(),
                     common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
                     industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
-                    product_extra_values=(product.product_extra_fields or {}) if product else {},
+                    product_extra_values=兼容产品基础信息字段(product, product.product_extra_fields or {}) if product else {},
                     产品文件类型选项=PRODUCT_UPLOAD_TYPES,
                     is_new_product=False,
                     product_files=product_files,
@@ -1918,7 +1920,7 @@ def create_app():
                     industries=行业下拉选项(),
                     common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
                     industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
-                    product_extra_values=(product.product_extra_fields or {}) if product else {},
+                    product_extra_values=兼容产品基础信息字段(product, product.product_extra_fields or {}) if product else {},
                     产品文件类型选项=PRODUCT_UPLOAD_TYPES,
                     is_new_product=False,
                     product_files=product_files,
@@ -1952,7 +1954,7 @@ def create_app():
                     industries=行业下拉选项(),
                     common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
                     industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
-                    product_extra_values=(product.product_extra_fields or {}) if product else {},
+                    product_extra_values=兼容产品基础信息字段(product, product.product_extra_fields or {}) if product else {},
                     产品文件类型选项=PRODUCT_UPLOAD_TYPES,
                     is_new_product=False,
                     product_files=product_files,
@@ -1974,7 +1976,7 @@ def create_app():
             industries=行业下拉选项(),
             common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
             industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
-            product_extra_values=product.product_extra_fields or {},
+            product_extra_values=兼容产品基础信息字段(product, product.product_extra_fields or {}),
             产品文件类型选项=PRODUCT_UPLOAD_TYPES,
             is_new_product=False,
             product_files=product_files,
@@ -2360,6 +2362,26 @@ def 构建产品扩展信息分组(行业代码, 扩展字段):
     return 分组数据
 
 
+def 兼容产品基础信息字段(product, 扩展字段):
+    数据 = dict(扩展字段 or {})
+    映射 = {
+        "core_selling_points": ("desc_core_selling_points", product.product_selling_points),
+        "trade_sample_policy": ("sample_policy", product.sample_policy),
+        "support_customization": ("customization_supported", "是" if product.customization_supported else "否"),
+        "cert_status": ("certification_status", product.certification_status),
+        "positioning_scenarios": ("desc_scenarios", product.application_scenario),
+    }
+    for 扩展键, (结构化键, 结构化值) in 映射.items():
+        扩展值 = 数据.get(扩展键)
+        if 扩展值 in (None, "", []):
+            回填值 = 结构化值
+            if 回填值 not in (None, "", []):
+                数据[扩展键] = 回填值
+        elif 结构化值 in (None, "", []):
+            数据[结构化键] = 扩展值
+    return 数据
+
+
 def fill_product_from_form(product, form):
     enterprise = Enterprise.query.get(product.enterprise_id) if product.enterprise_id else None
     选中行业代码 = (form.get("industry_code") or "").strip() or (enterprise.industry_code if enterprise else "")
@@ -2441,6 +2463,7 @@ def fill_product_from_form(product, form):
         product.product_extra_fields["trade_sample_policy"] = 样品政策值
     if 定制支持文本:
         product.product_extra_fields["support_customization"] = 定制支持文本
+    product.product_extra_fields = 兼容产品基础信息字段(product, product.product_extra_fields)
     if not product.product_name_cn:
         raise ValueError("产品中文名为必填项")
 
