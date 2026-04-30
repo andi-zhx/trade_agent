@@ -1510,6 +1510,7 @@ def create_app():
         flash("企业已删除", "success")
         return redirect(url_for("enterprise_list"))
 
+    @app.route("/登录", methods=["GET", "POST"])
     def 登录():
         if session.get("用户"):
             return redirect(url_for("dashboard"))
@@ -2100,6 +2101,7 @@ def create_app():
         flash("产品状态已更新。", "success")
         return redirect(url_for("product_list"))
 
+    @app.route("/documents")
     def document_list():
         enterprise_id = request.args.get("enterprise_id", type=int)
         product_id = request.args.get("product_id", type=int)
