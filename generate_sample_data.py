@@ -1,22 +1,22 @@
 #!/usr/bin/env python3
-"""生成企业与产品样例数据。
+"""按“企业导入模板 / 产品导入模板”语义生成样例数据并写入 SQLite 数据库。
 
 执行：python generate_sample_data.py
-输出：
-- sample_data/enterprises.csv （50 条企业）
-- sample_data/products.csv （每家企业 5 条产品，共 250 条）
+效果：
+- 写入 trade_agent.db（enterprises / products）
+- 不生成 CSV 文件
 """
 
 from __future__ import annotations
 
-import csv
 import random
 from datetime import date, timedelta
-from pathlib import Path
+
+from app import create_app
+from models import Enterprise, Product, db
 
 ENTERPRISE_COUNT = 50
 PRODUCTS_PER_ENTERPRISE = 5
-OUTPUT_DIR = Path("sample_data")
 
 PROVINCES = ["广东省", "浙江省", "江苏省", "山东省", "福建省", "上海市", "北京市"]
 CITIES = {
@@ -28,109 +28,98 @@ CITIES = {
     "上海市": ["上海市"],
     "北京市": ["北京市"],
 }
-INDUSTRIES = [
-    ("ELEC", "电子电气"),
-    ("TEXT", "纺织服装"),
-    ("MACH", "机械设备"),
-    ("HOME", "家居日用"),
-    ("FOOD", "食品饮料"),
-]
-PRODUCT_CATEGORIES = ["核心产品", "配套产品", "升级产品", "定制产品"]
+INDUSTRY_NAMES = ["电子信息", "纺织服装", "机械装备", "家居日用", "食品饮料"]
+PRODUCT_CATEGORIES = ["工业传感器", "控制模块", "智能终端", "配套部件"]
 PRODUCT_TYPES = ["标准品", "定制品", "OEM", "ODM"]
 MARKETS = ["东南亚", "中东", "欧洲", "北美", "拉美", "非洲"]
 
 
-def random_date(start_year: int = 2005, end_year: int = 2024) -> date:
+def random_date(start_year: int = 2008, end_year: int = 2025) -> date:
     start = date(start_year, 1, 1)
     end = date(end_year, 12, 31)
     return start + timedelta(days=random.randint(0, (end - start).days))
 
 
-def generate_enterprise_rows(count: int) -> list[dict]:
-    rows = []
-    for i in range(1, count + 1):
-        code = f"ENT{i:04d}"
-        province = random.choice(PROVINCES)
-        city = random.choice(CITIES[province])
-        industry_code, industry_name = random.choice(INDUSTRIES)
-        founded = random_date()
-        row = {
-            "enterprise_code": code,
-            "company_name": f"样例企业{i:03d}有限公司",
-            "english_name": f"Sample Enterprise {i:03d} Co., Ltd.",
-            "province": province,
-            "city": city,
-            "industry_code": industry_code,
-            "industry_category": industry_name,
-            "founded_date": founded.isoformat(),
-            "employee_count": random.randint(20, 1500),
-            "annual_revenue": f"{random.randint(500, 50000) * 10000:.2f}",
-            "has_foreign_trade_experience": random.choice(["True", "False"]),
-            "target_markets": ",".join(random.sample(MARKETS, k=2)),
-            "status": random.choice(["draft", "active", "archived"]),
-        }
-        rows.append(row)
-    return rows
+def build_enterprise(i: int) -> Enterprise:
+    province = random.choice(PROVINCES)
+    city = random.choice(CITIES[province])
+    industry = random.choice(INDUSTRY_NAMES)
+    has_export = random.choice([True, False])
+    code = f"ENT-{20260430 + (i // 100):08d}-{i:03d}"
+
+    extra_fields = {
+        "company_full_name": f"样例企业{i:03d}有限公司",
+        "annual_sales": random.choice(["500万以下", "500万-2000万", "2000万-1亿", "1亿-5亿"]),
+        "annual_exports": random.choice(["无", "100万以下", "100万-1000万", "1000万-1亿"]),
+        "production_line_count": random.choice(["1-5条", "6-10条", "11-20条"]),
+    }
+
+    return Enterprise(
+        enterprise_code=code,
+        company_name=extra_fields["company_full_name"],
+        english_name=f"Sample Enterprise {i:03d} Co., Ltd.",
+        unified_social_credit_code=f"91310000MA{i:010d}"[-18:],
+        province=province,
+        city=city,
+        industry_category=industry,
+        main_products=random.choice(["工业传感器、控制模块", "智能终端、连接器", "电源模块、执行器"]),
+        employee_count=random.randint(30, 1200),
+        factory_area=random.choice(["3000㎡", "6000㎡", "12000㎡", "20000㎡"]),
+        has_foreign_trade_experience=has_export,
+        enterprise_extra_fields=extra_fields,
+        status="active",
+    )
 
 
-def generate_product_rows(enterprises: list[dict], per_enterprise: int) -> list[dict]:
-    rows = []
-    product_index = 1
-    for ent in enterprises:
-        for p in range(1, per_enterprise + 1):
-            quote_date = random_date(2023, 2025)
-            valid_until = quote_date + timedelta(days=90)
-            row = {
-                "product_code": f"PRD{product_index:05d}",
-                "enterprise_code": ent["enterprise_code"],
-                "product_name_cn": f"{ent['company_name'].replace('有限公司', '')}产品{p}",
-                "product_name_en": f"Product {p} of {ent['enterprise_code']}",
-                "industry_code": ent["industry_code"],
-                "industry_name": ent["industry_category"],
-                "product_category": random.choice(PRODUCT_CATEGORIES),
-                "product_type": random.choice(PRODUCT_TYPES),
-                "hs_code": str(random.randint(10000000, 99999999)),
-                "unit": random.choice(["件", "台", "套", "箱"]),
-                "moq": str(random.choice([50, 100, 200, 500])),
-                "exw_price": f"{random.uniform(5, 300):.2f}",
-                "currency": "USD",
-                "quote_date": quote_date.isoformat(),
-                "quote_valid_until": valid_until.isoformat(),
-                "target_market": random.choice(MARKETS),
-                "export_suitability": random.choice(["适合", "基本适合", "待判断"]),
-                "recommendation_level": random.choice(["A优先推荐", "B可推荐", "C待完善"]),
-                "certification_status": random.choice(["齐全", "部分齐全", "待补充"]),
-                "status": random.choice(["active", "draft", "inactive"]),
-            }
-            rows.append(row)
-            product_index += 1
-    return rows
-
-
-def write_csv(path: Path, rows: list[dict]) -> None:
-    if not rows:
-        return
-    with path.open("w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
-        writer.writeheader()
-        writer.writerows(rows)
+def build_product(ent: Enterprise, idx: int) -> Product:
+    quote_date = random_date(2024, 2026)
+    return Product(
+        enterprise_id=ent.id,
+        product_code=f"PRD-{ent.id:04d}-{idx:03d}",
+        product_name_cn=f"{ent.company_name.replace('有限公司', '')}产品{idx}",
+        product_name_en=f"Product {idx} of {ent.enterprise_code}",
+        industry_name=ent.industry_category,
+        product_category=random.choice(PRODUCT_CATEGORIES),
+        product_type=random.choice(PRODUCT_TYPES),
+        hs_code=str(random.randint(1000000000, 9999999999)),
+        moq=str(random.choice(["10", "100", "500", "1000"])),
+        delivery_cycle=random.choice(["7天", "15天", "30天"]),
+        price_display=random.choice(["USD 8-12", "USD 18-22", "USD 35-48"]),
+        target_market="、".join(random.sample(MARKETS, k=2)),
+        export_suitability=random.choice(["适合", "基本适合", "待判断"]),
+        recommendation_level=random.choice(["A优先推荐", "B可推荐", "C待完善"]),
+        certification_status=random.choice(["齐全", "部分齐全", "待补充"]),
+        quote_date=quote_date,
+        quote_valid_until=quote_date + timedelta(days=90),
+        status="active",
+        product_extra_fields={"product_status_review": random.choice(["已入库", "待补充", "已推荐"])},
+        notes="由脚本自动生成，用于导入模板联调",
+    )
 
 
 def main() -> None:
     random.seed(20260430)
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    app = create_app()
+    with app.app_context():
+        db.create_all()
 
-    enterprises = generate_enterprise_rows(ENTERPRISE_COUNT)
-    products = generate_product_rows(enterprises, PRODUCTS_PER_ENTERPRISE)
+        enterprises: list[Enterprise] = []
+        for i in range(1, ENTERPRISE_COUNT + 1):
+            ent = build_enterprise(i)
+            db.session.add(ent)
+            enterprises.append(ent)
+        db.session.flush()
 
-    enterprise_file = OUTPUT_DIR / "enterprises.csv"
-    product_file = OUTPUT_DIR / "products.csv"
+        product_total = 0
+        for ent in enterprises:
+            for i in range(1, PRODUCTS_PER_ENTERPRISE + 1):
+                db.session.add(build_product(ent, i))
+                product_total += 1
 
-    write_csv(enterprise_file, enterprises)
-    write_csv(product_file, products)
-
-    print(f"企业数据已生成: {enterprise_file} ({len(enterprises)} 条)")
-    print(f"产品数据已生成: {product_file} ({len(products)} 条)")
+        db.session.commit()
+        print(f"已写入企业样例数据: {len(enterprises)} 条")
+        print(f"已写入产品样例数据: {product_total} 条")
+        print("写入位置: trade_agent.db")
 
 
 if __name__ == "__main__":
