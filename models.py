@@ -106,10 +106,14 @@ class Contact(db.Model):
     )
     contact_type = db.Column(db.String(50), nullable=False)
     name = db.Column(db.String(100), nullable=False)
+    department = db.Column(db.String(100))
     position = db.Column(db.String(100))
+    mobile = db.Column(db.String(50))
     phone = db.Column(db.String(50))
     email = db.Column(db.String(120))
     wechat = db.Column(db.String(100))
+    responsibility = db.Column(db.String(255))
+    is_primary_contact = db.Column(db.Boolean, default=False, nullable=False)
     notes = db.Column(db.Text)
 
 
