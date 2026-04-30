@@ -1234,6 +1234,7 @@ def create_app():
 
             db.session.add(企业)
             db.session.flush()
+            同步联系人子表单(企业.id, 联系人子表单)
             if 外贸负责人:
                 db.session.add(
                     Contact(
@@ -1466,6 +1467,7 @@ def create_app():
                     外贸联系人.name = 外贸负责人
                 else:
                     db.session.delete(外贸联系人)
+            同步联系人子表单(企业.id, 联系人子表单)
 
             if not 行业代码:
                 flash("行业分类必须从下拉框选择。", "danger")
@@ -2957,6 +2959,33 @@ def fill_product_from_form(product, form):
         product.product_extra_fields["support_customization"] = 定制支持文本
     if not product.product_name_cn:
         raise ValueError("产品中文名为必填项")
+
+
+def 同步联系人子表单(enterprise_id, dynamic_contacts):
+    Contact.query.filter(
+        Contact.enterprise_id == enterprise_id,
+        Contact.contact_type == "联系人",
+    ).delete(synchronize_session=False)
+    for item in dynamic_contacts or []:
+        姓名 = (item.get("name") or "").strip()
+        if not 姓名:
+            continue
+        电话 = (item.get("mobile") or "").strip()
+        db.session.add(
+            Contact(
+                enterprise_id=enterprise_id,
+                contact_type="联系人",
+                name=姓名,
+                department=(item.get("department") or "").strip() or None,
+                position=(item.get("position") or "").strip() or None,
+                mobile=电话 or None,
+                phone=电话 or None,
+                email=(item.get("email") or "").strip() or None,
+                wechat=(item.get("wechat") or "").strip() or None,
+                responsibility=(item.get("responsibility") or "").strip() or None,
+                is_primary_contact=bool(item.get("is_primary_contact")),
+            )
+        )
 
 
 def 处理产品主图上传(product, enterprise):
