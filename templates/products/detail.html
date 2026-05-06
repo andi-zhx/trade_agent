@@ -58,6 +58,7 @@
     <h1 class="h3 mb-0">产品详情：{{ product.product_name_cn }}</h1>
     <div class="d-flex flex-wrap gap-2">
         <a class="btn btn-primary" href="{{ url_for('product_edit', product_id=product.id) }}">编辑产品</a>
+        <a class="btn btn-outline-primary" href="{{ url_for('export_product_card', product_id=product.id) }}">导出产品资料卡</a>
         <a class="btn btn-outline-info" href="{{ url_for('document_upload', enterprise_id=enterprise.id, product_id=product.id) if enterprise else url_for('document_upload', product_id=product.id) }}">上传附件</a>
         <a class="btn btn-outline-success" href="{{ url_for('product_detail', product_id=product.id, tab='sku') }}#sku-create">新增SKU</a>
         <a class="btn btn-outline-secondary" href="{{ url_for('product_list') }}">返回产品库</a>
