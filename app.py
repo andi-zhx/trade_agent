@@ -1064,11 +1064,11 @@ def create_app():
         return render_template(
             "import_form.html",
             标题="产品 Excel 导入",
-            提示="支持按产品编号更新或新增产品；必须根据企业编号关联企业。",
+            提示="支持按产品编号更新或新增产品；可根据所属企业编号或所属企业名称关联企业。",
             返回地址=返回地址,
             返回文案="返回产品库",
             字段提示=产品导入字段提示(),
-            必填字段=["所属企业编号", "产品名称（或产品中文名）"],
+            必填字段=["所属企业编号或所属企业名称", "产品名称（或产品中文名）"],
             模板下载地址=url_for("download_product_import_template"),
             模板下载文案="下载产品导入模板",
         )
@@ -2916,12 +2916,13 @@ def 单元格文本(value):
 
 def 读取导入表格(file_storage):
     文件名 = (file_storage.filename or "").lower()
+    文件内容 = file_storage.stream.read()
     if 文件名.endswith(".xlsx"):
-        workbook = load_workbook(file_storage.stream, read_only=True, data_only=True)
+        workbook = load_workbook(BytesIO(文件内容), read_only=True, data_only=True)
         sheet = workbook.active
         return [[单元格文本(cell) for cell in row] for row in sheet.iter_rows(values_only=True)]
     if 文件名.endswith(".csv"):
-        内容 = file_storage.stream.read().decode("utf-8-sig")
+        内容 = 文件内容.decode("utf-8-sig")
         return [[单元格文本(cell) for cell in row] for row in csv.reader(内容.splitlines())]
     raise ValueError("仅支持 .xlsx 或 .csv 文件")
 
@@ -2950,7 +2951,8 @@ def 产品导入字段提示():
         ("产品编号", "用于更新匹配；留空则新增并自动生成"),
         ("产品名称", "必填，兼容旧列名“产品中文名”"),
         ("产品英文名称", "对应产品概览-基础信息-产品英文名称"),
-        ("所属企业名称", "必填，匹配企业名称（兼容“所属企业编号”按编号匹配）"),
+        ("所属企业名称", "与“所属企业编号”二选一必填；按企业名称匹配"),
+        ("所属企业编号", "与“所属企业名称”二选一必填；按企业编号匹配"),
         ("产品品类", "对应产品概览-基础信息-产品品类，兼容旧列名“产品类别”"),
         ("产品类型", "对应产品概览-基础信息-产品类型"),
         ("HS编码", "对应产品概览-基础信息-HS编码"),
@@ -2961,10 +2963,64 @@ def 产品导入字段提示():
     ]
 
 
+产品导入列名别名 = {
+    "product_code": "产品编号",
+    "product_name_cn": "产品名称",
+    "product_name_en": "产品英文名称",
+    "enterprise_code": "所属企业编号",
+    "enterprise_name": "所属企业名称",
+    "company_name": "所属企业名称",
+    "industry_code": "行业编号",
+    "industry_name": "行业名称",
+    "product_category": "产品品类",
+    "category": "产品品类",
+    "product_type": "产品类型",
+    "hs_code": "HS编码",
+    "brand": "品牌",
+    "model": "型号",
+    "target_market": "目标市场",
+    "export_suitability": "是否适合出口",
+    "recommendation_level": "推荐等级",
+    "certification_status": "认证情况",
+    "status": "上架状态",
+    "moq": "MOQ",
+    "delivery_cycle": "交期",
+    "production_cycle": "交期",
+    "price_display": "价格展示",
+    "currency": "币种",
+    "sample_policy": "样品政策",
+    "customization_supported": "是否支持定制",
+    "certifications": "产品认证",
+    "product_selling_points": "核心卖点",
+    "notes": "备注",
+}
+
+
+def 规范导入表头(header, 列名别名=None):
+    列名别名 = 列名别名 or {}
+    idx = {}
+    for i, raw_name in enumerate(header):
+        name = 单元格文本(raw_name).strip()
+        if not name:
+            continue
+        idx.setdefault(name, i)
+        idx.setdefault(列名别名.get(name, name), i)
+    return idx
+
+
+def 读取行字段(row, idx, 字段名):
+    if 字段名 not in idx:
+        return ""
+    列索引 = idx[字段名]
+    if 列索引 >= len(row):
+        return ""
+    return 单元格文本(row[列索引])
+
+
 def 取首个存在字段值(row, idx, *字段名):
     for 字段 in 字段名:
         if 字段 in idx:
-            return 单元格文本(row[idx[字段]])
+            return 读取行字段(row, idx, 字段)
     return ""
 
 
@@ -3065,23 +3121,25 @@ def 导入产品Excel(file_storage):
     if not rows:
         return 0, [{"行号": 1, "原因": "文件为空", "数据": {}}]
     header = [单元格文本(c) for c in rows[0]]
-    idx = {name: i for i, name in enumerate(header)}
-    必填 = ["所属企业名称"]
-    缺失 = [f for f in 必填 if f not in idx]
-    if 缺失:
-        return 0, [{"行号": 1, "原因": f"缺少必填列: {', '.join(缺失)}", "数据": {}}]
+    idx = 规范导入表头(header, 产品导入列名别名)
+    if "所属企业名称" not in idx and "所属企业编号" not in idx:
+        return 0, [{"行号": 1, "原因": "缺少必填列: 所属企业名称 或 所属企业编号", "数据": {}}]
+    if "产品名称" not in idx and "产品中文名" not in idx:
+        return 0, [{"行号": 1, "原因": "缺少必填列: 产品名称", "数据": {}}]
 
     enterprise_list = Enterprise.query.all()
-    enterprise_code_map = {e.enterprise_code: e for e in enterprise_list}
-    enterprise_name_map = {e.enterprise_name: e for e in enterprise_list}
+    enterprise_code_map = {e.enterprise_code: e for e in enterprise_list if e.enterprise_code}
+    enterprise_name_map = {e.company_name: e for e in enterprise_list if e.company_name}
     success = 0
     failed = []
     for row_num, row in enumerate(rows[1:], start=2):
         try:
-            enterprise_name = 单元格文本(row[idx["所属企业名称"]]) if "所属企业名称" in idx else ""
-            enterprise_code = 单元格文本(row[idx["所属企业编号"]]) if "所属企业编号" in idx else ""
+            if not any(单元格文本(cell) for cell in row):
+                continue
+            enterprise_name = 读取行字段(row, idx, "所属企业名称")
+            enterprise_code = 读取行字段(row, idx, "所属企业编号")
             if not enterprise_name and not enterprise_code:
-                raise ValueError("所属企业名称不能为空")
+                raise ValueError("所属企业名称或所属企业编号不能为空")
             enterprise = enterprise_name_map.get(enterprise_name) if enterprise_name else None
             if not enterprise and enterprise_code:
                 enterprise = enterprise_code_map.get(enterprise_code)
@@ -3090,7 +3148,7 @@ def 导入产品Excel(file_storage):
             name_cn = 取首个存在字段值(row, idx, "产品名称", "产品中文名")
             if not name_cn:
                 raise ValueError("产品名称不能为空")
-            product_code = 单元格文本(row[idx["产品编号"]]) if "产品编号" in idx else ""
+            product_code = 读取行字段(row, idx, "产品编号")
             product = Product.query.filter_by(product_code=product_code).first() if product_code else None
             if not product:
                 product = Product(
@@ -3104,7 +3162,7 @@ def 导入产品Excel(file_storage):
             product.product_name_cn = name_cn
             product.product_name_en = 取首个存在字段值(row, idx, "产品英文名称", "产品英文名") or None
             if "行业编号" in idx:
-                product.industry_code = 单元格文本(row[idx["行业编号"]]) or None
+                product.industry_code = 读取行字段(row, idx, "行业编号") or None
             行业名称 = 取首个存在字段值(row, idx, "行业名称", "行业分类")
             if 行业名称:
                 product.industry_name = 行业名称
@@ -3113,50 +3171,50 @@ def 导入产品Excel(file_storage):
             if not product.industry_code:
                 product.industry_code = enterprise.industry_code
             product.product_category = 取首个存在字段值(row, idx, "产品品类", "产品类别") or None
-            product.product_type = 单元格文本(row[idx["产品类型"]]) or None if "产品类型" in idx else None
-            product.hs_code = 单元格文本(row[idx["HS编码"]]) or None if "HS编码" in idx else None
+            product.product_type = 读取行字段(row, idx, "产品类型") or None if "产品类型" in idx else None
+            product.hs_code = 读取行字段(row, idx, "HS编码") or None if "HS编码" in idx else None
             product.brand = 取首个存在字段值(row, idx, "品牌", "SKU") or None
-            product.model = 单元格文本(row[idx["型号"]]) or None if "型号" in idx else None
-            product.export_suitability = 单元格文本(row[idx["是否适合出口"]]) or None if "是否适合出口" in idx else None
-            product.recommendation_level = 单元格文本(row[idx["推荐等级"]]) or None if "推荐等级" in idx else None
+            product.model = 读取行字段(row, idx, "型号") or None if "型号" in idx else None
+            product.export_suitability = 读取行字段(row, idx, "是否适合出口") or None if "是否适合出口" in idx else None
+            product.recommendation_level = 读取行字段(row, idx, "推荐等级") or None if "推荐等级" in idx else None
             product.target_market = 规范多值文本(取首个存在字段值(row, idx, "目标市场")) or product.target_market
             合作模式 = 规范多值文本(取首个存在字段值(row, idx, "合作模式"))
             if 合作模式:
                 extra["cooperation_modes"] = [item for item in 合作模式.split("、") if item]
-            业务状态 = 单元格文本(row[idx["产品状态"]]) if "产品状态" in idx else ""
+            业务状态 = 读取行字段(row, idx, "产品状态") if "产品状态" in idx else ""
             if 业务状态:
                 extra["product_status_review"] = 业务状态
             if "上架状态" in idx:
-                上架状态原值 = 单元格文本(row[idx["上架状态"]]).lower()
+                上架状态原值 = 读取行字段(row, idx, "上架状态").lower()
                 if 上架状态原值 in {"active", "上架", "启用", "enable", "enabled"}:
                     product.status = "active"
                 elif 上架状态原值 in {"inactive", "下架", "停用", "disable", "disabled"}:
                     product.status = "inactive"
-            product.product_selling_points = 单元格文本(row[idx["核心卖点"]]) or None if "核心卖点" in idx else None
-            product.moq = 单元格文本(row[idx["MOQ"]]) or None if "MOQ" in idx else None
+            product.product_selling_points = 读取行字段(row, idx, "核心卖点") or None if "核心卖点" in idx else None
+            product.moq = 读取行字段(row, idx, "MOQ") or None if "MOQ" in idx else None
             product.delivery_cycle = 取首个存在字段值(row, idx, "交期", "批量生产周期") or product.delivery_cycle
             product.price_display = 取首个存在字段值(row, idx, "均价", "价格展示") or None
-            product.currency = 单元格文本(row[idx["币种"]]) or (product.currency or "USD") if "币种" in idx else (product.currency or "USD")
-            product.sample_policy = 单元格文本(row[idx["样品政策"]]) or None if "样品政策" in idx else None
-            product.certification_status = 单元格文本(row[idx["认证情况"]]) or None if "认证情况" in idx else None
+            product.currency = 读取行字段(row, idx, "币种") or (product.currency or "USD") if "币种" in idx else (product.currency or "USD")
+            product.sample_policy = 读取行字段(row, idx, "样品政策") or None if "样品政策" in idx else None
+            product.certification_status = 读取行字段(row, idx, "认证情况") or None if "认证情况" in idx else None
             product.certifications = 规范多值文本(取首个存在字段值(row, idx, "产品认证")) or None
             if "检测报告状态" in idx:
-                extra["cert_test_report"] = 单元格文本(row[idx["检测报告状态"]]) or None
+                extra["cert_test_report"] = 读取行字段(row, idx, "检测报告状态") or None
             if "质量报告状态" in idx:
-                extra["cert_quality_report"] = 单元格文本(row[idx["质量报告状态"]]) or None
+                extra["cert_quality_report"] = 读取行字段(row, idx, "质量报告状态") or None
             if "目标市场准入文件" in idx:
-                extra["cert_market_access"] = 单元格文本(row[idx["目标市场准入文件"]]) or None
+                extra["cert_market_access"] = 读取行字段(row, idx, "目标市场准入文件") or None
             if "证书有效期状态" in idx:
-                extra["cert_validity_status"] = 单元格文本(row[idx["证书有效期状态"]]) or None
+                extra["cert_validity_status"] = 读取行字段(row, idx, "证书有效期状态") or None
             if "是否支持定制" in idx:
-                product.customization_supported = 读取布尔文本(row[idx["是否支持定制"]])
-            备注 = 单元格文本(row[idx["备注"]]) if "备注" in idx else ""
+                product.customization_supported = 读取布尔文本(读取行字段(row, idx, "是否支持定制"))
+            备注 = 读取行字段(row, idx, "备注") if "备注" in idx else ""
             if 备注:
                 product.notes = 备注
             product.product_extra_fields = extra
             success += 1
         except Exception as exc:
-            failed.append({"行号": row_num, "原因": str(exc), "数据": {"所属企业编号": row[idx["所属企业编号"]] if "所属企业编号" in idx else "", "产品名称": 取首个存在字段值(row, idx, "产品名称", "产品中文名")}})
+            failed.append({"行号": row_num, "原因": str(exc), "数据": {"所属企业编号": 读取行字段(row, idx, "所属企业编号"), "产品名称": 取首个存在字段值(row, idx, "产品名称", "产品中文名")}})
     db.session.commit()
     return success, failed
 
@@ -3521,6 +3579,24 @@ def init_db(app):
             db.session.execute(
                 text("CREATE INDEX IF NOT EXISTS ix_products_certification_status ON products (certification_status)")
             )
+        if "brand" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN brand VARCHAR(100)"))
+            product_columns.add("brand")
+        if "model" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN model VARCHAR(100)"))
+            product_columns.add("model")
+        if "moq" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN moq VARCHAR(50)"))
+            product_columns.add("moq")
+        if "production_cycle" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN production_cycle VARCHAR(100)"))
+            product_columns.add("production_cycle")
+        if "sample_policy" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN sample_policy VARCHAR(255)"))
+            product_columns.add("sample_policy")
+        if "customization_supported" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN customization_supported BOOLEAN NOT NULL DEFAULT 0"))
+            product_columns.add("customization_supported")
         if "exw_price" not in product_columns:
             db.session.execute(text("ALTER TABLE products ADD COLUMN exw_price NUMERIC(18, 2)"))
             product_columns.add("exw_price")
