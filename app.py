@@ -1785,7 +1785,21 @@ def create_app():
             flash("未找到可更新的 SKU。", "warning")
             return redirect(获取SKU返回地址(product.id))
         for sku in skus:
-            填充SKU字段(sku, request.form, 自动生成编码=False)
+            for 字段名 in ("moq", "delivery_cycle", "currency", "stock_status", "notes"):
+                值 = request.form.get(字段名, "").strip()
+                if 值:
+                    setattr(sku, 字段名, 值)
+            if request.form.get("price", "").strip():
+                sku.price = 读取金额(request.form.get("price"))
+            if request.form.get("fob_price", "").strip():
+                sku.fob_price = 读取金额(request.form.get("fob_price"))
+                sku.price = sku.fob_price
+            样品值 = request.form.get("sample_available", "").strip()
+            if 样品值 in {"0", "1"}:
+                sku.sample_available = 样品值 == "1"
+            定制值 = request.form.get("customization_supported", "").strip()
+            if 定制值 in {"0", "1"}:
+                sku.customization_supported = 定制值 == "1"
         db.session.commit()
         记录审计日志("批量编辑SKU", "product_sku", target_id=product.id, detail=f"count={len(skus)}")
         flash(f"已批量更新 {len(skus)} 个 SKU。", "success")
@@ -1809,14 +1823,18 @@ def create_app():
                 sku.color,
                 sku.size,
                 sku.material,
-                sku.weight,
+                sku.unit,
                 sku.package_spec,
                 sku.moq,
-                sku.delivery_cycle,
+                float(sku.price) if sku.price is not None else "",
                 float(sku.exw_price) if sku.exw_price is not None else "",
                 float(sku.fob_price) if sku.fob_price is not None else "",
                 float(sku.cif_price) if sku.cif_price is not None else "",
                 float(sku.ddp_price) if sku.ddp_price is not None else "",
+                sku.gross_weight,
+                sku.net_weight,
+                sku.weight,
+                sku.delivery_cycle,
                 sku.currency or "USD",
                 sku.stock_status,
                 "是" if sku.sample_available else "否",
@@ -1851,14 +1869,18 @@ def create_app():
             "黑色",
             "L",
             "铝合金",
-            "0.5kg",
+            "件",
             "20pcs/箱",
             "100",
-            "30天",
+            12.8,
             10.5,
             12.8,
             14.2,
             15.6,
+            "0.6kg",
+            "0.5kg",
+            "0.5kg",
+            "30天",
             "USD",
             "现货",
             "是",
@@ -2569,11 +2591,25 @@ def 填充SKU字段(sku, form, product=None, 自动生成编码=True):
     sku.unit = 取值("unit", sku.unit or "").strip() or None
     sku.package_spec = 取值("package_spec", sku.package_spec or "").strip() or None
     sku.moq = 取值("moq", sku.moq or "").strip() or None
-    sku.price = 读取金额(取值("price")) if "price" in form else sku.price
+    if "price" in form:
+        sku.price = 读取金额(取值("price"))
+    if "exw_price" in form:
+        sku.exw_price = 读取金额(取值("exw_price"))
+    if "fob_price" in form:
+        sku.fob_price = 读取金额(取值("fob_price"))
+        sku.price = sku.fob_price
+    if "cif_price" in form:
+        sku.cif_price = 读取金额(取值("cif_price"))
+    if "ddp_price" in form:
+        sku.ddp_price = 读取金额(取值("ddp_price"))
     sku.gross_weight = 取值("gross_weight", sku.gross_weight or "").strip() or None
     sku.net_weight = 取值("net_weight", sku.net_weight or "").strip() or None
+    sku.weight = 取值("weight", sku.weight or "").strip() or None
     sku.delivery_cycle = 取值("delivery_cycle", sku.delivery_cycle or "").strip() or None
     sku.currency = 取值("currency", sku.currency or "USD").strip() or "USD"
+    sku.stock_status = 取值("stock_status", sku.stock_status or "").strip() or None
+    if "sample_available" in form or sku.id is None:
+        sku.sample_available = 读取布尔(form, "sample_available")
     if "customization_supported" in form or sku.id is None:
         sku.customization_supported = 读取布尔(form, "customization_supported")
     sku.notes = 取值("notes", sku.notes or "").strip() or None
@@ -2589,6 +2625,7 @@ def 获取SKU返回地址(product_id):
 def SKU导入导出字段():
     return [
         "SKU编号",
+        "SKU名称",
         "型号",
         "规格",
         "颜色",
@@ -2598,10 +2635,17 @@ def SKU导入导出字段():
         "包装规格",
         "MOQ",
         "单价",
+        "EXW价",
+        "FOB价",
+        "CIF价",
+        "DDP价",
         "毛重",
         "净重",
+        "重量",
         "交期",
         "币种",
+        "库存状态",
+        "是否可样品",
         "是否支持定制",
         "备注",
         "创建时间",
@@ -3252,18 +3296,25 @@ def 导入SKUExcel(product, file_storage):
             sku.color = 单元格文本(row[idx["颜色"]]) or None if "颜色" in idx else sku.color
             sku.size = 单元格文本(row[idx["尺寸"]]) or None if "尺寸" in idx else sku.size
             sku.material = 单元格文本(row[idx["材质"]]) or None if "材质" in idx else sku.material
-            sku.weight = 单元格文本(row[idx["重量"]]) or None if "重量" in idx else sku.weight
+            sku.unit = 单元格文本(row[idx["单位"]]) or None if "单位" in idx else sku.unit
             sku.package_spec = 单元格文本(row[idx["包装规格"]]) or None if "包装规格" in idx else sku.package_spec
             sku.moq = 单元格文本(row[idx["MOQ"]]) or None if "MOQ" in idx else sku.moq
-            sku.delivery_cycle = 单元格文本(row[idx["交期"]]) or None if "交期" in idx else sku.delivery_cycle
+            if "单价" in idx:
+                sku.price = 读取金额(单元格文本(row[idx["单价"]]))
             if "EXW价" in idx:
                 sku.exw_price = 读取金额(单元格文本(row[idx["EXW价"]]))
             if "FOB价" in idx:
                 sku.fob_price = 读取金额(单元格文本(row[idx["FOB价"]]))
+                if sku.price is None:
+                    sku.price = sku.fob_price
             if "CIF价" in idx:
                 sku.cif_price = 读取金额(单元格文本(row[idx["CIF价"]]))
             if "DDP价" in idx:
                 sku.ddp_price = 读取金额(单元格文本(row[idx["DDP价"]]))
+            sku.gross_weight = 单元格文本(row[idx["毛重"]]) or None if "毛重" in idx else sku.gross_weight
+            sku.net_weight = 单元格文本(row[idx["净重"]]) or None if "净重" in idx else sku.net_weight
+            sku.weight = 单元格文本(row[idx["重量"]]) or None if "重量" in idx else sku.weight
+            sku.delivery_cycle = 单元格文本(row[idx["交期"]]) or None if "交期" in idx else sku.delivery_cycle
             sku.currency = 单元格文本(row[idx["币种"]]) or "USD" if "币种" in idx else (sku.currency or "USD")
             sku.stock_status = 单元格文本(row[idx["库存状态"]]) or None if "库存状态" in idx else sku.stock_status
             if "是否可样品" in idx:
@@ -3637,10 +3688,17 @@ def init_db(app):
                         package_spec VARCHAR(255),
                         moq VARCHAR(50),
                         price NUMERIC(18, 2),
+                        exw_price NUMERIC(18, 2),
+                        fob_price NUMERIC(18, 2),
+                        cif_price NUMERIC(18, 2),
+                        ddp_price NUMERIC(18, 2),
                         gross_weight VARCHAR(100),
                         net_weight VARCHAR(100),
+                        weight VARCHAR(100),
                         delivery_cycle VARCHAR(100),
                         currency VARCHAR(10),
+                        stock_status VARCHAR(100),
+                        sample_available BOOLEAN NOT NULL DEFAULT 0,
                         customization_supported BOOLEAN NOT NULL DEFAULT 0,
                         notes TEXT,
                         created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -3652,15 +3710,27 @@ def init_db(app):
             )
         db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_product_skus_product_id ON product_skus (product_id)"))
         db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_product_skus_sku_code ON product_skus (sku_code)"))
-        sku_columns = {col["name"] for col in inspector.get_columns("product_skus")} if "product_skus" in existing_tables else set()
-        if "unit" not in sku_columns:
-            db.session.execute(text("ALTER TABLE product_skus ADD COLUMN unit VARCHAR(20)"))
-        if "price" not in sku_columns:
-            db.session.execute(text("ALTER TABLE product_skus ADD COLUMN price NUMERIC(18, 2)"))
-        if "gross_weight" not in sku_columns:
-            db.session.execute(text("ALTER TABLE product_skus ADD COLUMN gross_weight VARCHAR(100)"))
-        if "net_weight" not in sku_columns:
-            db.session.execute(text("ALTER TABLE product_skus ADD COLUMN net_weight VARCHAR(100)"))
+        db.session.commit()
+        inspector = inspect(db.engine)
+        sku_columns = {col["name"] for col in inspector.get_columns("product_skus")}
+
+        def 补充SKU列(列名, 定义):
+            if 列名 not in sku_columns:
+                db.session.execute(text(f"ALTER TABLE product_skus ADD COLUMN {列名} {定义}"))
+                sku_columns.add(列名)
+
+        补充SKU列("unit", "VARCHAR(20)")
+        补充SKU列("price", "NUMERIC(18, 2)")
+        补充SKU列("exw_price", "NUMERIC(18, 2)")
+        补充SKU列("fob_price", "NUMERIC(18, 2)")
+        补充SKU列("cif_price", "NUMERIC(18, 2)")
+        补充SKU列("ddp_price", "NUMERIC(18, 2)")
+        补充SKU列("gross_weight", "VARCHAR(100)")
+        补充SKU列("net_weight", "VARCHAR(100)")
+        补充SKU列("weight", "VARCHAR(100)")
+        补充SKU列("stock_status", "VARCHAR(100)")
+        补充SKU列("sample_available", "BOOLEAN NOT NULL DEFAULT 0")
+        db.session.execute(text("UPDATE product_skus SET price = fob_price WHERE price IS NULL AND fob_price IS NOT NULL"))
         db.session.commit()
 
         价格列 = [col for col in ["fob_price", "cif_price", "ddp_price", "exw_price"] if col in product_columns]
