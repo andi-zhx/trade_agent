@@ -22,20 +22,20 @@
 <form method="post" action="{{ form_action }}" enctype="multipart/form-data">
     <input type="hidden" name="_active_tab" id="activeTabInput" value="{{ initial_tab or 'overview' }}">
 
-    <ul class="nav nav-tabs" id="productFormTabs" role="tablist">
+    <ul class="nav nav-tabs flex-nowrap overflow-auto" id="productFormTabs" role="tablist">
         <li class="nav-item" role="presentation">
-            <button class="nav-link {% if (initial_tab or 'overview') == 'overview' %}active{% endif %}" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview-pane" type="button" role="tab">产品概览</button>
+            <button class="nav-link {% if (initial_tab or 'overview') == 'overview' %}active{% endif %}" id="overview-tab" data-bs-toggle="tab" data-bs-target="#overview-pane" type="button" role="tab" aria-controls="overview-pane" aria-selected="{{ 'true' if (initial_tab or 'overview') == 'overview' else 'false' }}">产品概览 <span class="ms-1 text-muted small" data-product-progress></span></button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link {% if (initial_tab or 'overview') == 'sku' %}active{% endif %}" id="sku-tab" data-bs-toggle="tab" data-bs-target="#sku-pane" type="button" role="tab">SKU明细</button>
+            <button class="nav-link {% if (initial_tab or 'overview') == 'sku' %}active{% endif %}" id="sku-tab" data-bs-toggle="tab" data-bs-target="#sku-pane" type="button" role="tab" aria-controls="sku-pane" aria-selected="{{ 'true' if (initial_tab or 'overview') == 'sku' else 'false' }}">SKU明细 <span class="ms-1 text-muted small" data-product-progress></span></button>
         </li>
         <li class="nav-item" role="presentation">
-            <button class="nav-link {% if (initial_tab or 'overview') == 'attachment' %}active{% endif %}" id="attachment-tab" data-bs-toggle="tab" data-bs-target="#attachment-pane" type="button" role="tab">认证与附件</button>
+            <button class="nav-link {% if (initial_tab or 'overview') == 'attachment' %}active{% endif %}" id="attachment-tab" data-bs-toggle="tab" data-bs-target="#attachment-pane" type="button" role="tab" aria-controls="attachment-pane" aria-selected="{{ 'true' if (initial_tab or 'overview') == 'attachment' else 'false' }}">认证与附件 <span class="ms-1 text-muted small" data-product-progress></span></button>
         </li>
     </ul>
 
-    <div class="tab-content border border-top-0 rounded-bottom p-3 bg-white" id="productFormTabContent">
-        <div class="tab-pane fade {% if (initial_tab or 'overview') == 'overview' %}show active{% endif %}" id="overview-pane" role="tabpanel" tabindex="0">
+    <div class="tab-content border border-top-0 rounded-bottom bg-white p-3 shadow-sm" id="productFormTabContent">
+        <div class="tab-pane fade {% if (initial_tab or 'overview') == 'overview' %}show active{% endif %}" id="overview-pane" role="tabpanel" aria-labelledby="overview-tab" tabindex="0" data-product-pane data-product-key="overview">
             <div class="accordion" id="productAccordion">
                 {% set extra = product_extra_values or {} %}
                 {% set selected_scenarios = request.form.getlist('positioning_scenarios') if request.method == 'POST' else ((extra.get('positioning_scenarios') if extra.get('positioning_scenarios') is iterable and (extra.get('positioning_scenarios') is not string) else [])) %}
@@ -91,7 +91,7 @@
             </div>
         </div>
 
-        <div class="tab-pane fade {% if (initial_tab or 'overview') == 'sku' %}show active{% endif %}" id="sku-pane" role="tabpanel" tabindex="0">
+        <div class="tab-pane fade {% if (initial_tab or 'overview') == 'sku' %}show active{% endif %}" id="sku-pane" role="tabpanel" aria-labelledby="sku-tab" tabindex="0" data-product-pane data-product-key="sku">
             {% if is_new_product %}
             <div class="alert alert-info mb-3">请先保存产品概览后再维护SKU明细。</div>
             <button type="button" class="btn btn-outline-secondary" disabled>+ 新增 SKU（待产品保存后可用）</button>
@@ -172,7 +172,7 @@
                     </thead>
                     <tbody>
                         {% for sku in sku_list %}
-                        <tr>
+                        <tr data-sku-row>
                             <td><input type="checkbox" class="sku-select-item" value="{{ sku.id }}"></td>
                             <td>{{ sku.sku_code }}</td><td>{{ sku.sku_name }}</td><td>{{ sku.model or '-' }}</td><td>{{ sku.specification or '-' }}</td><td>{{ sku.color or '-' }}</td><td>{{ sku.size or '-' }}</td><td>{{ sku.material or '-' }}</td><td>{{ sku.moq or '-' }}</td><td>{{ sku.delivery_cycle or '-' }}</td><td>{{ sku.fob_price|currency(sku.currency) }}</td><td>{{ sku.currency or 'USD' }}</td><td>{{ sku.stock_status or '-' }}</td><td>{{ '是' if sku.sample_available else '否' }}</td><td>{{ '是' if sku.customization_supported else '否' }}</td>
                             <td>
@@ -190,7 +190,7 @@
             {% endif %}
         </div>
 
-        <div class="tab-pane fade {% if (initial_tab or 'overview') == 'attachment' %}show active{% endif %}" id="attachment-pane" role="tabpanel" tabindex="0">
+        <div class="tab-pane fade {% if (initial_tab or 'overview') == 'attachment' %}show active{% endif %}" id="attachment-pane" role="tabpanel" aria-labelledby="attachment-tab" tabindex="0" data-product-pane data-product-key="attachment">
             {% if is_new_product %}
             <div class="alert alert-info mb-3">请先保存产品概览后再上传认证与附件。</div>
             {% endif %}
@@ -423,6 +423,7 @@
         const groups = industryExtraConfig[industrySelect.value] || [];
         if (!groups.length) {
             industryExtraContainer.innerHTML = '<div class="text-muted">该行业未配置专项字段，或请先选择行业分类。</div>';
+            syncProductTabProgress();
             return;
         }
         industryExtraContainer.innerHTML = groups.map(group => `
@@ -433,6 +434,46 @@
                 </div>
             </div>
         `).join('');
+        syncProductTabProgress();
+    };
+
+
+    const getCheckedByName = (pane, name) => Array.from(pane.querySelectorAll('input[type="radio"], input[type="checkbox"]')).some((input) => input.name === name && input.checked);
+
+    const getPaneFieldProgress = (pane) => {
+        const fields = pane.querySelectorAll('input:not([type="hidden"]), textarea, select');
+        let total = 0;
+        let done = 0;
+        const seen = new Set();
+        fields.forEach((el) => {
+            if (el.disabled || el.closest('.modal') || el.closest('#skuFilterPanel')) return;
+            if (['radio', 'checkbox'].includes(el.type) && seen.has(el.name)) return;
+            total += 1;
+            let filled = false;
+            if (el.type === 'radio' || el.type === 'checkbox') filled = getCheckedByName(pane, el.name);
+            else if (el.type === 'file') filled = (el.files || []).length > 0;
+            else filled = !!(el.value || '').trim();
+            if (filled) done += 1;
+            seen.add(el.name);
+        });
+        return { done, total };
+    };
+
+    const syncProductTabProgress = () => {
+        document.querySelectorAll('#productFormTabContent [data-product-pane]').forEach((pane) => {
+            const key = pane.dataset.productKey || '';
+            const tag = key ? document.querySelector(`#${key}-tab [data-product-progress]`) : null;
+            if (!tag) return;
+            let progress;
+            if (key === 'sku') {
+                const hasProduct = !pane.querySelector('.alert-info');
+                const skuCount = pane.querySelectorAll('[data-sku-row]').length;
+                progress = { done: hasProduct && skuCount > 0 ? 1 : 0, total: 1 };
+            } else {
+                progress = getPaneFieldProgress(pane);
+            }
+            tag.textContent = `（${progress.done}/${progress.total}）`;
+        });
     };
 
     if (enterpriseSelect && industrySelect && industryExtraContainer) {
@@ -455,8 +496,12 @@
             cloned.querySelectorAll('input').forEach((input) => input.value = '');
             cloned.querySelectorAll('select').forEach((select) => select.value = '');
             uploadRows.appendChild(cloned);
+            syncProductTabProgress();
         });
     }
+
+    document.addEventListener('input', syncProductTabProgress);
+    document.addEventListener('change', syncProductTabProgress);
 
     document.querySelectorAll('.sku-delete-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
@@ -502,6 +547,7 @@
             window.location.href = `${baseUrl}?${params.toString()}`;
         });
     }
+    syncProductTabProgress();
 })();
 </script>
 {% endblock %}
