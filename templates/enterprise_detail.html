@@ -133,7 +133,6 @@
     <div class="card-body">
         <div class="row g-3 small">
             <div class="col-md-4"><strong>企业编号：</strong>{{ show_text(企业.enterprise_code) }}</div>
-            <div class="col-md-4"><strong>企业简称：</strong>{{ show_text(ext.get('company_short_name') or ext.get('short_name')) }}</div>
             <div class="col-md-4"><strong>企业全称：</strong>{{ show_text(ext.get('company_full_name') or 企业.company_name) }}</div>
             <div class="col-md-4"><strong>行业分类：</strong>{{ show_text(企业.industry_code) }}</div>
             <div class="col-md-4"><strong>行业名称：</strong>{{ show_text(企业.industry_display_name or 企业.industry_category) }}</div>
