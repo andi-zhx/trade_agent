@@ -93,7 +93,7 @@
 
 企业新增/编辑页采用统一表单模板（`templates/enterprise_form.html`）：
 
-- 顶部固定概览区：展示企业编号、状态、行业、项目负责人、资料完整度、建议入库状态。
+- 顶部固定概览区：展示企业编号、状态、行业、项目负责人、资料完整度。
 - 折叠模块结构：
   - 入库信息（固定区）
   - A-I：企业通用模块（由 `config/enterprise_form_config.py` 驱动）
@@ -178,7 +178,7 @@ python app.py
 
 为避免历史数据报错，系统启动初始化时会自动执行兼容检查：
 
-- 若缺少企业扩展字段列：自动补齐 `enterprise_extra_fields`
+- 若缺少企业扩展字段列：自动补齐 `enterprise_extra_fields`，并清理企业库已下线的 `recommendation_level` / `recommended_for_pool` 扩展字段。
 - 若缺少产品行业字段：自动补齐 `industry_code` / `industry_name`
 - 若缺少产品扩展字段：自动补齐 `product_extra_fields`
 - 若缺少产品状态字段：自动补齐 `status` 并回填默认值

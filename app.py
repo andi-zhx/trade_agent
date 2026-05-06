@@ -39,6 +39,18 @@ BASE_DIR = Path(__file__).resolve().parent
 PER_PAGE = 10
 BLOCKED_EXTENSIONS = {".exe", ".bat", ".js", ".sh", ".cmd", ".com", ".msi", ".ps1"}
 MAX_UPLOAD_SIZE = 100 * 1024 * 1024
+DEPRECATED_ENTERPRISE_EXTRA_FIELD_KEYS = {"recommendation_level", "recommended_for_pool"}
+
+
+def 清理企业扩展字段(扩展字段):
+    """移除企业库已下线展示字段，保持扩展字段结构与页面一致。"""
+
+    if not 扩展字段:
+        return {}
+    清理后字段 = dict(扩展字段)
+    for 键名 in DEPRECATED_ENTERPRISE_EXTRA_FIELD_KEYS:
+        清理后字段.pop(键名, None)
+    return 清理后字段
 
 
 PRODUCT_FORM_SECTIONS = [
@@ -490,7 +502,7 @@ def create_app():
             if 额外值 in (None, "", []):
                 continue
             数据[额外键] = 额外值
-        return 数据
+        return 清理企业扩展字段(数据)
 
     def 估算人员规模(employee_count):
         if not employee_count:
@@ -510,7 +522,7 @@ def create_app():
         return "1000人以上"
 
     def 兼容企业基础信息字段(企业, 扩展字段):
-        ext = dict(扩展字段 or {})
+        ext = 清理企业扩展字段(扩展字段 or {})
         if not ext.get("company_short_name"):
             ext["company_short_name"] = (ext.get("short_name") or "").strip()
         if not ext.get("company_full_name"):
@@ -3152,7 +3164,7 @@ def 导入企业Excel(file_storage):
                 ext["acceptable_cooperation_modes"] = 单元格文本(row[idx["可接受合作模式"]]) or None
             if "资料完整度" in idx:
                 ext["material_completeness"] = 单元格文本(row[idx["资料完整度"]]) or None
-            enterprise.enterprise_extra_fields = ext
+            enterprise.enterprise_extra_fields = 清理企业扩展字段(ext)
             success += 1
         except Exception as exc:
             failed.append({"行号": row_num, "原因": str(exc), "数据": {"企业编号": row[idx["企业编号"]] if "企业编号" in idx else "", "企业全称": row[idx["企业全称"]] if "企业全称" in idx else ""}})
@@ -3592,6 +3604,10 @@ def init_db(app):
         if "city" not in enterprise_columns:
             db.session.execute(text("ALTER TABLE enterprises ADD COLUMN city VARCHAR(50)"))
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_enterprises_city ON enterprises (city)"))
+        for 列名 in DEPRECATED_ENTERPRISE_EXTRA_FIELD_KEYS:
+            if 列名 in enterprise_columns:
+                db.session.execute(text(f"ALTER TABLE enterprises DROP COLUMN {列名}"))
+                enterprise_columns.remove(列名)
         if "industry_code" not in product_columns:
             db.session.execute(text("ALTER TABLE products ADD COLUMN industry_code VARCHAR(50)"))
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_products_industry_code ON products (industry_code)"))
@@ -3710,6 +3726,12 @@ def init_db(app):
             )
         db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_product_skus_product_id ON product_skus (product_id)"))
         db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_product_skus_sku_code ON product_skus (sku_code)"))
+        db.session.commit()
+        for 企业 in Enterprise.query.filter(Enterprise.enterprise_extra_fields.isnot(None)).all():
+            清理前字段 = 企业.enterprise_extra_fields or {}
+            清理后字段 = 清理企业扩展字段(清理前字段)
+            if 清理后字段 != 清理前字段:
+                企业.enterprise_extra_fields = 清理后字段
         db.session.commit()
         inspector = inspect(db.engine)
         sku_columns = {col["name"] for col in inspector.get_columns("product_skus")}
