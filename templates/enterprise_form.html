@@ -422,7 +422,7 @@
                 tag.textContent = `（${coreDone(coreBusinessFields)}/${coreBusinessFields.length}）`;
                 return;
             }
-            tag.textContent = done === total && total > 0 ? `（已完成 ${done}/${total}）` : `（待完善 ${done}/${total}）`;
+            tag.textContent = `（${done}/${total}）`;
         });
     };
 
