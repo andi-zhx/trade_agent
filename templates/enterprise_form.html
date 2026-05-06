@@ -13,7 +13,7 @@
     {% set show_when = field.show_when if field.show_when is defined else None %}
     {% set show_when_any = field.show_when_any if field.show_when_any is defined else None %}
     {% set col_class = 'col-12' if field.span_full_row or field.type in ['checkbox_group', 'checkbox_tags', 'radio_group', 'dynamic_contacts'] else ('col-lg-6' if field.type == 'textarea' else 'col-lg-3 col-md-4') %}
-    <div class="{{ col_class }}" data-module-field {% if show_when %}data-show-when='{{ show_when|tojson|forceescape }}'{% endif %}{% if show_when_any %} data-show-when-any='{{ show_when_any|tojson|forceescape }}'{% endif %}>
+    <div class="{{ col_class }}" data-module-field {% if field.required %}data-required-field="{{ field.key }}" data-required-label="{{ field.label }}"{% endif %} {% if show_when %}data-show-when='{{ show_when|tojson|forceescape }}'{% endif %}{% if show_when_any %} data-show-when-any='{{ show_when_any|tojson|forceescape }}'{% endif %}>
     {% if field.type == 'textarea' %}
         <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
         <textarea class="form-control js-char-count" rows="{{ 8 if field.key == 'business_scope' else 2 }}" maxlength="{{ field.maxlength if field.maxlength is defined else 200 }}" data-maxlength="{{ field.maxlength if field.maxlength is defined else 200 }}" name="{{ field.key }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>{{ extra_value(field.key) }}</textarea>
@@ -192,8 +192,8 @@
         <div class="tab-pane fade show active" id="tab-pane-ENTRY" role="tabpanel" aria-labelledby="tab-btn-ENTRY" tabindex="0" data-module-pane data-module-key="ENTRY">
             <div class="row g-3">
                     <div class="col-md-3"><label class="form-label">企业编号</label><input class="form-control" value="{{ 企业.enterprise_code if 企业 else '自动生成（保存后可见）' }}" disabled></div>
-                    <div class="col-md-3"><label class="form-label">项目负责人</label><input class="form-control" name="project_owner" value="{{ request.form.get('project_owner') if request.method == 'POST' else (企业.project_owner if 企业 else '') }}"></div>
-                    <div class="col-md-3"><label class="form-label field-required">行业分类</label><select class="form-select" id="industryCode" name="industry_code" required><option value="">请选择行业分类</option>{% set 当前行业代码 = request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '') %}{% for item in 行业列表 %}<option value="{{ item.code }}" data-name="{{ item.name }}" {% if item.code == 当前行业代码 %}selected{% endif %}>{{ item.code }} {{ item.name }}</option>{% endfor %}</select></div>
+                    <div class="col-md-3" data-module-field data-required-field="project_owner" data-required-label="项目负责人"><label class="form-label field-required">项目负责人</label><input class="form-control" name="project_owner" value="{{ request.form.get('project_owner') if request.method == 'POST' else (企业.project_owner if 企业 else '') }}"></div>
+                    <div class="col-md-3"><label class="form-label">行业分类</label><select class="form-select" id="industryCode" name="industry_code"><option value="">请选择行业分类</option>{% set 当前行业代码 = request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '') %}{% for item in 行业列表 %}<option value="{{ item.code }}" data-name="{{ item.name }}" {% if item.code == 当前行业代码 %}selected{% endif %}>{{ item.code }} {{ item.name }}</option>{% endfor %}</select></div>
                     <div class="col-md-3"><label class="form-label">行业名称（可编辑）</label><input id="industryName" class="form-control" name="industry_category" value="{{ request.form.get('industry_category') if request.method == 'POST' else (企业.industry_category if 企业 else '') }}" placeholder="选择行业后自动填充，可手动修改"></div>
                     <div class="col-md-3"><label class="form-label">企业当前阶段</label><select class="form-select" name="enterprise_stage"><option value="">请选择</option>{% set 当前阶段值 = request.form.get('enterprise_stage') if request.method == 'POST' else ((企业扩展字段 or {}).get('enterprise_stage', '')) %}{% for s in ENTRY_STAGE_OPTIONS %}<option value="{{ s }}" {% if s == 当前阶段值 %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
             </div>
@@ -274,7 +274,7 @@
     <div class="card shadow-sm enterprise-action-sticky">
         <div class="card-body d-flex flex-wrap gap-2 justify-content-end">
             <button class="btn btn-outline-secondary" type="button" id="exitBtn">{{ '退出' if 模式 == 'new' else '退出编辑' }}</button>
-            <button class="btn btn-primary" type="submit" data-action="save">保存</button>
+            <button class="btn btn-primary" type="submit" data-action="save" disabled>保存</button>
         </div>
     </div>
 </form>
@@ -289,6 +289,25 @@
     const industryName = document.getElementById('industryName');
     const completenessBadge = document.getElementById('overviewCompleteness');
     const existingUploadedTypes = new Set({{ ((已上传附件列表 or []) | map(attribute='document_type') | list) | tojson }});
+    const requiredFields = [
+        ['project_owner', '项目负责人'],
+        ['company_full_name', '企业全称'],
+        ['registered_name', '注册名称'],
+        ['legal_representative', '法人代表'],
+        ['unified_social_credit_code', '统一社会信用代码'],
+        ['business_registration_number', '工商注册号'],
+        ['business_term', '营业期限'],
+        ['registered_capital', '注册资本'],
+        ['paid_in_capital', '实缴资本'],
+        ['company_type', '企业注册类型'],
+        ['approval_date', '核准日期'],
+        ['is_listed_or_pre_ipo', '是否上市'],
+        ['has_import_export_qualification', '是否具备进出口相关资质'],
+    ];
+    const coreBasicFields = requiredFields.filter(([key]) => ['company_full_name'].includes(key));
+    const coreBusinessFields = requiredFields.filter(([key]) => !['project_owner', 'company_full_name', 'is_listed_or_pre_ipo', 'has_import_export_qualification'].includes(key));
+    const saveButtons = Array.from(form.querySelectorAll('button[type="submit"][data-action="save"]'));
+
     const enterpriseUploadRules = {
         '营业执照': ['.pdf', '.jpg', '.jpeg', '.png'],
         '企业宣传册': ['.pdf', '.ppt', '.pptx', '.jpg', '.jpeg', '.png', '.webp'],
@@ -323,8 +342,28 @@
         return true;
     };
 
+    const getMissingRequiredFields = () => requiredFields.filter(([key]) => getFieldValues(key).length === 0);
+
+    const syncSaveState = () => {
+        const missing = getMissingRequiredFields();
+        const disabled = missing.length > 0;
+        const title = disabled ? `请先填写必填项：${missing.map(([, label]) => label).join('、')}` : '';
+        saveButtons.forEach((btn) => {
+            btn.disabled = disabled;
+            btn.title = title;
+        });
+    };
+
     form.querySelectorAll('button[type="submit"][data-action]').forEach((btn) => {
         btn.addEventListener('click', () => { actionInput.value = btn.dataset.action; });
+    });
+
+    form.addEventListener('submit', (event) => {
+        if ((actionInput.value || 'save') !== 'save') return;
+        const missing = getMissingRequiredFields();
+        if (!missing.length) return;
+        event.preventDefault();
+        alert(`请先填写必填项：${missing.map(([, label]) => label).join('、')}`);
     });
 
     const exitBtn = document.getElementById('exitBtn');
@@ -481,6 +520,7 @@
                 input.value = '';
                 syncProgress();
                 syncCompletenessOverview();
+                syncSaveState();
             }
         });
     });
@@ -493,6 +533,7 @@
                 input.value = '';
                 syncProgress();
                 syncCompletenessOverview();
+                syncSaveState();
             }
         });
     });
@@ -502,9 +543,9 @@
         if (targetId) window.location.hash = targetId.replace('#tab-pane-', '');
     });
 
-    industrySelect?.addEventListener('change', () => { syncIndustry(false); syncProgress(); syncCompletenessOverview(); });
-    document.addEventListener('input', () => { updateCounters(); syncProgress(); syncCompletenessOverview(); });
-    document.addEventListener('change', () => { syncShowWhen(); syncProgress(); syncCompletenessOverview(); });
+    industrySelect?.addEventListener('change', () => { syncIndustry(false); syncProgress(); syncCompletenessOverview(); syncSaveState(); });
+    document.addEventListener('input', () => { updateCounters(); syncProgress(); syncCompletenessOverview(); syncSaveState(); });
+    document.addEventListener('change', () => { syncShowWhen(); syncProgress(); syncCompletenessOverview(); syncSaveState(); });
     window.addEventListener('hashchange', syncTabByHash);
 
     syncTabByHash();
@@ -513,6 +554,7 @@
     updateCounters();
     syncProgress();
     syncCompletenessOverview();
+    syncSaveState();
     refreshContactPrimaryIndex();
 })();
 </script>
