@@ -125,7 +125,10 @@
 
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h4 class="mb-0">企业详情</h4>
-    <a href="{{ url_for('enterprise_list') }}" class="btn btn-outline-secondary btn-sm">返回企业库</a>
+    <div class="d-flex gap-2">
+        <a href="{{ url_for('export_enterprise_package', enterprise_id=企业.id) }}" class="btn btn-outline-primary btn-sm">导出企业资料包</a>
+        <a href="{{ url_for('enterprise_list') }}" class="btn btn-outline-secondary btn-sm">返回企业库</a>
+    </div>
 </div>
 
 <div class="card shadow-sm mb-3">

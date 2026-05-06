@@ -383,3 +383,54 @@ class AuditLog(db.Model):
     target_id = db.Column(db.Integer, nullable=True)
     detail = db.Column(db.Text)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+class ImportBatch(db.Model):
+    """Excel 导入批次（预留导入错误报告扩展）。"""
+
+    __tablename__ = "import_batches"
+
+    id = db.Column(db.Integer, primary_key=True)
+    batch_no = db.Column(db.String(64), unique=True, nullable=False, index=True)
+    file_name = db.Column(db.String(255), nullable=False)
+    import_type = db.Column(db.String(50))
+    operator = db.Column(db.String(100))
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+
+class ImportError(db.Model):
+    """Excel 导入错误明细（预留导入错误报告扩展）。"""
+
+    __tablename__ = "import_errors"
+
+    id = db.Column(db.Integer, primary_key=True)
+    batch_id = db.Column(db.Integer, db.ForeignKey("import_batches.id", ondelete="CASCADE"), nullable=False, index=True)
+    row_number = db.Column(db.Integer)
+    field_name = db.Column(db.String(100))
+    error_reason = db.Column(db.Text)
+    raw_value = db.Column(db.Text)
+    suggestion = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    batch = db.relationship("ImportBatch", backref=db.backref("errors", lazy="dynamic", cascade="all, delete-orphan"))
+
+
+class ExportLog(db.Model):
+    """导出审计日志。"""
+
+    __tablename__ = "export_logs"
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=True, index=True)
+    username = db.Column(db.String(100), nullable=False, index=True)
+    export_type = db.Column(db.String(100), nullable=False, index=True)
+    export_scope = db.Column(db.String(100), nullable=False, index=True)
+    related_enterprise_id = db.Column(db.Integer, nullable=True, index=True)
+    related_product_id = db.Column(db.Integer, nullable=True, index=True)
+    filters_json = db.Column(db.Text)
+    record_count = db.Column(db.Integer, default=0, nullable=False)
+    file_name = db.Column(db.String(255))
+    file_path = db.Column(db.String(500))
+    ip_address = db.Column(db.String(64))
+    status = db.Column(db.String(20), default="成功", nullable=False, index=True)
+    error_message = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

@@ -1,11 +1,13 @@
 {% extends 'base.html' %}
 {% block title %}产品列表 - 跨境经贸企业库与产品管理系统{% endblock %}
+
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="h3 mb-0">产品入库管理</h1>
     <div class="d-flex gap-2">
         <a href="{{ url_for('import_products', next=request.path) }}" class="btn btn-outline-success">导入产品</a>
-        <a href="{{ url_for('excel_export', export_key='products') }}" class="btn btn-outline-primary">导出产品</a>
+        <a href="{{ url_for('export_products_all') }}" class="btn btn-outline-primary">导出全部产品</a>
+        <button type="button" class="btn btn-outline-primary" data-bs-toggle="modal" data-bs-target="#productExportModal">导出当前筛选结果</button>
         <a href="{{ url_for('product_new') }}" class="btn btn-primary">新增产品</a>
     </div>
 </div>
@@ -149,4 +151,34 @@
     </ul>
 </nav>
 {% endif %}
+
+<div class="modal fade" id="productExportModal" tabindex="-1" aria-labelledby="productExportModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <form class="modal-content" method="get" action="{{ url_for('export_products_filtered') }}">
+            <div class="modal-header">
+                <h5 class="modal-title" id="productExportModalLabel">选择产品导出列</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
+            </div>
+            <div class="modal-body">
+                {% for name in ['keyword','enterprise','industry','category','product_type','export_suitability','recommendation_level','certification_status','target_market','status'] %}
+                <input type="hidden" name="{{ name }}" value="{{ filters.get(name, '') }}">
+                {% endfor %}
+                <div class="row g-2">
+                    {% for key, label in product_export_columns %}
+                    <div class="col-md-4">
+                        <div class="form-check">
+                            <input class="form-check-input" type="checkbox" name="columns" value="{{ key }}" id="product-col-{{ key }}" checked>
+                            <label class="form-check-label" for="product-col-{{ key }}">{{ label }}</label>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="submit" class="btn btn-primary">确认导出</button>
+            </div>
+        </form>
+    </div>
+</div>
 {% endblock %}
