@@ -633,9 +633,28 @@ def create_app():
             "B": [(字段名, 字段已填写(字段值)) for 字段名, 字段值 in 工商信息字段],
         }
 
+    ENTERPRISE_REQUIRED_FIELD_RULES = [
+        ("入库信息-项目负责人", lambda 企业, ext: 企业.project_owner),
+        ("基本信息-企业全称", lambda 企业, ext: ext.get("company_full_name") or 企业.company_name),
+        ("工商信息-注册名称", lambda 企业, ext: ext.get("registered_name")),
+        ("工商信息-法人代表", lambda 企业, ext: ext.get("legal_representative")),
+        ("工商信息-统一社会信用代码", lambda 企业, ext: ext.get("unified_social_credit_code") or 企业.unified_social_credit_code),
+        ("工商信息-工商注册号", lambda 企业, ext: ext.get("business_registration_number")),
+        ("工商信息-营业期限", lambda 企业, ext: ext.get("business_term")),
+        ("工商信息-注册资本", lambda 企业, ext: ext.get("registered_capital") or 企业.registered_capital),
+        ("工商信息-实缴资本", lambda 企业, ext: ext.get("paid_in_capital")),
+        ("工商信息-企业注册类型", lambda 企业, ext: ext.get("company_type") or 企业.company_type),
+        ("工商信息-核准日期", lambda 企业, ext: ext.get("approval_date")),
+        ("经营情况-是否上市", lambda 企业, ext: ext.get("is_listed_or_pre_ipo")),
+        ("资质合规-是否具备进出口相关资质", lambda 企业, ext: ext.get("has_import_export_qualification")),
+    ]
+
+    def 企业必填缺失字段(企业, 扩展字段):
+        ext = 兼容企业基础信息字段(企业, 扩展字段 or {})
+        return [字段名 for 字段名, 取值 in ENTERPRISE_REQUIRED_FIELD_RULES if not 字段已填写(取值(企业, ext))]
+
     def 企业提交审核缺失字段(企业, 扩展字段):
-        核心字段 = 企业核心完整度字段(企业, 扩展字段)
-        return [字段名 for 字段名, 已填写 in [*核心字段["A"], *核心字段["B"]] if not 已填写]
+        return 企业必填缺失字段(企业, 扩展字段)
 
     def 企业重复风险检查(company_name, unified_social_credit_code, exclude_enterprise_id=None):
         风险提示 = []
@@ -1216,8 +1235,9 @@ def create_app():
             扩展字段["material_missing_items"] = 完整度信息["missing_items"]
             企业.enterprise_extra_fields = 扩展字段
 
-            if not 行业代码:
-                flash("行业分类必须从下拉框选择。", "danger")
+            缺失必填字段 = 企业必填缺失字段(企业, 扩展字段)
+            if 缺失必填字段:
+                flash(f"保存失败，缺失必填项：{'、'.join(缺失必填字段)}", "danger")
                 return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
             if 主联系人数 > 1:
                 flash("联系人子表单中“是否主联系人”只能选择一位。", "danger")
@@ -1459,8 +1479,9 @@ def create_app():
                     db.session.delete(外贸联系人)
             同步联系人子表单(企业.id, 联系人子表单)
 
-            if not 行业代码:
-                flash("行业分类必须从下拉框选择。", "danger")
+            缺失必填字段 = 企业必填缺失字段(企业, 扩展字段)
+            if 缺失必填字段:
+                flash(f"保存失败，缺失必填项：{'、'.join(缺失必填字段)}", "danger")
                 return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {}), 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
             if 主联系人数 > 1:
                 flash("联系人子表单中“是否主联系人”只能选择一位。", "danger")
