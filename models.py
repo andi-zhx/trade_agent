@@ -6,7 +6,26 @@ from flask_sqlalchemy import SQLAlchemy
 db = SQLAlchemy()
 
 
-class User(db.Model):
+class AuditSoftDeleteMixin:
+    """通用审计与软删除字段。"""
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = db.Column(
+        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+    )
+    created_by = db.Column(db.String(100))
+    updated_by = db.Column(db.String(100))
+    deleted_at = db.Column(db.DateTime, index=True)
+    is_deleted = db.Column(db.Boolean, default=False, nullable=False, index=True)
+
+    def soft_delete(self, operator=None):
+        self.is_deleted = True
+        self.deleted_at = datetime.utcnow()
+        self.updated_at = self.deleted_at
+        self.updated_by = operator
+
+
+class User(AuditSoftDeleteMixin, db.Model):
     """系统用户（当前用于登录演示）。"""
 
     __tablename__ = "users"
@@ -15,10 +34,9 @@ class User(db.Model):
     username = db.Column(db.String(50), unique=True, nullable=False)
     password = db.Column(db.String(128), nullable=False)
     role = db.Column(db.String(50), default="管理员")
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
-class Enterprise(db.Model):
+class Enterprise(AuditSoftDeleteMixin, db.Model):
     """企业信息表。"""
 
     __tablename__ = "enterprises"
@@ -63,10 +81,6 @@ class Enterprise(db.Model):
     enterprise_extra_fields = db.Column(db.JSON)
     status = db.Column(db.String(50), default="draft", nullable=False, index=True)
     project_owner = db.Column(db.String(100))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
 
     products = db.relationship('Product', back_populates='enterprise', lazy='dynamic')
     analysis_note = db.relationship(
@@ -77,7 +91,7 @@ class Enterprise(db.Model):
     )
 
 
-class EnterpriseAnalysisNote(db.Model):
+class EnterpriseAnalysisNote(AuditSoftDeleteMixin, db.Model):
     """企业出海分析备注。"""
 
     __tablename__ = "enterprise_analysis_notes"
@@ -87,15 +101,11 @@ class EnterpriseAnalysisNote(db.Model):
         db.Integer, db.ForeignKey("enterprises.id", ondelete="CASCADE"), nullable=False, unique=True, index=True
     )
     note = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
 
     enterprise = db.relationship("Enterprise", back_populates="analysis_note")
 
 
-class Contact(db.Model):
+class Contact(AuditSoftDeleteMixin, db.Model):
     """企业联系人表。"""
 
     __tablename__ = "contacts"
@@ -117,7 +127,7 @@ class Contact(db.Model):
     notes = db.Column(db.Text)
 
 
-class Product(db.Model):
+class Product(AuditSoftDeleteMixin, db.Model):
     """产品信息表。"""
 
     __tablename__ = "products"
@@ -166,10 +176,6 @@ class Product(db.Model):
     notes = db.Column(db.Text)
     product_extra_fields = db.Column(db.JSON)
     status = db.Column(db.String(20), default="active", nullable=False, index=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
 
     enterprise = db.relationship('Enterprise', back_populates='products')
     skus = db.relationship(
@@ -180,7 +186,7 @@ class Product(db.Model):
     )
 
 
-class ProductSKU(db.Model):
+class ProductSKU(AuditSoftDeleteMixin, db.Model):
     """产品 SKU 明细。"""
 
     __tablename__ = "product_skus"
@@ -213,15 +219,11 @@ class ProductSKU(db.Model):
     sample_available = db.Column(db.Boolean, default=False, nullable=False)
     customization_supported = db.Column(db.Boolean, default=False, nullable=False)
     notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
 
     product = db.relationship("Product", back_populates="skus")
 
 
-class Qualification(db.Model):
+class Qualification(AuditSoftDeleteMixin, db.Model):
     """资质证照表。"""
 
     __tablename__ = "qualifications"
@@ -247,7 +249,7 @@ class Qualification(db.Model):
     product = db.relationship("Product", backref=db.backref("qualifications", lazy="dynamic"))
 
 
-class ForeignClient(db.Model):
+class ForeignClient(AuditSoftDeleteMixin, db.Model):
     """外资客户表。"""
 
     __tablename__ = "foreign_clients"
@@ -260,13 +262,9 @@ class ForeignClient(db.Model):
     contact_phone = db.Column(db.String(50))
     contact_email = db.Column(db.String(120))
     notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
 
 
-class Demand(db.Model):
+class Demand(AuditSoftDeleteMixin, db.Model):
     """外资需求表。"""
 
     __tablename__ = "demands"
@@ -288,13 +286,9 @@ class Demand(db.Model):
     priority = db.Column(db.String(50), default="中")
     status = db.Column(db.String(50), default="待跟进", index=True)
     notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
 
 
-class MatchRecord(db.Model):
+class MatchRecord(AuditSoftDeleteMixin, db.Model):
     """撮合匹配表。"""
 
     __tablename__ = "match_records"
@@ -311,13 +305,9 @@ class MatchRecord(db.Model):
     match_reason = db.Column(db.Text)
     risk_notes = db.Column(db.Text)
     recommendation_status = db.Column(db.String(50), default="未推荐", index=True)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
 
 
-class ProjectProgress(db.Model):
+class ProjectProgress(AuditSoftDeleteMixin, db.Model):
     """项目进展表。"""
 
     __tablename__ = "project_progress"
@@ -342,13 +332,9 @@ class ProjectProgress(db.Model):
     next_action = db.Column(db.Text)
     project_owner = db.Column(db.String(100))
     notes = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
-    )
 
 
-class Document(db.Model):
+class Document(AuditSoftDeleteMixin, db.Model):
     """文件归档表。"""
 
     __tablename__ = "documents"
@@ -371,7 +357,20 @@ class Document(db.Model):
     notes = db.Column(db.Text)
 
 
-class AuditLog(db.Model):
+class BackupRecord(AuditSoftDeleteMixin, db.Model):
+    """备份记录表。"""
+
+    __tablename__ = "backup_records"
+
+    id = db.Column(db.Integer, primary_key=True)
+    backup_type = db.Column(db.String(50), nullable=False, index=True)
+    file_path = db.Column(db.String(500), nullable=False)
+    file_size = db.Column(db.Integer, default=0, nullable=False)
+    file_hash = db.Column(db.String(128), nullable=False)
+    status = db.Column(db.String(20), default="成功", nullable=False, index=True)
+    error_message = db.Column(db.Text)
+
+class AuditLog(AuditSoftDeleteMixin, db.Model):
     """操作日志表。"""
 
     __tablename__ = "audit_logs"
@@ -382,9 +381,8 @@ class AuditLog(db.Model):
     target_type = db.Column(db.String(100), nullable=False)
     target_id = db.Column(db.Integer, nullable=True)
     detail = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
-class ImportBatch(db.Model):
+class ImportBatch(AuditSoftDeleteMixin, db.Model):
     """Excel 导入批次（预留导入错误报告扩展）。"""
 
     __tablename__ = "import_batches"
@@ -394,10 +392,9 @@ class ImportBatch(db.Model):
     file_name = db.Column(db.String(255), nullable=False)
     import_type = db.Column(db.String(50))
     operator = db.Column(db.String(100))
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
 
-class ImportError(db.Model):
+class ImportError(AuditSoftDeleteMixin, db.Model):
     """Excel 导入错误明细（预留导入错误报告扩展）。"""
 
     __tablename__ = "import_errors"
@@ -409,12 +406,11 @@ class ImportError(db.Model):
     error_reason = db.Column(db.Text)
     raw_value = db.Column(db.Text)
     suggestion = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
 
     batch = db.relationship("ImportBatch", backref=db.backref("errors", lazy="dynamic", cascade="all, delete-orphan"))
 
 
-class ExportLog(db.Model):
+class ExportLog(AuditSoftDeleteMixin, db.Model):
     """导出审计日志。"""
 
     __tablename__ = "export_logs"
@@ -433,4 +429,3 @@ class ExportLog(db.Model):
     ip_address = db.Column(db.String(64))
     status = db.Column(db.String(20), default="成功", nullable=False, index=True)
     error_message = db.Column(db.Text)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)

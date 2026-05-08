@@ -1,7 +1,10 @@
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from io import BytesIO
 import csv
+import hashlib
+import threading
+import time
 import json
 import shutil
 from pathlib import Path
@@ -9,11 +12,12 @@ import re
 from functools import wraps
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from flask import Flask, abort, flash, redirect, render_template, request, send_file, send_from_directory, session, url_for
+from flask import Flask, abort, flash, has_request_context, redirect, render_template, request, send_file, send_from_directory, session, url_for
 from jinja2.runtime import Undefined
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font
-from sqlalchemy import func, inspect, or_, text
+from sqlalchemy import event, func, inspect, or_, text
+from sqlalchemy.orm import Session, with_loader_criteria
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
 
@@ -27,6 +31,8 @@ from config.enterprise_form_config import (
 from config.industry_config import INDUSTRY_MAP, INDUSTRY_OPTIONS
 from config.product_form_config import COMMON_PRODUCT_FIELD_GROUPS, INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG
 from models import (
+    AuditSoftDeleteMixin,
+    BackupRecord,
     Contact,
     Document,
     Enterprise,
@@ -265,8 +271,39 @@ def create_app():
     app.config["BACKUP_ROOT"] = BASE_DIR / "backups"
     app.config["DATABASE_BACKUP_ROOT"] = app.config["BACKUP_ROOT"] / "database"
     app.config["FILES_BACKUP_ROOT"] = app.config["BACKUP_ROOT"] / "files"
+    app.config["BACKUP_RETENTION_DAYS"] = 30
+    app.config["BACKUP_RETENTION_COUNT"] = 30
 
     db.init_app(app)
+
+    if not getattr(db, "_soft_delete_filter_registered", False):
+        @event.listens_for(Session, "do_orm_execute")
+        def _add_soft_delete_filter(execute_state):
+            if execute_state.is_select and not execute_state.execution_options.get("include_deleted"):
+                execute_state.statement = execute_state.statement.options(
+                    with_loader_criteria(
+                        AuditSoftDeleteMixin,
+                        lambda cls: cls.is_deleted.is_(False),
+                        include_aliases=True,
+                    )
+                )
+
+        @event.listens_for(Session, "before_flush")
+        def _fill_audit_fields(session_obj, flush_context, instances):
+            operator = "system"
+            if has_request_context():
+                operator = session.get("用户") or "system"
+            for obj in session_obj.new:
+                if isinstance(obj, AuditSoftDeleteMixin):
+                    if not obj.created_by:
+                        obj.created_by = operator
+                    if not obj.updated_by:
+                        obj.updated_by = operator
+            for obj in session_obj.dirty:
+                if isinstance(obj, AuditSoftDeleteMixin):
+                    obj.updated_by = operator
+
+        db._soft_delete_filter_registered = True
 
     def 当前用户():
         用户名 = session.get("用户")
@@ -285,6 +322,9 @@ def create_app():
                 detail=detail,
             )
         )
+
+    def 软删除对象(对象):
+        对象.soft_delete(当前操作者名称())
 
     def login_required(view_func):
         @wraps(view_func)
@@ -310,46 +350,133 @@ def create_app():
 
         return wrapped
 
-    def 构建数据库备份():
+    def 计算文件哈希(文件路径):
+        sha256 = hashlib.sha256()
+        with open(文件路径, "rb") as 文件:
+            for 数据块 in iter(lambda: 文件.read(1024 * 1024), b""):
+                sha256.update(数据块)
+        return sha256.hexdigest()
+
+    def 当前操作者名称():
+        if not has_request_context():
+            return "system"
+        用户 = 当前用户()
+        return 用户.username if 用户 else (session.get("用户") or "system")
+
+    def 登记备份记录(备份类型, 文件路径, status="成功", error_message=None, created_by=None):
+        文件路径 = Path(文件路径)
+        相对路径 = str(文件路径.relative_to(BASE_DIR)) if 文件路径.is_absolute() and 文件路径.is_relative_to(BASE_DIR) else str(文件路径)
+        记录 = BackupRecord(
+            backup_type=备份类型,
+            file_path=相对路径,
+            file_size=文件路径.stat().st_size if 文件路径.exists() else 0,
+            file_hash=计算文件哈希(文件路径) if 文件路径.exists() else "",
+            status=status,
+            error_message=error_message,
+            created_by=created_by or 当前操作者名称(),
+            updated_by=created_by or 当前操作者名称(),
+        )
+        db.session.add(记录)
+        return 记录
+
+    def 清理备份保留策略(备份类型=None):
+        保留天数 = int(app.config.get("BACKUP_RETENTION_DAYS", 30))
+        保留数量 = int(app.config.get("BACKUP_RETENTION_COUNT", 30))
+        截止时间 = datetime.utcnow() - timedelta(days=保留天数)
+        查询 = BackupRecord.query.filter(BackupRecord.is_deleted.is_(False))
+        if 备份类型:
+            查询 = 查询.filter(BackupRecord.backup_type == 备份类型)
+        记录列表 = 查询.order_by(BackupRecord.created_at.desc()).all()
+        for 序号, 记录 in enumerate(记录列表):
+            if (记录.created_at and 记录.created_at < 截止时间) or 序号 >= 保留数量:
+                文件路径 = BASE_DIR / 记录.file_path
+                if 文件路径.exists() and 文件路径.is_file():
+                    文件路径.unlink()
+                记录.soft_delete("system")
+
+    def 构建数据库备份(created_by=None):
         备份目录 = app.config["DATABASE_BACKUP_ROOT"]
         备份目录.mkdir(parents=True, exist_ok=True)
         时间戳 = datetime.now().strftime("%Y%m%d_%H%M%S")
         源数据库 = BASE_DIR / "trade_agent.db"
         备份路径 = 备份目录 / f"database_backup_{时间戳}.sqlite"
         shutil.copy2(源数据库, 备份路径)
+        登记备份记录("database", 备份路径, created_by=created_by)
+        清理备份保留策略("database")
         return 备份路径
 
-    def 构建上传目录备份():
+    def 构建上传目录备份(created_by=None):
         备份目录 = app.config["FILES_BACKUP_ROOT"]
         备份目录.mkdir(parents=True, exist_ok=True)
         时间戳 = datetime.now().strftime("%Y%m%d_%H%M%S")
-        备份路径 = 备份目录 / f"enterprise_files_backup_{时间戳}.zip"
-        上传根目录 = app.config["UPLOAD_ENTERPRISE_ROOT"]
+        备份路径 = 备份目录 / f"uploads_backup_{时间戳}.zip"
+        上传根目录 = BASE_DIR / "uploads"
         with ZipFile(备份路径, "w", compression=ZIP_DEFLATED) as zipf:
             if 上传根目录.exists():
                 for 文件路径 in 上传根目录.rglob("*"):
                     if 文件路径.is_file():
                         zipf.write(文件路径, arcname=文件路径.relative_to(上传根目录.parent))
+        登记备份记录("uploads", 备份路径, created_by=created_by)
+        清理备份保留策略("uploads")
         return 备份路径
 
-    def 今日是否已有数据库备份():
-        备份目录 = app.config["DATABASE_BACKUP_ROOT"]
-        备份目录.mkdir(parents=True, exist_ok=True)
-        today_prefix = f"database_backup_{datetime.now().strftime('%Y%m%d')}"
-        return any(path.name.startswith(today_prefix) for path in 备份目录.glob("database_backup_*.sqlite"))
+    def 执行每日自动备份(created_by="system"):
+        数据库文件 = None
+        上传文件 = None
+        if not 今日是否已有备份("database"):
+            数据库文件 = 构建数据库备份(created_by=created_by)
+            记录审计日志("自动备份", "backup", detail=f"type=database,filename={数据库文件.name}")
+        if not 今日是否已有备份("uploads"):
+            上传文件 = 构建上传目录备份(created_by=created_by)
+            记录审计日志("自动备份", "backup", detail=f"type=uploads,filename={上传文件.name}")
+        db.session.commit()
+        return 数据库文件, 上传文件
+
+    def 今日是否已有备份(备份类型):
+        今日零点 = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+        return BackupRecord.query.filter(
+            BackupRecord.backup_type == 备份类型,
+            BackupRecord.status == "成功",
+            BackupRecord.is_deleted.is_(False),
+            BackupRecord.created_at >= 今日零点,
+        ).count() > 0
 
     def 查询最新备份时间(备份类型):
-        if 备份类型 == "database":
-            备份目录 = app.config["DATABASE_BACKUP_ROOT"]
-            文件模式 = "database_backup_*.sqlite"
-        else:
-            备份目录 = app.config["FILES_BACKUP_ROOT"]
-            文件模式 = "enterprise_files_backup_*.zip"
-        备份目录.mkdir(parents=True, exist_ok=True)
-        文件列表 = sorted(备份目录.glob(文件模式), key=lambda x: x.stat().st_mtime, reverse=True)
-        if not 文件列表:
-            return None
-        return datetime.fromtimestamp(文件列表[0].stat().st_mtime)
+        记录 = BackupRecord.query.filter(
+            BackupRecord.backup_type == 备份类型,
+            BackupRecord.status == "成功",
+            BackupRecord.is_deleted.is_(False),
+        ).order_by(BackupRecord.created_at.desc()).first()
+        return 记录.created_at if 记录 else None
+
+    def 启动定时备份任务():
+        if app.config.get("BACKUP_SCHEDULER_STARTED"):
+            return
+        app.config["BACKUP_SCHEDULER_STARTED"] = True
+
+        def 任务循环():
+            time.sleep(10)
+            while True:
+                try:
+                    with app.app_context():
+                        执行每日自动备份(created_by="system")
+                except Exception as exc:
+                    with app.app_context():
+                        db.session.rollback()
+                        db.session.add(BackupRecord(
+                            backup_type="scheduled",
+                            file_path="",
+                            file_size=0,
+                            file_hash="",
+                            status="失败",
+                            error_message=str(exc),
+                            created_by="system",
+                            updated_by="system",
+                        ))
+                        db.session.commit()
+                time.sleep(24 * 60 * 60)
+
+        threading.Thread(target=任务循环, name="daily-backup", daemon=True).start()
 
     def 构建产品资料缺失提示(product, enterprise=None, product_files=None, skus=None):
         extra = 兼容产品基础信息字段(product, product.product_extra_fields or {})
@@ -925,29 +1052,32 @@ def create_app():
                 flash(f"数据库备份成功：{文件路径.name}", "success")
             elif action == "backup_uploads":
                 文件路径 = 构建上传目录备份()
-                记录审计日志("备份", "backup", detail=f"type=files,filename={文件路径.name}")
+                记录审计日志("备份", "backup", detail=f"type=uploads,filename={文件路径.name}")
                 db.session.commit()
                 flash(f"企业文件资料备份成功：{文件路径.name}", "success")
             elif action == "backup_all":
                 数据库文件 = 构建数据库备份()
                 文件资料文件 = 构建上传目录备份()
                 记录审计日志("备份", "backup", detail=f"type=database,filename={数据库文件.name}")
-                记录审计日志("备份", "backup", detail=f"type=files,filename={文件资料文件.name}")
+                记录审计日志("备份", "backup", detail=f"type=uploads,filename={文件资料文件.name}")
                 db.session.commit()
                 flash(f"完整备份成功：{数据库文件.name}，{文件资料文件.name}", "success")
             else:
                 flash("未知备份动作。", "danger")
             return redirect(url_for("backup_tools"))
 
-        数据库文件列表 = [
-            {"name": path.name, "type": "database", "mtime": datetime.fromtimestamp(path.stat().st_mtime)}
-            for path in app.config["DATABASE_BACKUP_ROOT"].glob("database_backup_*.sqlite")
+        备份记录列表 = BackupRecord.query.filter(BackupRecord.is_deleted.is_(False)).order_by(BackupRecord.created_at.desc()).limit(50).all()
+        文件列表 = [
+            {
+                "name": Path(记录.file_path).name,
+                "type": 记录.backup_type,
+                "mtime": 记录.created_at,
+                "size": 记录.file_size,
+                "hash": 记录.file_hash,
+                "status": 记录.status,
+            }
+            for 记录 in 备份记录列表
         ]
-        文件资料列表 = [
-            {"name": path.name, "type": "files", "mtime": datetime.fromtimestamp(path.stat().st_mtime)}
-            for path in app.config["FILES_BACKUP_ROOT"].glob("enterprise_files_backup_*.zip")
-        ]
-        文件列表 = sorted(数据库文件列表 + 文件资料列表, key=lambda x: x["mtime"], reverse=True)[:50]
         操作日志 = (
             AuditLog.query.filter_by(target_type="backup").order_by(AuditLog.created_at.desc()).limit(30).all()
         )
@@ -958,7 +1088,7 @@ def create_app():
             db_path=BASE_DIR / "trade_agent.db",
             upload_path=app.config["UPLOAD_ENTERPRISE_ROOT"],
             latest_db_backup_time=查询最新备份时间("database"),
-            latest_files_backup_time=查询最新备份时间("files"),
+            latest_files_backup_time=查询最新备份时间("uploads"),
             logs=操作日志,
             export_logs=导出日志,
         )
@@ -968,7 +1098,7 @@ def create_app():
     def download_backup(backup_type, filename):
         if backup_type == "database" and filename.startswith("database_backup_") and filename.endswith(".sqlite"):
             目录 = app.config["DATABASE_BACKUP_ROOT"]
-        elif backup_type == "files" and filename.startswith("enterprise_files_backup_") and filename.endswith(".zip"):
+        elif backup_type in {"files", "uploads"} and filename.startswith("uploads_backup_") and filename.endswith(".zip"):
             目录 = app.config["FILES_BACKUP_ROOT"]
         else:
             flash("非法备份文件请求。", "danger")
@@ -1615,7 +1745,7 @@ def create_app():
                 if 外贸负责人:
                     外贸联系人.name = 外贸负责人
                 else:
-                    db.session.delete(外贸联系人)
+                    软删除对象(外贸联系人)
             同步联系人子表单(企业.id, 联系人子表单)
 
             缺失必填字段 = 企业必填缺失字段(企业, 扩展字段)
@@ -1675,14 +1805,14 @@ def create_app():
         if request.form.get("confirm_delete") != "YES":
             flash("请勾选二次确认后再删除企业。", "warning")
             return redirect(url_for("enterprise_list"))
-        if Product.query.filter_by(enterprise_id=企业.id).count() > 0:
-            企业.status = "停用"
-            记录审计日志("编辑企业", "enterprise", target_id=企业.id, detail=f"{企业.company_name} 标记为停用")
-            db.session.commit()
-            flash("企业存在关联产品，已自动标记为停用。", "warning")
-            return redirect(url_for("enterprise_detail", id=企业.id))
         记录审计日志("删除企业", "enterprise", target_id=企业.id, detail=企业.company_name)
-        db.session.delete(企业)
+        软删除对象(企业)
+        for product in Product.query.filter_by(enterprise_id=企业.id, is_deleted=False).all():
+            软删除对象(product)
+            for sku in ProductSKU.query.filter_by(product_id=product.id, is_deleted=False).all():
+                软删除对象(sku)
+        for document in Document.query.filter(Document.is_deleted.is_(False), Document.enterprise_id == 企业.id).all():
+            软删除对象(document)
         db.session.commit()
         flash("企业已删除", "success")
         return redirect(url_for("enterprise_list"))
@@ -1935,7 +2065,7 @@ def create_app():
         product = Product.query.get_or_404(product_id)
         sku = ProductSKU.query.filter_by(id=sku_id, product_id=product.id).first_or_404()
         code = sku.sku_code
-        db.session.delete(sku)
+        软删除对象(sku)
         db.session.commit()
         记录审计日志("删除SKU", "product_sku", target_id=sku_id, detail=f"{product.product_code}:{code}")
         flash(f"SKU 已删除：{code}", "success")
@@ -2255,7 +2385,11 @@ def create_app():
             flash("请勾选二次确认后再删除产品。", "warning")
             return redirect(url_for("product_list"))
         记录审计日志("删除产品", "product", target_id=product.id, detail=product.product_name_cn)
-        db.session.delete(product)
+        软删除对象(product)
+        for sku in ProductSKU.query.filter_by(product_id=product.id, is_deleted=False).all():
+            软删除对象(sku)
+        for document in Document.query.filter_by(product_id=product.id, is_deleted=False).all():
+            软删除对象(document)
         db.session.commit()
         flash("产品已删除。", "info")
         return redirect(url_for("product_list"))
@@ -2277,13 +2411,10 @@ def create_app():
     def product_attachment_delete(product_id, document_id):
         product = Product.query.get_or_404(product_id)
         document = Document.query.filter_by(id=document_id, product_id=product.id).first_or_404()
-        文件路径 = BASE_DIR / document.file_path
-        if 文件路径.exists() and 文件路径.is_file():
-            文件路径.unlink()
         if product.main_image == f"/{document.file_path}":
             product.main_image = None
         记录审计日志("删除产品附件", "document", target_id=document.id, detail=document.document_name)
-        db.session.delete(document)
+        软删除对象(document)
         db.session.commit()
         flash("附件已删除。", "success")
         return redirect(url_for("product_edit", product_id=product.id, tab="attachment"))
@@ -2502,11 +2633,8 @@ def create_app():
         if request.form.get("confirm_delete") != "YES":
             flash("请勾选二次确认后再删除文件。", "warning")
             return redirect(返回地址 or url_for("document_list"))
-        文件路径 = BASE_DIR / document.file_path
-        if 文件路径.exists() and 文件路径.is_file():
-            文件路径.unlink()
         记录审计日志("删除文件", "document", target_id=document.id, detail=document.document_name)
-        db.session.delete(document)
+        软删除对象(document)
         db.session.commit()
         flash("文件已删除。", "success")
         return redirect(返回地址 or url_for("document_list"))
@@ -2516,6 +2644,7 @@ def create_app():
 
         init_db(app)
 
+    启动定时备份任务()
     return app
 
 
@@ -2701,10 +2830,12 @@ def fill_product_from_form(product, form):
 
 
 def 同步联系人子表单(enterprise_id, dynamic_contacts):
-    Contact.query.filter(
+    for contact in Contact.query.filter(
         Contact.enterprise_id == enterprise_id,
         Contact.contact_type == "联系人",
-    ).delete(synchronize_session=False)
+        Contact.is_deleted.is_(False),
+    ).all():
+        contact.soft_delete(session.get("用户") or "system")
     for item in dynamic_contacts or []:
         姓名 = (item.get("name") or "").strip()
         if not 姓名:
@@ -4059,6 +4190,32 @@ def init_db(app):
         existing_tables = set(inspector.get_table_names())
         product_columns = {col["name"] for col in inspector.get_columns("products")}
         enterprise_columns = {col["name"] for col in inspector.get_columns("enterprises")}
+        def 补充审计软删除字段(表名):
+            columns = {col["name"] for col in inspector.get_columns(表名)}
+            if "created_at" not in columns:
+                db.session.execute(text(f"ALTER TABLE {表名} ADD COLUMN created_at DATETIME"))
+            if "updated_at" not in columns:
+                db.session.execute(text(f"ALTER TABLE {表名} ADD COLUMN updated_at DATETIME"))
+            if "created_by" not in columns:
+                db.session.execute(text(f"ALTER TABLE {表名} ADD COLUMN created_by VARCHAR(100)"))
+            if "updated_by" not in columns:
+                db.session.execute(text(f"ALTER TABLE {表名} ADD COLUMN updated_by VARCHAR(100)"))
+            if "deleted_at" not in columns:
+                db.session.execute(text(f"ALTER TABLE {表名} ADD COLUMN deleted_at DATETIME"))
+            if "is_deleted" not in columns:
+                db.session.execute(text(f"ALTER TABLE {表名} ADD COLUMN is_deleted BOOLEAN DEFAULT 0"))
+            db.session.execute(text(f"UPDATE {表名} SET created_at = COALESCE(created_at, CURRENT_TIMESTAMP)"))
+            db.session.execute(text(f"UPDATE {表名} SET updated_at = COALESCE(updated_at, CURRENT_TIMESTAMP)"))
+            db.session.execute(text(f"UPDATE {表名} SET is_deleted = COALESCE(is_deleted, 0)"))
+            db.session.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{表名}_deleted_at ON {表名} (deleted_at)"))
+            db.session.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{表名}_is_deleted ON {表名} (is_deleted)"))
+
+        for 表名 in existing_tables:
+            补充审计软删除字段(表名)
+        db.session.commit()
+        inspector = inspect(db.engine)
+        product_columns = {col["name"] for col in inspector.get_columns("products")}
+        enterprise_columns = {col["name"] for col in inspector.get_columns("enterprises")}
         if "enterprise_extra_fields" not in enterprise_columns:
             db.session.execute(text("ALTER TABLE enterprises ADD COLUMN enterprise_extra_fields JSON"))
         if "province" not in enterprise_columns:
@@ -4278,25 +4435,8 @@ def init_db(app):
             db.session.add(User(username="user", password=generate_password_hash("user123"), role="普通用户"))
         db.session.commit()
 
-        backup_root = app.config["DATABASE_BACKUP_ROOT"]
-        backup_root.mkdir(parents=True, exist_ok=True)
-        today_prefix = f"database_backup_{datetime.now().strftime('%Y%m%d')}"
-        has_today_backup = any(
-            path.name.startswith(today_prefix) for path in backup_root.glob("database_backup_*.sqlite")
-        )
-        if not has_today_backup:
-            src = BASE_DIR / "trade_agent.db"
-            dst = backup_root / f"database_backup_{datetime.now().strftime('%Y%m%d_%H%M%S')}.sqlite"
-            shutil.copy2(src, dst)
-            db.session.add(
-                AuditLog(
-                    action="备份",
-                    target_type="backup",
-                    user_name="system",
-                    detail=f"type=database,filename={dst.name},note=auto_first_start_of_day",
-                )
-            )
-            db.session.commit()
+        app.config["DATABASE_BACKUP_ROOT"].mkdir(parents=True, exist_ok=True)
+        app.config["FILES_BACKUP_ROOT"].mkdir(parents=True, exist_ok=True)
 
 
 app = create_app()
