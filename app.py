@@ -58,6 +58,35 @@ def 清理企业扩展字段(扩展字段):
     return 清理后字段
 
 
+def 行业默认名称(行业代码):
+    item = INDUSTRY_MAP.get((行业代码 or "").strip())
+    if not item:
+        return ""
+    return item["name"]
+
+
+def 导出企业资料完整度标签(enterprise):
+    ext = 清理企业扩展字段(enterprise.enterprise_extra_fields or {})
+    required_values = [
+        enterprise.project_owner,
+        ext.get("company_full_name") or enterprise.company_name,
+        ext.get("registered_name") or enterprise.company_name,
+        ext.get("legal_representative"),
+        ext.get("unified_social_credit_code") or enterprise.unified_social_credit_code,
+        ext.get("business_registration_number"),
+        ext.get("business_term"),
+        ext.get("registered_capital") or enterprise.registered_capital,
+        ext.get("paid_in_capital"),
+        ext.get("company_type") or enterprise.company_type,
+        ext.get("approval_date"),
+        ext.get("is_listed_or_pre_ipo"),
+        ext.get("has_import_export_qualification"),
+    ]
+    done = sum(1 for value in required_values if value and str(value).strip())
+    score = int(round((done / len(required_values)) * 100)) if required_values else 0
+    return f"{score}%"
+
+
 PRODUCT_FORM_SECTIONS = [
     ("A", "所属企业"),
     ("B", "产品基础信息"),
@@ -3136,14 +3165,6 @@ def 企业主联系人映射(enterprise_ids):
     return mapping
 
 
-def 企业附件类型映射(enterprise_ids):
-    mapping = {}
-    if not enterprise_ids:
-        return mapping
-    for document in Document.query.filter(Document.enterprise_id.in_(enterprise_ids), Document.product_id.is_(None)).all():
-        mapping.setdefault(document.enterprise_id, set()).add(document.document_type)
-    return mapping
-
 
 def 企业导出行(enterprise, contact, completeness, columns):
     values = {
@@ -3182,10 +3203,9 @@ def 构建企业总表Sheet(query, columns):
     enterprises = query.order_by(Enterprise.updated_at.desc()).all()
     ids = [item.id for item in enterprises]
     contact_map = 企业主联系人映射(ids)
-    file_type_map = 企业附件类型映射(ids)
     rows = []
     for enterprise in enterprises:
-        completeness = 计算企业资料完整度(enterprise, 兼容企业基础信息字段(enterprise, enterprise.enterprise_extra_fields or {}), file_type_map.get(enterprise.id, set())).get("label", "")
+        completeness = 导出企业资料完整度标签(enterprise)
         rows.append(企业导出行(enterprise, contact_map.get(enterprise.id), completeness, columns))
     return rows
 
