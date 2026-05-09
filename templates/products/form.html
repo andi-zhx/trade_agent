@@ -191,9 +191,6 @@
         </div>
 
         <div class="tab-pane fade {% if (initial_tab or 'overview') == 'attachment' %}show active{% endif %}" id="attachment-pane" role="tabpanel" aria-labelledby="attachment-tab" tabindex="0" data-product-pane data-product-key="attachment">
-            {% if is_new_product %}
-            <div class="alert alert-info mb-3">请先保存产品概览后再上传认证与附件。</div>
-            {% endif %}
             {% set extra = product_extra_values or {} %}
             {% set cert_product_values = request.form.getlist('cert_product') if request.method == 'POST' else (extra.get('cert_product') if extra.get('cert_product') is iterable and (extra.get('cert_product') is not string) else []) %}
             <div class="card mb-3">
@@ -202,7 +199,7 @@
                     <div class="col-md-4">
                         <label class="form-label">认证情况</label>
                         {% set cert_status_val = request.form.get('cert_status') if request.method == 'POST' else (extra.get('cert_status') or product.certification_status or '') %}
-                        <select class="form-select" name="cert_status" {% if is_new_product %}disabled{% endif %}>
+                        <select class="form-select" name="cert_status">
                             <option value="">请选择</option>
                             {% for opt in ['齐全','部分齐全','待补充','无需认证','未核验'] %}
                             <option value="{{ opt }}" {% if cert_status_val == opt %}selected{% endif %}>{{ opt }}</option>
@@ -214,7 +211,7 @@
                         <div class="border rounded p-2">
                             {% for opt in ['CE','FDA','FCC','RoHS','REACH','UL','UKCA','ISO','CCC','CB','PSE','KC','TUV','其他','暂无'] %}
                             <div class="form-check form-check-inline">
-                                <input class="form-check-input" type="checkbox" name="cert_product" value="{{ opt }}" id="cert_product_{{ loop.index }}" {% if opt in cert_product_values %}checked{% endif %} {% if is_new_product %}disabled{% endif %}>
+                                <input class="form-check-input" type="checkbox" name="cert_product" value="{{ opt }}" id="cert_product_{{ loop.index }}" {% if opt in cert_product_values %}checked{% endif %}>
                                 <label class="form-check-label" for="cert_product_{{ loop.index }}">{{ opt }}</label>
                             </div>
                             {% endfor %}
@@ -224,14 +221,14 @@
                     {% set cert_quality_val = request.form.get('cert_quality_report') if request.method == 'POST' else (extra.get('cert_quality_report') or '') %}
                     {% set cert_market_val = request.form.get('cert_market_access') if request.method == 'POST' else (extra.get('cert_market_access') or '') %}
                     {% set cert_validity_val = request.form.get('cert_validity_status') if request.method == 'POST' else (extra.get('cert_validity_status') or '') %}
-                    <div class="col-md-4"><label class="form-label">检测报告状态</label><select class="form-select" name="cert_test_report" {% if is_new_product %}disabled{% endif %}><option value="">请选择</option>{% for opt in ['已提供','未提供','不适用'] %}<option value="{{ opt }}" {% if cert_test_val == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
-                    <div class="col-md-4"><label class="form-label">质量报告状态</label><select class="form-select" name="cert_quality_report" {% if is_new_product %}disabled{% endif %}><option value="">请选择</option>{% for opt in ['已提供','未提供','不适用'] %}<option value="{{ opt }}" {% if cert_quality_val == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
-                    <div class="col-md-4"><label class="form-label">目标市场准入文件</label><select class="form-select" name="cert_market_access" {% if is_new_product %}disabled{% endif %}><option value="">请选择</option>{% for opt in ['已提供','未提供','不适用'] %}<option value="{{ opt }}" {% if cert_market_val == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
+                    <div class="col-md-4"><label class="form-label">检测报告状态</label><select class="form-select" name="cert_test_report"><option value="">请选择</option>{% for opt in ['已提供','未提供','不适用'] %}<option value="{{ opt }}" {% if cert_test_val == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
+                    <div class="col-md-4"><label class="form-label">质量报告状态</label><select class="form-select" name="cert_quality_report"><option value="">请选择</option>{% for opt in ['已提供','未提供','不适用'] %}<option value="{{ opt }}" {% if cert_quality_val == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
+                    <div class="col-md-4"><label class="form-label">目标市场准入文件</label><select class="form-select" name="cert_market_access"><option value="">请选择</option>{% for opt in ['已提供','未提供','不适用'] %}<option value="{{ opt }}" {% if cert_market_val == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
                     <div class="col-md-8">
                         <label class="form-label">认证补充说明</label>
-                        <textarea class="form-control" rows="3" name="cert_note" {% if is_new_product %}disabled{% endif %}>{{ request.form.get('cert_note') if request.method == 'POST' else (extra.get('cert_note') or '') }}</textarea>
+                        <textarea class="form-control" rows="3" name="cert_note">{{ request.form.get('cert_note') if request.method == 'POST' else (extra.get('cert_note') or '') }}</textarea>
                     </div>
-                    <div class="col-md-4"><label class="form-label">证书有效期状态</label><select class="form-select" name="cert_validity_status" {% if is_new_product %}disabled{% endif %}><option value="">请选择</option>{% for opt in ['全部有效','部分临期','部分过期','未核验'] %}<option value="{{ opt }}" {% if cert_validity_val == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
+                    <div class="col-md-4"><label class="form-label">证书有效期状态</label><select class="form-select" name="cert_validity_status"><option value="">请选择</option>{% for opt in ['全部有效','部分临期','部分过期','未核验'] %}<option value="{{ opt }}" {% if cert_validity_val == opt %}selected{% endif %}>{{ opt }}</option>{% endfor %}</select></div>
                 </div>
             </div>
             <div class="card">
@@ -247,7 +244,7 @@
                     <div id="productUploadRows" class="vstack gap-2">
                         <div class="row g-2 product-upload-row">
                             <div class="col-md-3">
-                                <select class="form-select" name="product_upload_type" {% if is_new_product %}disabled{% endif %}>
+                                <select class="form-select" name="product_upload_type">
                                     <option value="">请选择附件分类</option>
                                     {% for t in 产品文件类型选项 %}
                                     <option value="{{ t }}">{{ t }}</option>
@@ -255,14 +252,14 @@
                                 </select>
                             </div>
                             <div class="col-md-4">
-                                <input class="form-control" name="product_upload_name" placeholder="文件名称（可选）" {% if is_new_product %}disabled{% endif %}>
+                                <input class="form-control" name="product_upload_name" placeholder="文件名称（可选）">
                             </div>
                             <div class="col-md-5">
-                                <input class="form-control" type="file" name="product_upload_file" {% if is_new_product %}disabled{% endif %}>
+                                <input class="form-control" type="file" name="product_upload_file">
                             </div>
                         </div>
                     </div>
-                    <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="addProductUploadRow" {% if is_new_product %}disabled{% endif %}>+ 添加文件</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="addProductUploadRow">+ 添加文件</button>
                     <div class="form-text">文件命名规则：企业编号_产品编号_附件分类_文件说明_YYYYMMDD.ext；禁止 exe / bat / sh / js / cmd / com / msi / ps1。</div>
                 </div>
             </div>
@@ -298,7 +295,7 @@
             </div>
             {% endif %}
             <div class="mt-3 sticky-bottom bg-white pt-2">
-                <button class="btn btn-primary" type="submit" {% if is_new_product %}disabled{% endif %}>保存认证与附件</button>
+                <button class="btn btn-primary" type="submit">保存认证与附件</button>
             </div>
         </div>
     </div>

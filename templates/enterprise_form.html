@@ -221,17 +221,14 @@
 
         <div class="tab-pane fade" id="tab-pane-J" role="tabpanel" aria-labelledby="tab-btn-J" tabindex="0" data-module-pane data-module-key="J">
             <div>
-                    {% if 模式 == 'new' %}
-                    <div class="alert alert-warning py-2 mb-3">请先保存草稿后上传附件</div>
-                    {% endif %}
                     <div id="enterpriseUploadRows" class="vstack gap-2">
                         <div class="row g-2 enterprise-upload-row" data-module-field>
-                            <div class="col-md-3"><select class="form-select" name="enterprise_upload_type" {% if 模式 == 'new' %}disabled{% endif %}><option value="">请选择文件类型</option>{% for t in 企业文件类型选项 %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></div>
-                            <div class="col-md-4"><input class="form-control" name="enterprise_upload_name" placeholder="命名参数（证书名/联系人名/资料说明等）" {% if 模式 == 'new' %}disabled{% endif %}></div>
-                            <div class="col-md-5"><input class="form-control" type="file" name="enterprise_upload_file" {% if 模式 == 'new' %}disabled{% endif %}></div>
+                            <div class="col-md-3"><select class="form-select" name="enterprise_upload_type"><option value="">请选择文件类型</option>{% for t in 企业文件类型选项 %}<option value="{{ t }}">{{ t }}</option>{% endfor %}</select></div>
+                            <div class="col-md-4"><input class="form-control" name="enterprise_upload_name" placeholder="命名参数（证书名/联系人名/资料说明等）"></div>
+                            <div class="col-md-5"><input class="form-control" type="file" name="enterprise_upload_file"></div>
                         </div>
                     </div>
-                    <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="addEnterpriseUploadRow" {% if 模式 == 'new' %}disabled{% endif %}>+ 添加文件</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="addEnterpriseUploadRow">+ 添加文件</button>
                     <div class="form-text mt-2">
                         附件分类与格式：营业执照(PDF/JPG/PNG，必填)、企业宣传册(PDF/PPT/图片)、企业介绍PPT(PPT/PDF)、资质证书包(PDF/JPG/ZIP)、工厂/办公照片(JPG/PNG/视频，可多文件)、企业名片(JPG/PNG/PDF)、其他补充资料(常见安全格式)。
                     </div>
@@ -275,7 +272,7 @@
     <div class="card shadow-sm enterprise-action-sticky">
         <div class="card-body d-flex flex-wrap gap-2 justify-content-end">
             <button class="btn btn-outline-secondary" type="button" id="exitBtn">{{ '退出' if 模式 == 'new' else '退出编辑' }}</button>
-            <button class="btn btn-primary" type="submit" data-action="save" disabled>保存</button>
+            <button class="btn btn-primary" type="submit" data-action="save">保存</button>
         </div>
     </div>
 </form>
@@ -359,10 +356,9 @@
 
     const syncSaveState = () => {
         const missing = getMissingRequiredFields();
-        const disabled = missing.length > 0;
-        const title = disabled ? `请先填写必填项：${missing.map(([, label]) => label).join('、')}` : '';
+        const title = missing.length ? `可先保存草稿，待补充：${missing.map(([, label]) => label).join('、')}` : '';
         saveButtons.forEach((btn) => {
-            btn.disabled = disabled;
+            btn.disabled = false;
             btn.title = title;
         });
     };
@@ -371,12 +367,8 @@
         btn.addEventListener('click', () => { actionInput.value = btn.dataset.action; });
     });
 
-    form.addEventListener('submit', (event) => {
-        if ((actionInput.value || 'save') !== 'save') return;
-        const missing = getMissingRequiredFields();
-        if (!missing.length) return;
-        event.preventDefault();
-        alert(`请先填写必填项：${missing.map(([, label]) => label).join('、')}`);
+    form.addEventListener('submit', () => {
+        saveButtons.forEach((btn) => { btn.disabled = false; });
     });
 
     const exitBtn = document.getElementById('exitBtn');

@@ -1447,7 +1447,6 @@ def create_app():
         if request.method == "POST":
             操作动作 = (request.form.get("action") or "save").strip()
             重复确认通过 = (request.form.get("duplicate_confirmed") or "").strip() == "1"
-            本次有附件上传 = any(文件 and 文件.filename for 文件 in request.files.getlist("enterprise_upload_file"))
             行业代码, 行业名称 = 解析行业(request.form.get("industry_code"), request.form.get("industry_category"))
             扩展字段 = 提取企业扩展字段(request.form, 行业代码)
             扩展字段 = 兼容企业基础信息字段(Enterprise(), 扩展字段)
@@ -1455,9 +1454,11 @@ def create_app():
             联系人子表单 = 扩展字段.get("dynamic_contacts", [])
             主联系人数 = sum(1 for item in 联系人子表单 if item.get("is_primary_contact"))
             出口经验 = 扩展字段.get("export_experience")
+            企业编号 = 生成企业编号()
+            企业名称 = (扩展字段.get("company_full_name") or "").strip() or f"未命名企业-{企业编号}"
             企业 = Enterprise(
-                enterprise_code=生成企业编号(),
-                company_name=(扩展字段.get("company_full_name") or "").strip(),
+                enterprise_code=企业编号,
+                company_name=企业名称,
                 english_name=扩展字段.get("english_name") or None,
                 unified_social_credit_code=扩展字段.get("unified_social_credit_code") or None,
                 founded_date=读取日期(扩展字段.get("founded_date")),
@@ -1506,8 +1507,7 @@ def create_app():
 
             缺失必填字段 = 企业必填缺失字段(企业, 扩展字段)
             if 缺失必填字段:
-                flash(f"保存失败，缺失必填项：{'、'.join(缺失必填字段)}", "danger")
-                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
+                flash(f"已按草稿保存，待补充必填项：{'、'.join(缺失必填字段)}", "warning")
             if 主联系人数 > 1:
                 flash("联系人子表单中“是否主联系人”只能选择一位。", "danger")
                 return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
@@ -1539,17 +1539,13 @@ def create_app():
                     )
                 )
             try:
-                上传数 = 0
-                if 本次有附件上传:
-                    flash("请先保存草稿后上传附件", "warning")
-                else:
-                    上传数 = 处理表单文件上传(
-                        enterprise=企业,
-                        类型字段名="enterprise_upload_type",
-                        名称字段名="enterprise_upload_name",
-                        文件字段名="enterprise_upload_file",
-                        use_enterprise_naming=True,
-                    )
+                上传数 = 处理表单文件上传(
+                    enterprise=企业,
+                    类型字段名="enterprise_upload_type",
+                    名称字段名="enterprise_upload_name",
+                    文件字段名="enterprise_upload_file",
+                    use_enterprise_naming=True,
+                )
             except ValueError as exc:
                 flash(str(exc), "danger")
                 return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
@@ -1687,7 +1683,7 @@ def create_app():
             企业性质列表 = 扩展字段.get("enterprise_natures", [])
             联系人子表单 = 扩展字段.get("dynamic_contacts", [])
             主联系人数 = sum(1 for item in 联系人子表单 if item.get("is_primary_contact"))
-            企业.company_name = (扩展字段.get("company_full_name") or "").strip()
+            企业.company_name = (扩展字段.get("company_full_name") or "").strip() or 企业.company_name or f"未命名企业-{企业.enterprise_code}"
             企业.english_name = 扩展字段.get("english_name") or None
             企业.unified_social_credit_code = 扩展字段.get("unified_social_credit_code") or None
             企业.founded_date = 读取日期(扩展字段.get("founded_date"))
@@ -1750,8 +1746,7 @@ def create_app():
 
             缺失必填字段 = 企业必填缺失字段(企业, 扩展字段)
             if 缺失必填字段:
-                flash(f"保存失败，缺失必填项：{'、'.join(缺失必填字段)}", "danger")
-                return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {}), 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
+                flash(f"已按草稿保存，待补充必填项：{'、'.join(缺失必填字段)}", "warning")
             if 主联系人数 > 1:
                 flash("联系人子表单中“是否主联系人”只能选择一位。", "danger")
                 return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {}), 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
@@ -1973,16 +1968,43 @@ def create_app():
                 )
             db.session.add(product)
             db.session.flush()
-            附件主图 = request.form.get("main_image_from_attachment", "").strip()
-            if 附件主图:
-                product.main_image = 附件主图
-            上传主图 = 处理产品主图上传(product, enterprise)
-            if 上传主图:
-                product.main_image = 上传主图
+            try:
+                附件主图 = request.form.get("main_image_from_attachment", "").strip()
+                if 附件主图:
+                    product.main_image = 附件主图
+                上传主图 = 处理产品主图上传(product, enterprise)
+                if 上传主图:
+                    product.main_image = 上传主图
+                上传数 = 处理表单文件上传(
+                    enterprise=enterprise,
+                    product=product,
+                    类型字段名="product_upload_type",
+                    名称字段名="product_upload_name",
+                    文件字段名="product_upload_file",
+                    use_product_naming=True,
+                )
+            except ValueError as exc:
+                flash(str(exc), "danger")
+                return render_template(
+                    "products/form.html",
+                    form_action=url_for("product_new"),
+                    enterprises=enterprises,
+                    form_title="新增产品",
+                    sections=PRODUCT_FORM_SECTIONS,
+                    product=product,
+                    industries=行业下拉选项(),
+                    common_extra_groups=COMMON_PRODUCT_FIELD_GROUPS,
+                    industry_extra_groups=INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG,
+                    product_extra_values=兼容产品基础信息字段(product, product.product_extra_fields or {}),
+                    产品文件类型选项=PRODUCT_UPLOAD_TYPES,
+                    is_new_product=True,
+                    product_files=[],
+                    initial_tab=当前标签,
+                )
             记录审计日志("新增产品", "product", target_id=product.id, detail=product.product_name_cn)
             db.session.commit()
-            flash(f"产品概览已保存，编号：{product.product_code}。请继续维护 SKU 与附件信息。", "success")
-            return redirect(url_for("product_edit", product_id=product.id, tab="sku"))
+            flash(f"产品已保存，编号：{product.product_code}，上传文件 {上传数} 个。", "success")
+            return redirect(url_for("product_edit", product_id=product.id, tab=当前标签 or "overview"))
 
         return render_template(
             "products/form.html",
