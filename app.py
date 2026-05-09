@@ -106,50 +106,51 @@ PRODUCT_FORM_SECTIONS = [
 ]
 
 ENTERPRISE_UPLOAD_TYPES = [
+    "企业介绍",
     "营业执照",
-    "企业宣传册",
-    "企业介绍PPT",
-    "资质证书包",
-    "工厂/办公照片",
-    "企业名片",
-    "其他补充资料",
+    "BP/融资材料",
+    "工厂照片",
+    "资质荣誉",
+    "财务/经营资料",
+    "其他",
 ]
 
 PRODUCT_UPLOAD_TYPES = [
-    "产品认证",
-    "检测报告",
     "产品图片",
-    "产品视频",
-    "产品规格书",
-    "产品说明书",
-    "英文资料",
+    "产品目录",
     "报价单",
-    "包装资料",
-    "案例资料",
-    "其他文件",
+    "认证证书",
+    "检测报告",
+    "说明书",
+    "包装图",
+    "宣传视频",
+    "样品资料",
+    "其他",
 ]
 PRODUCT_MATERIAL_TYPE_MAPPING = [
     ("产品图片", "产品图片"),
-    ("产品视频", "产品视频"),
-    ("产品规格书", "产品规格书"),
-    ("产品说明书", "产品说明书"),
-    ("英文资料", "英文资料"),
-    ("宣传册", "包装资料"),
-    ("检测报告", "检测报告"),
-    ("认证文件", "产品认证"),
+    ("产品目录", "产品目录"),
     ("报价单", "报价单"),
-    ("案例资料", "案例资料"),
+    ("认证证书", "认证证书"),
+    ("检测报告", "检测报告"),
+    ("说明书", "说明书"),
+    ("包装图", "包装图"),
+    ("宣传视频", "宣传视频"),
+    ("样品资料", "样品资料"),
+    ("其他", "其他"),
 ]
 PRODUCT_MATERIAL_STATUS_FIELD_MAPPING = {
     "media_product_images": "产品图片",
-    "media_product_video": "产品视频",
-    "media_manual": "产品说明书",
-    "media_brochure": "包装资料",
-    "media_english_ppt": "英文资料",
-    "media_case_study": "案例资料",
+    "media_product_video": "宣传视频",
+    "media_manual": "说明书",
+    "media_brochure": "产品目录",
+    "media_english_ppt": "产品目录",
+    "media_case_study": "样品资料",
 }
 
-DOCUMENT_TYPE_OPTIONS = [(item, item) for item in ENTERPRISE_UPLOAD_TYPES + PRODUCT_UPLOAD_TYPES]
+ENTERPRISE_DOCUMENT_TYPE_OPTIONS = [(item, item) for item in ENTERPRISE_UPLOAD_TYPES]
+PRODUCT_DOCUMENT_TYPE_OPTIONS = [(item, item) for item in PRODUCT_UPLOAD_TYPES]
+DOCUMENT_TYPE_OPTIONS = [(item, item) for item in dict.fromkeys(ENTERPRISE_UPLOAD_TYPES + PRODUCT_UPLOAD_TYPES)]
 ENTERPRISE_SUB_FOLDERS = [
     "01_企业基础资料",
     "02_企业资质与合规文件",
@@ -167,7 +168,14 @@ ENTERPRISE_SUB_FOLDERS = [
 ]
 
 DOCUMENT_FOLDER_MAPPING = {
+    "企业介绍": "09_宣传展示资料",
     "营业执照": "01_企业基础资料",
+    "BP/融资材料": "03_企业经营与外贸能力",
+    "工厂照片": "10_图片视频与样品资料",
+    "资质荣誉": "02_企业资质与合规文件",
+    "财务/经营资料": "03_企业经营与外贸能力",
+    "其他": "13_风险审核与归档确认",
+    # 历史分类兼容：仅用于已上传存量附件的目录解析，不再出现在上传下拉框。
     "企业宣传册": "09_宣传展示资料",
     "企业介绍PPT": "09_宣传展示资料",
     "资质证书包": "02_企业资质与合规文件",
@@ -183,11 +191,14 @@ DOCUMENT_FOLDER_MAPPING = {
     "产品信息表": "04_产品目录与产品信息表",
     "产品规格书": "05_产品规格与技术资料",
     "产品说明书": "05_产品规格与技术资料",
+    "说明书": "05_产品规格与技术资料",
     "技术资料": "05_产品规格与技术资料",
     "检测报告": "06_产品认证与检测报告",
+    "认证证书": "06_产品认证与检测报告",
     "产品认证": "06_产品认证与检测报告",
     "报价单": "07_报价与交易条件",
     "交易条件": "07_报价与交易条件",
+    "包装图": "08_包装物流与交付资料",
     "包装资料": "08_包装物流与交付资料",
     "物流资料": "08_包装物流与交付资料",
     "宣传PPT": "09_宣传展示资料",
@@ -197,6 +208,7 @@ DOCUMENT_FOLDER_MAPPING = {
     "尽调照片": "10_图片视频与样品资料",
     "尽调视频": "10_图片视频与样品资料",
     "产品图片": "10_图片视频与样品资料",
+    "宣传视频": "10_图片视频与样品资料",
     "产品视频": "10_图片视频与样品资料",
     "样品资料": "10_图片视频与样品资料",
     "案例资料": "11_客户案例与项目案例",
@@ -211,13 +223,13 @@ DOCUMENT_FOLDER_MAPPING = {
 }
 
 ENTERPRISE_TYPE_ALLOWED_EXTENSIONS = {
+    "企业介绍": {".pdf", ".ppt", ".pptx", ".doc", ".docx", ".jpg", ".jpeg", ".png", ".webp"},
     "营业执照": {".pdf", ".jpg", ".jpeg", ".png"},
-    "企业宣传册": {".pdf", ".ppt", ".pptx", ".jpg", ".jpeg", ".png", ".webp"},
-    "企业介绍PPT": {".ppt", ".pptx", ".pdf"},
-    "资质证书包": {".pdf", ".jpg", ".jpeg", ".zip"},
-    "工厂/办公照片": {".jpg", ".jpeg", ".png", ".mp4", ".mov", ".avi", ".mkv", ".webm"},
-    "企业名片": {".jpg", ".jpeg", ".png", ".pdf"},
-    "其他补充资料": {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".jpg", ".jpeg", ".png", ".zip", ".rar", ".7z", ".txt", ".csv", ".mp4", ".mov"},
+    "BP/融资材料": {".pdf", ".ppt", ".pptx", ".doc", ".docx", ".xls", ".xlsx"},
+    "工厂照片": {".jpg", ".jpeg", ".png", ".webp", ".mp4", ".mov", ".avi", ".mkv", ".webm"},
+    "资质荣誉": {".pdf", ".jpg", ".jpeg", ".png", ".webp", ".zip"},
+    "财务/经营资料": {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".csv", ".zip"},
+    "其他": {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".jpg", ".jpeg", ".png", ".webp", ".zip", ".rar", ".7z", ".txt", ".csv", ".mp4", ".mov"},
 }
 
 PROJECT_STAGE_OPTIONS = [
@@ -941,26 +953,22 @@ def create_app():
         说明文本 = 清洗路径片段(自定义名称 or "")
         if document_type == "营业执照":
             return f"{企业编号}_{企业简称}_营业执照_{日期文本}{extension}"
-        if document_type == "企业介绍PPT":
-            语言 = "中文"
-            版本日期 = 日期文本
-            if 说明文本:
-                片段 = [item for item in 说明文本.split("_") if item]
-                if len(片段) >= 1:
-                    语言 = 片段[0]
-                if len(片段) >= 2:
-                    版本日期 = 片段[1]
-            return f"{企业编号}_{企业简称}_企业介绍PPT_{语言}_{版本日期}{extension}"
-        if document_type == "资质证书包":
-            证书名称 = 说明文本 or "资质证书"
-            return f"{企业编号}_{企业简称}_{证书名称}_有效期至{日期文本}{extension}"
-        if document_type == "工厂/办公照片":
+        if document_type == "企业介绍":
+            资料说明 = 说明文本 or "企业介绍"
+            return f"{企业编号}_{企业简称}_{资料说明}_{日期文本}{extension}"
+        if document_type == "BP/融资材料":
+            资料说明 = 说明文本 or "BP融资材料"
+            return f"{企业编号}_{企业简称}_{资料说明}_{日期文本}{extension}"
+        if document_type == "资质荣誉":
+            证书名称 = 说明文本 or "资质荣誉"
+            return f"{企业编号}_{企业简称}_{证书名称}_{日期文本}{extension}"
+        if document_type == "工厂照片":
             return f"{企业编号}_{企业简称}_工厂照片_{上传序号:02d}_{日期文本}{extension}"
-        if document_type == "企业名片":
-            联系人 = 说明文本 or "联系人"
-            return f"{企业编号}_{联系人}_名片_{日期文本}{extension}"
-        if document_type == "其他补充资料":
-            资料说明 = 说明文本 or "补充资料"
+        if document_type == "财务/经营资料":
+            资料说明 = 说明文本 or "财务经营资料"
+            return f"{企业编号}_{企业简称}_{资料说明}_{日期文本}{extension}"
+        if document_type == "其他":
+            资料说明 = 说明文本 or "其他"
             return f"{企业编号}_{企业简称}_{资料说明}_{日期文本}{extension}"
         return None
 
@@ -968,7 +976,7 @@ def create_app():
         日期文本 = datetime.now().strftime("%Y%m%d")
         企业编号 = 清洗路径片段(enterprise.enterprise_code or "E000")
         产品编号 = 清洗路径片段(product.product_code or "P000")
-        文件分类 = 清洗路径片段(document_type or "其他文件")
+        文件分类 = 清洗路径片段(document_type or "其他")
         文件说明 = 清洗路径片段(自定义名称 or "未命名文件")
         return f"{企业编号}_{产品编号}_{文件分类}_{文件说明}_{日期文本}{extension}"
 
@@ -986,6 +994,10 @@ def create_app():
             自定义名称 = (名称列表[索引] if 索引 < len(名称列表) else "").strip()
             if not 文件类型:
                 raise ValueError("存在未选择文件类型的上传项。")
+            if use_enterprise_naming and 文件类型 not in ENTERPRISE_UPLOAD_TYPES:
+                raise ValueError(f"企业附件分类“{文件类型}”不在允许范围内。")
+            if use_product_naming and 文件类型 not in PRODUCT_UPLOAD_TYPES:
+                raise ValueError(f"产品附件分类“{文件类型}”不在允许范围内。")
             原始名称 = Path(上传文件.filename).stem
             文件名称 = 清洗路径片段(自定义名称 or 原始名称) or "未命名文件"
             扩展名 = Path(上传文件.filename).suffix.lower()
@@ -2505,29 +2517,32 @@ def create_app():
     def document_upload():
         enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
 
+        def 渲染上传页(products, form_data, document_types):
+            return render_template(
+                "documents/upload.html",
+                enterprises=enterprises,
+                products=products,
+                document_types=document_types,
+                enterprise_document_types=ENTERPRISE_DOCUMENT_TYPE_OPTIONS,
+                product_document_types=PRODUCT_DOCUMENT_TYPE_OPTIONS,
+                form_data=form_data,
+            )
+
         if request.method == "POST":
             enterprise_id = request.form.get("enterprise_id", type=int)
             enterprise = Enterprise.query.get(enterprise_id) if enterprise_id else None
             if not enterprise:
                 flash("所属企业为必填项。", "danger")
-                return render_template(
-                    "documents/upload.html",
-                    enterprises=enterprises,
-                    products=[],
-                    document_types=DOCUMENT_TYPE_OPTIONS,
-                    form_data=request.form,
-                )
+                return 渲染上传页([], request.form, ENTERPRISE_DOCUMENT_TYPE_OPTIONS)
 
             product_id = request.form.get("product_id", type=int)
             product = Product.query.filter_by(id=product_id, enterprise_id=enterprise.id).first() if product_id else None
             if product_id and not product:
                 flash("所属产品不属于当前企业，请重新选择。", "danger")
-                return render_template(
-                    "documents/upload.html",
-                    enterprises=enterprises,
-                    products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
-                    document_types=DOCUMENT_TYPE_OPTIONS,
-                    form_data=request.form,
+                return 渲染上传页(
+                    Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
+                    request.form,
+                    PRODUCT_DOCUMENT_TYPE_OPTIONS if product_id else ENTERPRISE_DOCUMENT_TYPE_OPTIONS,
                 )
 
             document_type = request.form.get("document_type", "").strip()
@@ -2537,60 +2552,49 @@ def create_app():
             notes = request.form.get("notes", "").strip() or None
             if not document_type:
                 flash("文件类型为必填项。", "danger")
-                return render_template(
-                    "documents/upload.html",
-                    enterprises=enterprises,
-                    products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
-                    document_types=DOCUMENT_TYPE_OPTIONS,
-                    form_data=request.form,
+                return 渲染上传页(
+                    Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
+                    request.form,
+                    PRODUCT_DOCUMENT_TYPE_OPTIONS if product_id else ENTERPRISE_DOCUMENT_TYPE_OPTIONS,
                 )
-            if document_type not in {code for code, _ in DOCUMENT_TYPE_OPTIONS}:
-                flash("文件类型不在允许范围内。", "danger")
-                return render_template(
-                    "documents/upload.html",
-                    enterprises=enterprises,
-                    products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
-                    document_types=DOCUMENT_TYPE_OPTIONS,
-                    form_data=request.form,
+            允许文件类型 = PRODUCT_UPLOAD_TYPES if product else ENTERPRISE_UPLOAD_TYPES
+            if document_type not in 允许文件类型:
+                flash("文件类型不在当前归档对象允许范围内。", "danger")
+                return 渲染上传页(
+                    Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
+                    request.form,
+                    PRODUCT_DOCUMENT_TYPE_OPTIONS if product else ENTERPRISE_DOCUMENT_TYPE_OPTIONS,
                 )
             if not document_name:
                 flash("文件名称为必填项。", "danger")
-                return render_template(
-                    "documents/upload.html",
-                    enterprises=enterprises,
-                    products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
-                    document_types=DOCUMENT_TYPE_OPTIONS,
-                    form_data=request.form,
+                return 渲染上传页(
+                    Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
+                    request.form,
+                    PRODUCT_DOCUMENT_TYPE_OPTIONS if product_id else ENTERPRISE_DOCUMENT_TYPE_OPTIONS,
                 )
             上传文件 = request.files.get("file")
             if not 上传文件 or not 上传文件.filename:
                 flash("请选择需要上传的文件。", "danger")
-                return render_template(
-                    "documents/upload.html",
-                    enterprises=enterprises,
-                    products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
-                    document_types=DOCUMENT_TYPE_OPTIONS,
-                    form_data=request.form,
+                return 渲染上传页(
+                    Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
+                    request.form,
+                    PRODUCT_DOCUMENT_TYPE_OPTIONS if product_id else ENTERPRISE_DOCUMENT_TYPE_OPTIONS,
                 )
 
             扩展名 = Path(上传文件.filename).suffix.lower()
             if 扩展名 in BLOCKED_EXTENSIONS:
                 flash("文件类型不允许上传。", "danger")
-                return render_template(
-                    "documents/upload.html",
-                    enterprises=enterprises,
-                    products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
-                    document_types=DOCUMENT_TYPE_OPTIONS,
-                    form_data=request.form,
+                return 渲染上传页(
+                    Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
+                    request.form,
+                    PRODUCT_DOCUMENT_TYPE_OPTIONS if product_id else ENTERPRISE_DOCUMENT_TYPE_OPTIONS,
                 )
             if request.content_length and request.content_length > MAX_UPLOAD_SIZE:
                 flash("单文件大小不能超过 100MB。", "danger")
-                return render_template(
-                    "documents/upload.html",
-                    enterprises=enterprises,
-                    products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
-                    document_types=DOCUMENT_TYPE_OPTIONS,
-                    form_data=request.form,
+                return 渲染上传页(
+                    Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
+                    request.form,
+                    PRODUCT_DOCUMENT_TYPE_OPTIONS if product_id else ENTERPRISE_DOCUMENT_TYPE_OPTIONS,
                 )
 
             try:
@@ -2606,12 +2610,10 @@ def create_app():
                 )
             except ValueError as exc:
                 flash(str(exc), "danger")
-                return render_template(
-                    "documents/upload.html",
-                    enterprises=enterprises,
-                    products=Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
-                    document_types=DOCUMENT_TYPE_OPTIONS,
-                    form_data=request.form,
+                return 渲染上传页(
+                    Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
+                    request.form,
+                    PRODUCT_DOCUMENT_TYPE_OPTIONS if product_id else ENTERPRISE_DOCUMENT_TYPE_OPTIONS,
                 )
             document.version = version
             记录审计日志("上传文件", "document", target_id=document.id, detail=document.document_name)
@@ -2622,15 +2624,13 @@ def create_app():
         default_enterprise_id = request.args.get("enterprise_id", type=int)
         default_product_id = request.args.get("product_id", type=int)
         products = Product.query.filter_by(enterprise_id=default_enterprise_id).order_by(Product.product_name_cn.asc()).all() if default_enterprise_id else []
-        return render_template(
-            "documents/upload.html",
-            enterprises=enterprises,
-            products=products,
-            document_types=DOCUMENT_TYPE_OPTIONS,
-            form_data={
+        return 渲染上传页(
+            products,
+            {
                 "enterprise_id": default_enterprise_id,
                 "product_id": default_product_id,
             } if default_enterprise_id else {},
+            PRODUCT_DOCUMENT_TYPE_OPTIONS if default_product_id else ENTERPRISE_DOCUMENT_TYPE_OPTIONS,
         )
 
     @app.route("/documents/<int:document_id>/download")
