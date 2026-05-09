@@ -13,7 +13,7 @@ COMMON_ENTERPRISE_FIELD_GROUPS = [
             {"key": "english_name", "label": "英文名称", "type": "text"},
             {"key": "financing_stage", "label": "融资阶段", "type": "select", "options": ["未融资", "天使轮", "Pre-A轮", "A轮", "B轮", "C轮", "D轮及以后", "战略融资", "已上市", "未披露"]},
             {"key": "employee_count_range", "label": "人员规模", "type": "select", "options": ["1-20人", "21-50人", "51-100人", "101-300人", "301-500人", "501-1000人", "1000人以上", "未披露"]},
-            {"key": "primary_industry", "label": "一级行业", "type": "select_or_text", "options": ["工业机械与装备", "电子电器与智能硬件", "电力、电缆与能源设备", "新能源与节能环保", "汽车、摩托车与零部件", "低空经济与航空装备", "五金、建材与建筑工程", "化工、塑料与新材料", "纺织、面辅料与家纺", "服装服饰与鞋帽箱包", "家居、家具与生活用品", "食品、农产品与饮料", "园艺、花卉与农林设备", "畜牧、水产与宠物产业", "医疗器械与健康产品", "母婴、个护与美妆", "零售消费品与礼品", "劳保、安防与应急装备", "游戏、动漫与文化创意", "数字科技与专业服务"]},
+            {"key": "core_products", "label": "核心产品", "type": "textarea", "placeholder": "请填写企业核心产品，例如：工业传感器、控制模块", "span_full_row": True},
             {"key": "province", "label": "省份", "type": "text", "placeholder": "例如：广东省"},
             {"key": "city", "label": "城市", "type": "text", "placeholder": "例如：深圳市"},
             {"key": "website", "label": "企业网址", "type": "url", "placeholder": "http://example.com"},
