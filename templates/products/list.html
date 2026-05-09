@@ -153,7 +153,7 @@
 {% endif %}
 
 <div class="modal fade" id="productExportModal" tabindex="-1" aria-labelledby="productExportModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-xl">
         <form class="modal-content" method="get" action="{{ url_for('export_products_filtered') }}">
             <div class="modal-header">
                 <h5 class="modal-title" id="productExportModalLabel">选择产品导出列</h5>
@@ -163,7 +163,8 @@
                 {% for name in ['keyword','enterprise','industry','category','product_type','export_suitability','recommendation_level','certification_status','target_market','status'] %}
                 <input type="hidden" name="{{ name }}" value="{{ filters.get(name, '') }}">
                 {% endfor %}
-                <div class="row g-2">
+                <div class="alert alert-light border small mb-3">已包含新增/编辑产品时可填写的基础信息、非必填项和行业专项属性。</div>
+                <div class="row g-2 overflow-auto" style="max-height: 55vh;">
                     {% for key, label in product_export_columns %}
                     <div class="col-md-4">
                         <div class="form-check">
