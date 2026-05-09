@@ -410,6 +410,25 @@ class ImportError(AuditSoftDeleteMixin, db.Model):
     batch = db.relationship("ImportBatch", backref=db.backref("errors", lazy="dynamic", cascade="all, delete-orphan"))
 
 
+
+
+class ImportSupplementItem(AuditSoftDeleteMixin, db.Model):
+    """导入后待补充资料清单明细。"""
+
+    __tablename__ = "import_supplement_items"
+
+    id = db.Column(db.Integer, primary_key=True)
+    batch_id = db.Column(db.Integer, db.ForeignKey("import_batches.id", ondelete="CASCADE"), nullable=False, index=True)
+    row_number = db.Column(db.Integer)
+    enterprise_name = db.Column(db.String(255), index=True)
+    product_name = db.Column(db.String(255), index=True)
+    contact_info = db.Column(db.String(255))
+    missing_items = db.Column(db.Text, nullable=False)
+    suggestion = db.Column(db.Text)
+
+    batch = db.relationship("ImportBatch", backref=db.backref("supplement_items", lazy="dynamic", cascade="all, delete-orphan"))
+
+
 class ExportLog(AuditSoftDeleteMixin, db.Model):
     """导出审计日志。"""
 

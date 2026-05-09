@@ -42,6 +42,7 @@ from models import (
     ExportLog,
     ImportBatch,
     ImportError,
+    ImportSupplementItem,
     User,
     db,
 )
@@ -735,8 +736,8 @@ def create_app():
             ext["valuation"] = (ext.get("market_value") or ext.get("valuation_amount") or "").strip()
         if not ext.get("employee_count_range"):
             ext["employee_count_range"] = 估算人员规模(企业.employee_count) or (ext.get("employee_size") or "").strip()
-        if not ext.get("primary_industry"):
-            ext["primary_industry"] = (ext.get("industry_name") or 企业.industry_category or "").strip()
+        if not ext.get("core_products"):
+            ext["core_products"] = (企业.main_products or ext.get("main_products") or "").strip()
         if not ext.get("website"):
             ext["website"] = (ext.get("official_website") or "").strip()
         if not ext.get("operating_status"):
@@ -793,8 +794,8 @@ def create_app():
             ("企业简称", ext.get("company_short_name")),
             ("成立时间", ext.get("founded_date") or (企业.founded_date.strftime("%Y-%m-%d") if 企业.founded_date else "")),
             ("行业分类", 企业.industry_code),
-            ("行业名称", 企业.industry_category or ext.get("primary_industry")),
-            ("一级行业", ext.get("primary_industry")),
+            ("行业名称", 企业.industry_category or ext.get("industry")),
+            ("核心产品", ext.get("core_products") or 企业.main_products),
             ("企业网址", ext.get("website")),
             ("运营状态", ext.get("operating_status")),
             ("公司类型", ext.get("company_type") or 企业.company_type),
@@ -1230,6 +1231,13 @@ def create_app():
             abort(404)
         return 发送导出Excel("导入错误报告", "单批次", [("导入错误报告", IMPORT_ERROR_HEADERS, rows)], filters={"batch_id": batch_id})
 
+    @app.get("/export/import-supplements/<int:batch_id>")
+    def export_import_supplements(batch_id):
+        batch, rows = 构建待补充资料清单Sheet(batch_id)
+        if not batch:
+            abort(404)
+        return 发送导出Excel("待补充资料清单", "单批次", [("待补充资料清单", SUPPLEMENT_LIST_HEADERS, rows)], filters={"batch_id": batch_id})
+
     @app.get("/export/enterprise/<int:enterprise_id>/package")
     def export_enterprise_package(enterprise_id):
         enterprise = Enterprise.query.get_or_404(enterprise_id)
@@ -1271,6 +1279,9 @@ def create_app():
             "英文名称",
             "统一社会信用代码",
             "省市",
+            "联系人",
+            "联系电话",
+            "邮箱",
             "核心产品",
             "年销售额",
             "年出口额",
@@ -1287,6 +1298,9 @@ def create_app():
             "Example Tech Co., Ltd.",
             "91310000MA1EXAMPLE",
             "广东省 / 深圳市",
+            "张三",
+            "13800138000",
+            "contact@example.com",
             "工业传感器、控制模块",
             "5000万-1亿",
             "1000万-5000万",
@@ -1352,14 +1366,16 @@ def create_app():
             if not 上传文件 or not 上传文件.filename:
                 flash("请先选择企业 Excel 文件。", "danger")
                 return redirect(url_for("import_enterprises", next=返回地址))
+            批次 = 创建导入批次(上传文件, "enterprise")
             try:
-                成功条数, 失败列表 = 导入企业Excel(上传文件)
+                成功条数, 失败列表 = 导入企业Excel(上传文件, 批次)
             except ValueError as exc:
+                db.session.rollback()
                 flash(str(exc), "danger")
                 return redirect(url_for("import_enterprises", next=返回地址))
-            记录审计日志("导入 Excel", "enterprise", detail=f"success={成功条数}, failed={len(失败列表)}")
+            记录审计日志("导入 Excel", "enterprise", detail=f"batch={批次.id}, success={成功条数}, failed={len(失败列表)}")
             db.session.commit()
-            return render_template("import_result.html", 标题="企业导入结果", 成功条数=成功条数, 失败列表=失败列表, 返回地址=返回地址, 返回文案="返回企业库")
+            return render_template("import_result.html", 标题="企业导入结果", 成功条数=成功条数, 失败列表=失败列表, 返回地址=返回地址, 返回文案="返回企业库", 导入批次=批次)
         return render_template(
             "import_form.html",
             标题="企业 Excel 导入",
@@ -1367,7 +1383,7 @@ def create_app():
             返回地址=返回地址,
             返回文案="返回企业库",
             字段提示=企业导入字段提示(),
-            必填字段=["企业全称"],
+            必填字段=["企业全称", "核心产品", "联系方式"],
             模板下载地址=url_for("download_enterprise_import_template"),
             模板下载文案="下载企业导入模板",
         )
@@ -1382,14 +1398,16 @@ def create_app():
             if not 上传文件 or not 上传文件.filename:
                 flash("请先选择产品 Excel 文件。", "danger")
                 return redirect(url_for("import_products", next=返回地址))
+            批次 = 创建导入批次(上传文件, "product")
             try:
-                成功条数, 失败列表 = 导入产品Excel(上传文件)
+                成功条数, 失败列表 = 导入产品Excel(上传文件, 批次)
             except ValueError as exc:
+                db.session.rollback()
                 flash(str(exc), "danger")
                 return redirect(url_for("import_products", next=返回地址))
-            记录审计日志("导入 Excel", "product", detail=f"success={成功条数}, failed={len(失败列表)}")
+            记录审计日志("导入 Excel", "product", detail=f"batch={批次.id}, success={成功条数}, failed={len(失败列表)}")
             db.session.commit()
-            return render_template("import_result.html", 标题="产品导入结果", 成功条数=成功条数, 失败列表=失败列表, 返回地址=返回地址, 返回文案="返回产品库")
+            return render_template("import_result.html", 标题="产品导入结果", 成功条数=成功条数, 失败列表=失败列表, 返回地址=返回地址, 返回文案="返回产品库", 导入批次=批次)
         return render_template(
             "import_form.html",
             标题="产品 Excel 导入",
@@ -1397,7 +1415,7 @@ def create_app():
             返回地址=返回地址,
             返回文案="返回产品库",
             字段提示=产品导入字段提示(),
-            必填字段=["所属企业编号或所属企业名称", "产品名称（或产品中文名）"],
+            必填字段=["所属企业编号或所属企业名称", "产品名称（或产品中文名）", "HS编码"],
             模板下载地址=url_for("download_product_import_template"),
             模板下载文案="下载产品导入模板",
         )
@@ -3343,7 +3361,7 @@ ENTERPRISE_EXPORT_BASE_COLUMNS = [
     ("phone", "联系电话"),
     ("email", "邮箱"),
     ("main_business", "主营业务"),
-    ("main_products", "主要产品"),
+    ("main_products", "核心产品"),
     ("export_experience", "出口经验"),
     ("export_countries", "出口国家"),
     ("target_markets", "目标市场"),
@@ -3474,7 +3492,8 @@ def 企业导出行(enterprise, contact, completeness, columns):
         "industry_code": enterprise.industry_code,
         "industry_category": enterprise.industry_category or 行业默认名称(enterprise.industry_code),
         "industry": enterprise.industry_category or ext.get("industry") or 行业默认名称(enterprise.industry_code),
-        "primary_industry": ext.get("primary_industry") or enterprise.industry_category or 行业默认名称(enterprise.industry_code),
+        "primary_industry": ext.get("industry") or enterprise.industry_category or 行业默认名称(enterprise.industry_code),
+        "core_products": ext.get("core_products") or enterprise.main_products,
         "sub_industry": enterprise.sub_industry,
         "company_type": 企业类型文本(enterprise),
         "region": 省市区文本(enterprise),
@@ -3696,6 +3715,7 @@ def 构建附件清单Sheet(enterprise_id=None, product_id=None, include_enterpr
 
 
 IMPORT_ERROR_HEADERS = ["导入批次号", "导入文件名", "数据行号", "错误字段", "错误原因", "原始值", "建议修正方式", "导入时间", "操作人"]
+SUPPLEMENT_LIST_HEADERS = ["导入批次号", "导入文件名", "数据行号", "企业名称", "产品名称", "联系方式", "待补充资料", "给企业的补充说明", "生成时间", "操作人"]
 
 
 def 构建导入错误报告Sheet(batch_id):
@@ -3705,6 +3725,28 @@ def 构建导入错误报告Sheet(batch_id):
     rows = []
     for error in batch.errors.order_by(ImportError.row_number.asc(), ImportError.id.asc()).all():
         rows.append([batch.batch_no, batch.file_name, error.row_number, error.field_name, error.error_reason, error.raw_value, error.suggestion, error.created_at, batch.operator])
+    return batch, rows
+
+
+
+def 构建待补充资料清单Sheet(batch_id):
+    batch = ImportBatch.query.get(batch_id)
+    if not batch:
+        return None, []
+    rows = []
+    for item in batch.supplement_items.order_by(ImportSupplementItem.row_number.asc(), ImportSupplementItem.id.asc()).all():
+        rows.append([
+            batch.batch_no,
+            batch.file_name,
+            item.row_number,
+            item.enterprise_name,
+            item.product_name,
+            item.contact_info,
+            item.missing_items,
+            item.suggestion,
+            item.created_at,
+            batch.operator,
+        ])
     return batch, rows
 
 def 填充项目字段(project, form):
@@ -3821,7 +3863,10 @@ def 企业导入字段提示():
         ("英文名称", "对应基本信息-英文名称"),
         ("统一社会信用代码", "对应工商信息-统一社会信用代码"),
         ("省市", "对应基本信息-省份、城市，格式建议为“省 / 市”"),
-        ("核心产品", "对应企业核心产品"),
+        ("联系人", "企业联系人姓名（联系方式必填项之一）"),
+        ("联系电话", "企业联系电话或手机（联系方式必填项之一）"),
+        ("邮箱", "企业联系邮箱（联系方式必填项之一）"),
+        ("核心产品", "对应企业核心产品（必填）"),
         ("年销售额", "对应财务信用-年营业收入区间"),
         ("年出口额", "对应财务信用-年出口额区间"),
         ("是否有出口经验", "对应外贸能力-是否有出口经验，支持是/否"),
@@ -3841,7 +3886,7 @@ def 产品导入字段提示():
         ("所属企业编号", "与“所属企业名称”二选一必填；按企业编号匹配"),
         ("产品品类", "对应产品概览-基础信息-产品品类，兼容旧列名“产品类别”"),
         ("产品类型", "对应产品概览-基础信息-产品类型"),
-        ("HS编码", "对应产品概览-基础信息-HS编码"),
+        ("HS编码", "对应产品概览-基础信息-HS编码（必填）"),
         ("MOQ", "对应产品概览-交易摘要-MOQ"),
         ("交期", "对应产品概览-交易摘要-交期，兼容旧列名“批量生产周期”"),
         ("均价", "对应产品概览-交易摘要-价格展示（兼容列名“价格展示”）"),
@@ -3928,24 +3973,102 @@ def 解析省市(value):
     return parts[0] or None, parts[1] or None
 
 
-def 导入企业Excel(file_storage):
+
+
+导入错误字段建议 = {
+    "企业名称": "请填写营业执照上的企业全称。",
+    "企业全称": "请填写营业执照上的企业全称。",
+    "产品名称": "请填写产品中文名称。",
+    "HS编码": "请补充准确 HS 编码，建议由企业外贸/报关负责人确认。",
+    "联系方式": "请至少补充联系人姓名、手机/电话或邮箱中的一种有效联系方式。",
+    "核心产品": "请填写企业核心产品，多个产品可用顿号分隔。",
+    "所属企业": "请填写可匹配的所属企业名称或企业编号。",
+}
+
+
+def 创建导入批次(file_storage, import_type):
+    批次 = ImportBatch(
+        batch_no=f"IMP-{datetime.now().strftime('%Y%m%d%H%M%S')}-{int(time.time() * 1000) % 1000:03d}",
+        file_name=file_storage.filename or "未命名导入文件",
+        import_type=import_type,
+        operator=session.get("用户") or "system",
+    )
+    db.session.add(批次)
+    db.session.flush()
+    return 批次
+
+
+def 记录导入错误(batch, row_number, field_name, error_reason, raw_value="", suggestion=None):
+    if not batch:
+        return
+    db.session.add(
+        ImportError(
+            batch_id=batch.id,
+            row_number=row_number,
+            field_name=field_name,
+            error_reason=error_reason,
+            raw_value=单元格文本(raw_value),
+            suggestion=suggestion or 导入错误字段建议.get(field_name) or "请核对该字段后重新导入。",
+        )
+    )
+
+
+def 记录待补充资料(batch, row_number, enterprise_name, product_name, missing_items, contact_info=""):
+    if not batch or not missing_items:
+        return
+    清单文本 = "、".join(dict.fromkeys([item for item in missing_items if item]))
+    db.session.add(
+        ImportSupplementItem(
+            batch_id=batch.id,
+            row_number=row_number,
+            enterprise_name=enterprise_name or "",
+            product_name=product_name or "",
+            contact_info=contact_info or "",
+            missing_items=清单文本,
+            suggestion=f"请企业补充：{清单文本}。",
+        )
+    )
+
+
+def 导入行上下文(row, idx, 字段名列表):
+    return "；".join(f"{字段名}={读取行字段(row, idx, 字段名)}" for 字段名 in 字段名列表 if 字段名 in idx)
+
+def 导入企业Excel(file_storage, batch=None):
     rows = 读取导入表格(file_storage)
     if not rows:
         return 0, [{"行号": 1, "原因": "文件为空", "数据": {}}]
     header = [单元格文本(c) for c in rows[0]]
     idx = {name: i for i, name in enumerate(header)}
-    必填 = ["企业全称"]
+    联系字段 = ["联系人", "联系人姓名", "联系电话", "手机", "电话", "邮箱", "联系方式"]
+    必填 = ["企业全称", "核心产品"]
     缺失 = [f for f in 必填 if f not in idx]
+    if not any(f in idx for f in 联系字段):
+        缺失.append("联系方式")
     if 缺失:
-        return 0, [{"行号": 1, "原因": f"缺少必填列: {', '.join(缺失)}", "数据": {}}]
+        原因 = f"缺少必填列: {', '.join(缺失)}"
+        for 字段 in 缺失:
+            记录导入错误(batch, 1, 字段, 原因, suggestion=导入错误字段建议.get(字段))
+        return 0, [{"行号": 1, "原因": 原因, "数据": {}}]
 
     success = 0
     failed = []
     for row_num, row in enumerate(rows[1:], start=2):
         try:
             company_name = 单元格文本(row[idx["企业全称"]])
+            core_products = 读取行字段(row, idx, "核心产品")
+            contact_info = 取首个存在字段值(row, idx, "联系方式", "联系人", "联系人姓名", "联系电话", "手机", "电话", "邮箱")
+            行错误 = []
             if not company_name:
-                raise ValueError("企业全称不能为空")
+                行错误.append(("企业全称", "企业名称缺失"))
+            if not core_products:
+                行错误.append(("核心产品", "核心产品缺失"))
+            if not contact_info:
+                行错误.append(("联系方式", "联系方式缺失"))
+            if 行错误:
+                上下文 = 导入行上下文(row, idx, ["企业编号", "企业全称", "核心产品", "联系人", "联系电话", "手机", "邮箱", "联系方式"])
+                for 字段, 原因 in 行错误:
+                    记录导入错误(batch, row_num, 字段, 原因, 上下文, 导入错误字段建议.get(字段))
+                raise ValueError("；".join(原因 for _, 原因 in 行错误))
             enterprise_code = 单元格文本(row[idx["企业编号"]]) if "企业编号" in idx else ""
             enterprise = Enterprise.query.filter_by(enterprise_code=enterprise_code).first() if enterprise_code else None
             if not enterprise:
@@ -3972,7 +4095,10 @@ def 导入企业Excel(file_storage):
                 enterprise.is_oem_odm = "OEM/ODM工厂" in tokens or "OEM" in tokens or "ODM" in tokens
                 enterprise.is_service_provider = "服务商" in tokens
             enterprise.main_business = 单元格文本(row[idx["主营业务"]]) or None if "主营业务" in idx else None
-            enterprise.main_products = 单元格文本(row[idx["核心产品"]]) or None if "核心产品" in idx else None
+            enterprise.main_products = core_products or None
+            ext["core_products"] = core_products or None
+            if contact_info:
+                ext["import_contact_info"] = contact_info
             enterprise.export_countries = 单元格文本(row[idx["出口国家"]]) or None if "出口国家" in idx else None
             enterprise.target_markets = 单元格文本(row[idx["目标市场"]]) or None if "目标市场" in idx else None
             enterprise.factory_area = 单元格文本(row[idx["厂房面积"]]) or None if "厂房面积" in idx else None
@@ -3997,21 +4123,31 @@ def 导入企业Excel(file_storage):
             enterprise.enterprise_extra_fields = 清理企业扩展字段(ext)
             success += 1
         except Exception as exc:
+            if batch and not batch.errors.filter_by(row_number=row_num).first():
+                记录导入错误(batch, row_num, "整行", str(exc), 导入行上下文(row, idx, ["企业编号", "企业全称", "核心产品"]))
             failed.append({"行号": row_num, "原因": str(exc), "数据": {"企业编号": row[idx["企业编号"]] if "企业编号" in idx else "", "企业全称": row[idx["企业全称"]] if "企业全称" in idx else ""}})
     db.session.commit()
     return success, failed
 
 
-def 导入产品Excel(file_storage):
+def 导入产品Excel(file_storage, batch=None):
     rows = 读取导入表格(file_storage)
     if not rows:
         return 0, [{"行号": 1, "原因": "文件为空", "数据": {}}]
     header = [单元格文本(c) for c in rows[0]]
     idx = 规范导入表头(header, 产品导入列名别名)
     if "所属企业名称" not in idx and "所属企业编号" not in idx:
-        return 0, [{"行号": 1, "原因": "缺少必填列: 所属企业名称 或 所属企业编号", "数据": {}}]
+        原因 = "缺少必填列: 所属企业名称 或 所属企业编号"
+        记录导入错误(batch, 1, "所属企业", 原因)
+        return 0, [{"行号": 1, "原因": 原因, "数据": {}}]
     if "产品名称" not in idx and "产品中文名" not in idx:
-        return 0, [{"行号": 1, "原因": "缺少必填列: 产品名称", "数据": {}}]
+        原因 = "缺少必填列: 产品名称"
+        记录导入错误(batch, 1, "产品名称", 原因)
+        return 0, [{"行号": 1, "原因": 原因, "数据": {}}]
+    if "HS编码" not in idx:
+        原因 = "缺少必填列: HS编码"
+        记录导入错误(batch, 1, "HS编码", 原因)
+        return 0, [{"行号": 1, "原因": 原因, "数据": {}}]
 
     enterprise_list = Enterprise.query.all()
     enterprise_code_map = {e.enterprise_code: e for e in enterprise_list if e.enterprise_code}
@@ -4025,15 +4161,26 @@ def 导入产品Excel(file_storage):
             enterprise_name = 读取行字段(row, idx, "所属企业名称")
             enterprise_code = 读取行字段(row, idx, "所属企业编号")
             if not enterprise_name and not enterprise_code:
+                记录导入错误(batch, row_num, "所属企业", "企业名称缺失", 导入行上下文(row, idx, ["所属企业名称", "所属企业编号", "产品名称", "HS编码"]))
                 raise ValueError("所属企业名称或所属企业编号不能为空")
             enterprise = enterprise_name_map.get(enterprise_name) if enterprise_name else None
             if not enterprise and enterprise_code:
                 enterprise = enterprise_code_map.get(enterprise_code)
             if not enterprise:
+                记录导入错误(batch, row_num, "所属企业", f"未找到企业：{enterprise_name or enterprise_code}", 导入行上下文(row, idx, ["所属企业名称", "所属企业编号", "产品名称", "HS编码"]))
                 raise ValueError(f"未找到企业：{enterprise_name or enterprise_code}")
             name_cn = 取首个存在字段值(row, idx, "产品名称", "产品中文名")
+            hs_code_value = 读取行字段(row, idx, "HS编码")
+            行错误 = []
             if not name_cn:
-                raise ValueError("产品名称不能为空")
+                行错误.append(("产品名称", "产品名称缺失"))
+            if not hs_code_value:
+                行错误.append(("HS编码", "HS编码缺失"))
+            if 行错误:
+                上下文 = 导入行上下文(row, idx, ["所属企业名称", "所属企业编号", "产品名称", "产品中文名", "HS编码"])
+                for 字段, 原因 in 行错误:
+                    记录导入错误(batch, row_num, 字段, 原因, 上下文, 导入错误字段建议.get(字段))
+                raise ValueError("；".join(原因 for _, 原因 in 行错误))
             product_code = 读取行字段(row, idx, "产品编号")
             product = Product.query.filter_by(product_code=product_code).first() if product_code else None
             if not product:
@@ -4058,7 +4205,7 @@ def 导入产品Excel(file_storage):
                 product.industry_code = enterprise.industry_code
             product.product_category = 取首个存在字段值(row, idx, "产品品类", "产品类别") or None
             product.product_type = 读取行字段(row, idx, "产品类型") or None if "产品类型" in idx else None
-            product.hs_code = 读取行字段(row, idx, "HS编码") or None if "HS编码" in idx else None
+            product.hs_code = hs_code_value or None
             product.brand = 取首个存在字段值(row, idx, "品牌", "SKU") or None
             product.model = 读取行字段(row, idx, "型号") or None if "型号" in idx else None
             product.export_suitability = 读取行字段(row, idx, "是否适合出口") or None if "是否适合出口" in idx else None
@@ -4098,8 +4245,24 @@ def 导入产品Excel(file_storage):
             if 备注:
                 product.notes = 备注
             product.product_extra_fields = extra
+            待补充项 = []
+            if not product.main_image:
+                待补充项.append("产品图片")
+            if not (product.certifications or product.certification_status):
+                待补充项.append("认证证书")
+            if not product.moq:
+                待补充项.append("MOQ")
+            if not product.delivery_cycle:
+                待补充项.append("交期")
+            if not product.product_name_en:
+                待补充项.append("英文资料")
+            if not product.target_market:
+                待补充项.append("目标国家")
+            记录待补充资料(batch, row_num, enterprise.company_name, product.product_name_cn, 待补充项, enterprise.enterprise_extra_fields.get("import_contact_info", "") if enterprise.enterprise_extra_fields else "")
             success += 1
         except Exception as exc:
+            if batch and not batch.errors.filter_by(row_number=row_num).first():
+                记录导入错误(batch, row_num, "整行", str(exc), 导入行上下文(row, idx, ["所属企业名称", "所属企业编号", "产品名称", "HS编码"]))
             failed.append({"行号": row_num, "原因": str(exc), "数据": {"所属企业编号": 读取行字段(row, idx, "所属企业编号"), "产品名称": 取首个存在字段值(row, idx, "产品名称", "产品中文名")}})
     db.session.commit()
     return success, failed
@@ -4454,6 +4617,9 @@ def init_db(app):
         enterprise_columns = {col["name"] for col in inspector.get_columns("enterprises")}
         if "enterprise_extra_fields" not in enterprise_columns:
             db.session.execute(text("ALTER TABLE enterprises ADD COLUMN enterprise_extra_fields JSON"))
+        if "main_products" not in enterprise_columns:
+            db.session.execute(text("ALTER TABLE enterprises ADD COLUMN main_products TEXT"))
+            enterprise_columns.add("main_products")
         if "province" not in enterprise_columns:
             db.session.execute(text("ALTER TABLE enterprises ADD COLUMN province VARCHAR(50)"))
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_enterprises_province ON enterprises (province)"))

@@ -70,9 +70,10 @@
         <div class="d-flex gap-2 flex-wrap mb-3">
             <a class="btn btn-outline-primary" href="{{ url_for('export_skus_all') }}">SKU 明细导出</a>
             <a class="btn btn-outline-primary" href="{{ url_for('export_attachments_all') }}">附件清单导出</a>
-            <form class="d-flex gap-2" method="get" onsubmit="if(!this.batch_id.value){alert('请输入导入批次ID'); return false;} this.action='/export/import-errors/' + encodeURIComponent(this.batch_id.value);">
+            <form class="d-flex gap-2 flex-wrap" method="get" data-export-base="/export/import-errors/" onsubmit="if(!this.batch_id.value){alert('请输入导入批次ID'); return false;} this.action=this.dataset.exportBase + encodeURIComponent(this.batch_id.value);">
                 <input class="form-control" style="max-width: 150px;" name="batch_id" placeholder="导入批次ID">
-                <button class="btn btn-outline-primary" type="submit">导入错误报告导出</button>
+                <button class="btn btn-outline-primary" type="submit" onclick="this.form.dataset.exportBase='/export/import-errors/'">导入错误报告导出</button>
+                <button class="btn btn-outline-success" type="submit" onclick="this.form.dataset.exportBase='/export/import-supplements/'">一键生成待补充资料清单</button>
             </form>
         </div>
         <div class="table-responsive">
