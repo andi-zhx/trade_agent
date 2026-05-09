@@ -1184,12 +1184,75 @@ def create_app():
             flash(f"导出失败：{str(exc)}", "danger")
             return redirect(request.referrer or url_for("dashboard"))
 
+    def 导出文件安全名称(*parts, default="导出文件"):
+        raw_name = "_".join(str(part or "").strip() for part in parts if str(part or "").strip()) or default
+        safe_name = re.sub(r'[\\/:*?"<>|]+', "_", raw_name)
+        return safe_name[:120] or default
+
+    def 企业资料包Sheets(enterprise):
+        enterprise_rows = 构建企业总表Sheet(Enterprise.query.filter_by(id=enterprise.id), [key for key, _ in ENTERPRISE_EXPORT_COLUMNS])
+        product_rows = 构建产品总表Sheet(Product.query.join(Enterprise, Product.enterprise_id == Enterprise.id).filter(Product.enterprise_id == enterprise.id), [key for key, _ in PRODUCT_EXPORT_COLUMNS])
+        sku_rows = []
+        for product in Product.query.filter_by(enterprise_id=enterprise.id).all():
+            sku_rows.extend(构建SKU明细Sheet(product.id))
+        attachment_rows = 构建附件清单Sheet(enterprise_id=enterprise.id, include_enterprise_products=True)
+        return [
+            ("企业基础信息", [label for _, label in ENTERPRISE_EXPORT_COLUMNS], enterprise_rows),
+            ("产品清单", [label for _, label in PRODUCT_EXPORT_COLUMNS], product_rows),
+            ("SKU明细", SKU_EXPORT_HEADERS, sku_rows),
+            ("附件清单", ATTACHMENT_EXPORT_HEADERS, attachment_rows),
+        ]
+
+    def 产品资料卡Sheets(product):
+        product_rows = 构建产品总表Sheet(Product.query.join(Enterprise, Product.enterprise_id == Enterprise.id).filter(Product.id == product.id), [key for key, _ in PRODUCT_EXPORT_COLUMNS])
+        enterprise_rows = 构建企业总表Sheet(Enterprise.query.filter_by(id=product.enterprise_id), [key for key, _ in ENTERPRISE_EXPORT_COLUMNS])
+        sku_rows = 构建SKU明细Sheet(product.id)
+        attachment_rows = 构建附件清单Sheet(product_id=product.id)
+        return [
+            ("产品基础信息", [label for _, label in PRODUCT_EXPORT_COLUMNS], product_rows),
+            ("所属企业信息", [label for _, label in ENTERPRISE_EXPORT_COLUMNS], enterprise_rows),
+            ("SKU明细", SKU_EXPORT_HEADERS, sku_rows),
+            ("附件清单", ATTACHMENT_EXPORT_HEADERS, attachment_rows),
+        ]
+
+    def 发送资料包Zip(export_type, export_scope, items, sheet_builder, filename_builder, filters=None):
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_name = f"{export_type}_{export_scope}_{timestamp}.zip"
+        try:
+            buffer = BytesIO()
+            with ZipFile(buffer, "w", ZIP_DEFLATED) as zip_file:
+                for item in items:
+                    excel_buffer = 构建Excel文件(sheet_builder(item))
+                    zip_file.writestr(filename_builder(item), excel_buffer.getvalue())
+            buffer.seek(0)
+            记录导出日志(export_type, export_scope, filters=filters, record_count=len(items), file_name=file_name)
+            db.session.commit()
+            if not items:
+                flash("当前筛选条件下无数据，已导出空压缩包。", "warning")
+            return send_file(buffer, as_attachment=True, download_name=file_name, mimetype="application/zip")
+        except Exception as exc:
+            db.session.rollback()
+            记录导出日志(export_type, export_scope, filters=filters, record_count=0, file_name=file_name, status="失败", error_message=str(exc))
+            db.session.commit()
+            flash(f"导出失败：{str(exc)}", "danger")
+            return redirect(request.referrer or url_for("backup_tools"))
+
     @app.get("/export/enterprises/all")
     def export_enterprises_all():
         columns = [key for key, _ in ENTERPRISE_EXPORT_COLUMNS]
         headers = [label for _, label in ENTERPRISE_EXPORT_COLUMNS]
         rows = 构建企业总表Sheet(Enterprise.query, columns)
         return 发送导出Excel("企业总表", "全量导出", [("企业基础信息", headers, rows)], filters={})
+
+    @app.get("/export/enterprises/backup-selected")
+    def export_enterprises_backup_selected():
+        columns = [key for key, _ in ENTERPRISE_EXPORT_COLUMNS]
+        headers = [label for _, label in ENTERPRISE_EXPORT_COLUMNS]
+        query = 构建企业查询(request.args)
+        filters = {key: value for key, value in request.args.items() if value}
+        rows = 构建企业总表Sheet(query, columns)
+        scope = "文本筛选导出" if filters.get("keyword") else "全量导出"
+        return 发送导出Excel("企业总表", scope, [("企业基础信息", headers, rows)], filters=filters)
 
     @app.get("/export/enterprises/filtered")
     def export_enterprises_filtered():
@@ -1205,6 +1268,16 @@ def create_app():
         headers = [label for _, label in PRODUCT_EXPORT_COLUMNS]
         rows = 构建产品总表Sheet(Product.query.join(Enterprise, Product.enterprise_id == Enterprise.id), columns)
         return 发送导出Excel("产品总表", "全量导出", [("产品清单", headers, rows)], filters={})
+
+    @app.get("/export/products/backup-selected")
+    def export_products_backup_selected():
+        columns = [key for key, _ in PRODUCT_EXPORT_COLUMNS]
+        headers = [label for _, label in PRODUCT_EXPORT_COLUMNS]
+        query = 构建产品查询(request.args, default_status="")
+        filters = {key: value for key, value in request.args.items() if value}
+        rows = 构建产品总表Sheet(query, columns)
+        scope = "文本筛选导出" if filters.get("keyword") or filters.get("enterprise") else "全量导出"
+        return 发送导出Excel("产品总表", scope, [("产品清单", headers, rows)], filters=filters)
 
     @app.get("/export/products/filtered")
     def export_products_filtered():
@@ -1238,37 +1311,40 @@ def create_app():
             abort(404)
         return 发送导出Excel("待补充资料清单", "单批次", [("待补充资料清单", SUPPLEMENT_LIST_HEADERS, rows)], filters={"batch_id": batch_id})
 
+    @app.get("/export/enterprise-packages/selected")
+    def export_enterprise_packages_selected():
+        query = 构建企业查询(request.args)
+        enterprises = query.order_by(Enterprise.updated_at.desc()).all()
+        filters = {key: value for key, value in request.args.items() if value}
+        scope = "文本筛选导出" if filters.get("keyword") else "全量导出"
+
+        def filename_builder(enterprise):
+            return f"{导出文件安全名称(enterprise.enterprise_code, enterprise.company_name, default='企业资料包')}_企业资料包.xlsx"
+
+        return 发送资料包Zip("企业资料包", scope, enterprises, 企业资料包Sheets, filename_builder, filters=filters)
+
+    @app.get("/export/product-cards/selected")
+    def export_product_cards_selected():
+        query = 构建产品查询(request.args, default_status="")
+        products = query.order_by(Product.updated_at.desc()).all()
+        filters = {key: value for key, value in request.args.items() if value}
+        scope = "文本筛选导出" if filters.get("keyword") or filters.get("enterprise") else "全量导出"
+
+        def filename_builder(product):
+            enterprise_name = product.enterprise.company_name if product.enterprise else ""
+            return f"{导出文件安全名称(product.product_code, product.product_name_cn, enterprise_name, default='产品资料卡')}_产品资料卡.xlsx"
+
+        return 发送资料包Zip("产品资料卡", scope, products, 产品资料卡Sheets, filename_builder, filters=filters)
+
     @app.get("/export/enterprise/<int:enterprise_id>/package")
     def export_enterprise_package(enterprise_id):
         enterprise = Enterprise.query.get_or_404(enterprise_id)
-        enterprise_rows = 构建企业总表Sheet(Enterprise.query.filter_by(id=enterprise.id), [key for key, _ in ENTERPRISE_EXPORT_COLUMNS])
-        product_rows = 构建产品总表Sheet(Product.query.join(Enterprise, Product.enterprise_id == Enterprise.id).filter(Product.enterprise_id == enterprise.id), [key for key, _ in PRODUCT_EXPORT_COLUMNS])
-        sku_rows = []
-        for product in Product.query.filter_by(enterprise_id=enterprise.id).all():
-            sku_rows.extend(构建SKU明细Sheet(product.id))
-        attachment_rows = 构建附件清单Sheet(enterprise_id=enterprise.id, include_enterprise_products=True)
-        sheets = [
-            ("企业基础信息", [label for _, label in ENTERPRISE_EXPORT_COLUMNS], enterprise_rows),
-            ("产品清单", [label for _, label in PRODUCT_EXPORT_COLUMNS], product_rows),
-            ("SKU明细", SKU_EXPORT_HEADERS, sku_rows),
-            ("附件清单", ATTACHMENT_EXPORT_HEADERS, attachment_rows),
-        ]
-        return 发送导出Excel("单企业资料包", "单企业", sheets, filters={"enterprise_id": enterprise.id}, related_enterprise_id=enterprise.id)
+        return 发送导出Excel("单企业资料包", "单企业", 企业资料包Sheets(enterprise), filters={"enterprise_id": enterprise.id}, related_enterprise_id=enterprise.id)
 
     @app.get("/export/product/<int:product_id>/card")
     def export_product_card(product_id):
         product = Product.query.get_or_404(product_id)
-        product_rows = 构建产品总表Sheet(Product.query.join(Enterprise, Product.enterprise_id == Enterprise.id).filter(Product.id == product.id), [key for key, _ in PRODUCT_EXPORT_COLUMNS])
-        enterprise_rows = 构建企业总表Sheet(Enterprise.query.filter_by(id=product.enterprise_id), [key for key, _ in ENTERPRISE_EXPORT_COLUMNS])
-        sku_rows = 构建SKU明细Sheet(product.id)
-        attachment_rows = 构建附件清单Sheet(product_id=product.id)
-        sheets = [
-            ("产品基础信息", [label for _, label in PRODUCT_EXPORT_COLUMNS], product_rows),
-            ("所属企业信息", [label for _, label in ENTERPRISE_EXPORT_COLUMNS], enterprise_rows),
-            ("SKU明细", SKU_EXPORT_HEADERS, sku_rows),
-            ("附件清单", ATTACHMENT_EXPORT_HEADERS, attachment_rows),
-        ]
-        return 发送导出Excel("单产品资料卡", "单产品", sheets, filters={"product_id": product.id}, related_enterprise_id=product.enterprise_id, related_product_id=product.id)
+        return 发送导出Excel("单产品资料卡", "单产品", 产品资料卡Sheets(product), filters={"product_id": product.id}, related_enterprise_id=product.enterprise_id, related_product_id=product.id)
 
 
     def 企业导入模板数据():
@@ -3551,7 +3627,7 @@ def 构建企业总表Sheet(query, columns):
     return rows
 
 
-def 构建产品查询(source):
+def 构建产品查询(source, default_status="active"):
     query = Product.query.join(Enterprise, Product.enterprise_id == Enterprise.id)
     q_enterprise = source.get("enterprise", "", type=str).strip()
     q_keyword = source.get("keyword", "", type=str).strip()
@@ -3562,12 +3638,12 @@ def 构建产品查询(source):
     q_certification = source.get("certification_status", "", type=str).strip()
     q_target_market = source.get("target_market", "", type=str).strip()
     q_industry = source.get("industry", "", type=str).strip()
-    q_status = source.get("status", "", type=str).strip() or "active"
+    q_status = source.get("status", "", type=str).strip() or default_status
     if q_enterprise:
         query = query.filter(Product.enterprise_id == int(q_enterprise)) if q_enterprise.isdigit() else query.filter(Enterprise.company_name.ilike(f"%{q_enterprise}%"))
     if q_keyword:
         like = f"%{q_keyword}%"
-        query = query.filter(or_(Product.product_name_cn.ilike(like), Product.product_name_en.ilike(like), Product.model.ilike(like), Product.product_code.ilike(like)))
+        query = query.filter(or_(Product.product_name_cn.ilike(like), Product.product_name_en.ilike(like), Product.model.ilike(like), Product.product_code.ilike(like), Enterprise.company_name.ilike(like), Enterprise.english_name.ilike(like), Enterprise.enterprise_code.ilike(like)))
     if q_category:
         query = query.filter(Product.product_category.ilike(f"%{q_category}%"))
     if q_product_type:
