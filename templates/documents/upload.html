@@ -20,7 +20,7 @@
         </div>
         <div class="col-md-4">
             <label class="form-label">所属产品</label>
-            <select name="product_id" class="form-select">
+            <select name="product_id" class="form-select" id="documentProductSelect">
                 <option value="">（可选）</option>
                 {% for p in products %}
                 <option value="{{ p.id }}" {% if form_data.get('product_id')|string == p.id|string %}selected{% endif %}>{{ p.product_code }} - {{ p.product_name_cn }}</option>
@@ -29,12 +29,15 @@
         </div>
         <div class="col-md-4">
             <label class="form-label">文件类型 <span class="text-danger">*</span></label>
-            <select name="document_type" class="form-select" required>
+            <select name="document_type" class="form-select" id="documentTypeSelect" required>
                 <option value="">请选择类型</option>
                 {% for code, label in document_types %}
                 <option value="{{ code }}" {% if form_data.get('document_type') == code %}selected{% endif %}>{{ label }}</option>
                 {% endfor %}
             </select>
+        </div>
+        <div class="col-12">
+            <div class="form-text" id="documentTypeHelp">企业附件分类：企业介绍、营业执照、BP/融资材料、工厂照片、资质荣誉、财务/经营资料、其他；产品附件分类：产品图片、产品目录、报价单、认证证书、检测报告、说明书、包装图、宣传视频、样品资料、其他。</div>
         </div>
         <div class="col-md-4">
             <label class="form-label">文件名称 <span class="text-danger">*</span></label>
@@ -64,4 +67,31 @@
         <button class="btn btn-primary" type="submit">上传并归档</button>
     </div>
 </form>
+<script>
+(function () {
+    const productSelect = document.getElementById('documentProductSelect');
+    const typeSelect = document.getElementById('documentTypeSelect');
+    if (!productSelect || !typeSelect) return;
+
+    const enterpriseTypes = {{ (enterprise_document_types if enterprise_document_types is defined else document_types) | tojson }};
+    const productTypes = {{ (product_document_types if product_document_types is defined else document_types) | tojson }};
+    const initialValue = {{ form_data.get('document_type', '') | tojson }};
+
+    function renderTypeOptions() {
+        const source = productSelect.value ? productTypes : enterpriseTypes;
+        const previous = typeSelect.value || initialValue;
+        typeSelect.innerHTML = '<option value="">请选择类型</option>';
+        source.forEach(([code, label]) => {
+            const option = document.createElement('option');
+            option.value = code;
+            option.textContent = label;
+            if (code === previous) option.selected = true;
+            typeSelect.appendChild(option);
+        });
+    }
+
+    productSelect.addEventListener('change', renderTypeOptions);
+    renderTypeOptions();
+})();
+</script>
 {% endblock %}

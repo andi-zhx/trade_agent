@@ -230,7 +230,7 @@
                     </div>
                     <button type="button" class="btn btn-sm btn-outline-secondary mt-2" id="addEnterpriseUploadRow">+ 添加文件</button>
                     <div class="form-text mt-2">
-                        附件分类与格式：营业执照(PDF/JPG/PNG，必填)、企业宣传册(PDF/PPT/图片)、企业介绍PPT(PPT/PDF)、资质证书包(PDF/JPG/ZIP)、工厂/办公照片(JPG/PNG/视频，可多文件)、企业名片(JPG/PNG/PDF)、其他补充资料(常见安全格式)。
+                        附件分类限制：企业介绍、营业执照、BP/融资材料、工厂照片、资质荣誉、财务/经营资料、其他；禁止 exe / bat / sh / js / cmd / com / msi / ps1。
                     </div>
 
                     {% set 已上传文件 = 已上传附件列表 if 已上传附件列表 is defined else [] %}
@@ -319,13 +319,13 @@
     const saveButtons = Array.from(form.querySelectorAll('button[type="submit"][data-action="save"]'));
 
     const enterpriseUploadRules = {
+        '企业介绍': ['.pdf', '.ppt', '.pptx', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.webp'],
         '营业执照': ['.pdf', '.jpg', '.jpeg', '.png'],
-        '企业宣传册': ['.pdf', '.ppt', '.pptx', '.jpg', '.jpeg', '.png', '.webp'],
-        '企业介绍PPT': ['.ppt', '.pptx', '.pdf'],
-        '资质证书包': ['.pdf', '.jpg', '.jpeg', '.zip'],
-        '工厂/办公照片': ['.jpg', '.jpeg', '.png', '.mp4', '.mov', '.avi', '.mkv', '.webm'],
-        '企业名片': ['.jpg', '.jpeg', '.png', '.pdf'],
-        '其他补充资料': ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.jpg', '.jpeg', '.png', '.zip', '.rar', '.7z', '.txt', '.csv', '.mp4', '.mov']
+        'BP/融资材料': ['.pdf', '.ppt', '.pptx', '.doc', '.docx', '.xls', '.xlsx'],
+        '工厂照片': ['.jpg', '.jpeg', '.png', '.webp', '.mp4', '.mov', '.avi', '.mkv', '.webm'],
+        '资质荣誉': ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.zip'],
+        '财务/经营资料': ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.csv', '.zip'],
+        '其他': ['.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx', '.jpg', '.jpeg', '.png', '.webp', '.zip', '.rar', '.7z', '.txt', '.csv', '.mp4', '.mov']
     };
 
     const getFieldValues = (fieldName) => {
