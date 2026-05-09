@@ -71,6 +71,24 @@ def 行业默认名称(行业代码):
     return item["name"]
 
 
+def 估算人员规模(employee_count):
+    if not employee_count:
+        return ""
+    if employee_count <= 20:
+        return "1-20人"
+    if employee_count <= 50:
+        return "21-50人"
+    if employee_count <= 100:
+        return "51-100人"
+    if employee_count <= 300:
+        return "101-300人"
+    if employee_count <= 500:
+        return "301-500人"
+    if employee_count <= 1000:
+        return "501-1000人"
+    return "1000人以上"
+
+
 def 导出企业资料完整度标签(enterprise):
     ext = 清理企业扩展字段(enterprise.enterprise_extra_fields or {})
     required_values = [
@@ -3259,45 +3277,162 @@ def 企业类型文本(enterprise):
     return "、".join(types) if types else (enterprise.company_type or "")
 
 
-ENTERPRISE_EXPORT_COLUMNS = [
+def 合并导出列(*列组):
+    """按顺序合并导出列，避免弹窗出现重复字段。"""
+
+    合并后 = []
+    已有键 = set()
+    for 列列表 in 列组:
+        for 键名, 标题 in 列列表:
+            if 键名 in 已有键:
+                continue
+            合并后.append((键名, 标题))
+            已有键.add(键名)
+    return 合并后
+
+
+def 配置字段导出列(字段组列表, 前缀=""):
+    """从动态表单配置生成导出列，覆盖非必填项和行业专项属性。"""
+
+    导出列 = []
+    for 分组 in 字段组列表:
+        分组标题 = 分组.get("title", "")
+        for 字段 in 分组.get("fields", []):
+            键名 = 字段.get("key")
+            标题 = 字段.get("label")
+            if not 键名 or not 标题:
+                continue
+            if 前缀:
+                标题 = f"{前缀}-{分组标题}-{标题}" if 分组标题 else f"{前缀}-{标题}"
+            导出列.append((键名, 标题))
+    return 导出列
+
+
+def 全部行业字段组(行业字段配置):
+    """展开所有行业专项字段组，便于筛选导出跨行业数据。"""
+
+    字段组 = []
+    for 行业代码, 分组列表 in 行业字段配置.items():
+        行业名称 = 行业默认名称(行业代码) or 行业代码
+        for 分组 in 分组列表:
+            字段组.append({
+                "title": f"{行业名称}-{分组.get('title', '')}".strip("-"),
+                "fields": 分组.get("fields", []),
+            })
+    return 字段组
+
+
+ENTERPRISE_EXPORT_BASE_COLUMNS = [
     ("enterprise_code", "企业编号"),
+    ("status", "入库状态"),
+    ("project_owner", "项目负责人"),
+    ("industry_code", "行业编号"),
+    ("industry_category", "行业名称"),
+    ("enterprise_stage", "企业当前阶段"),
+    ("source_channels", "来源渠道"),
     ("company_name", "企业名称"),
     ("english_name", "英文名称"),
     ("unified_social_credit_code", "统一社会信用代码"),
     ("industry", "行业"),
     ("company_type", "企业类型"),
     ("region", "省市区"),
+    ("province", "省份"),
+    ("city", "城市"),
+    ("district", "区县"),
     ("contact", "联系人"),
     ("phone", "联系电话"),
     ("email", "邮箱"),
     ("main_business", "主营业务"),
+    ("main_products", "主要产品"),
     ("export_experience", "出口经验"),
+    ("export_countries", "出口国家"),
     ("target_markets", "目标市场"),
+    ("annual_capacity", "年产能"),
+    ("employee_count", "员工人数"),
+    ("factory_area", "工厂面积"),
+    ("main_equipment", "主要设备"),
+    ("annual_revenue", "年营业额"),
+    ("export_revenue", "年出口额"),
+    ("service_needs", "服务需求"),
+    ("risk_notes", "风险备注"),
     ("material_completeness", "资料完整度"),
     ("created_at", "创建时间"),
     ("updated_at", "更新时间"),
 ]
 
+ENTERPRISE_EXPORT_COLUMNS = 合并导出列(
+    ENTERPRISE_EXPORT_BASE_COLUMNS,
+    配置字段导出列(COMMON_ENTERPRISE_FIELD_GROUPS),
+    配置字段导出列(全部行业字段组(INDUSTRY_EXTRA_FIELD_CONFIG), "行业专项"),
+)
 
-PRODUCT_EXPORT_COLUMNS = [
+
+PRODUCT_EXPORT_BASE_COLUMNS = [
     ("product_code", "产品编号"),
     ("product_name_cn", "产品名称"),
     ("product_name_en", "英文名称"),
     ("enterprise", "所属企业"),
-    ("product_category", "产品分类"),
+    ("enterprise_code", "所属企业编号"),
+    ("industry_code", "行业编号"),
+    ("industry_name", "行业名称"),
+    ("product_category", "产品品类"),
+    ("product_type", "产品类型"),
     ("brand", "品牌"),
     ("model", "型号"),
     ("hs_code", "HS 编码"),
+    ("function_description", "产品用途"),
+    ("application_scenario", "应用场景"),
     ("target_market", "目标市场"),
+    ("export_suitability", "是否适合出口"),
+    ("recommendation_level", "推荐等级"),
+    ("existing_sales_countries", "已销售国家"),
+    ("certifications", "产品认证"),
     ("certification_status", "认证情况"),
+    ("product_selling_points", "核心卖点"),
     ("price_range", "价格区间"),
+    ("exw_price", "出厂价"),
+    ("fob_price", "FOB价"),
+    ("cif_price", "CIF价"),
+    ("ddp_price", "DDP参考价"),
+    ("currency", "币种"),
+    ("price_display", "价格展示"),
     ("moq", "MOQ"),
     ("delivery_cycle", "交付周期"),
-    ("status", "产品状态"),
+    ("production_cycle", "生产周期"),
+    ("sample_policy", "样品政策"),
+    ("customization_supported", "是否支持定制"),
+    ("notes", "备注"),
+    ("main_image", "产品主图"),
+    ("status", "上架状态"),
     ("created_at", "创建时间"),
     ("updated_at", "更新时间"),
 ]
 
+PRODUCT_EXPORT_COLUMNS = 合并导出列(
+    PRODUCT_EXPORT_BASE_COLUMNS,
+    配置字段导出列(COMMON_PRODUCT_FIELD_GROUPS),
+    配置字段导出列(全部行业字段组(INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG), "行业专项"),
+)
+
+
+def 导出值文本(value):
+    """统一处理导出值，列表/字典转为便于阅读的文本。"""
+
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return "是" if value else "否"
+    if isinstance(value, (list, tuple, set)):
+        文本列表 = []
+        for item in value:
+            if isinstance(item, dict):
+                文本列表.append("；".join(f"{k}:{v}" for k, v in item.items() if v not in (None, "", [])))
+            else:
+                文本列表.append(str(item))
+        return "、".join(item for item in 文本列表 if item)
+    if isinstance(value, dict):
+        return "；".join(f"{k}:{v}" for k, v in value.items() if v not in (None, "", []))
+    return value
 
 def 解析导出列(source, defaults):
     allowed = {key for key, _ in defaults}
@@ -3320,25 +3455,59 @@ def 企业主联系人映射(enterprise_ids):
 
 
 def 企业导出行(enterprise, contact, completeness, columns):
+    ext = 清理企业扩展字段(enterprise.enterprise_extra_fields or {})
     values = {
         "enterprise_code": enterprise.enterprise_code,
+        "status": enterprise.status,
+        "project_owner": enterprise.project_owner,
         "company_name": enterprise.company_name,
-        "english_name": enterprise.english_name,
-        "unified_social_credit_code": enterprise.unified_social_credit_code,
-        "industry": enterprise.industry_category or 行业默认名称(enterprise.industry_code),
+        "company_full_name": ext.get("company_full_name") or enterprise.company_name,
+        "english_name": enterprise.english_name or ext.get("english_name"),
+        "unified_social_credit_code": enterprise.unified_social_credit_code or ext.get("unified_social_credit_code"),
+        "founded_date": enterprise.founded_date or ext.get("founded_date"),
+        "registered_capital": enterprise.registered_capital or ext.get("registered_capital"),
+        "registered_address": enterprise.registered_address or ext.get("registered_address"),
+        "business_address": enterprise.business_address or ext.get("business_address"),
+        "province": enterprise.province or ext.get("province"),
+        "city": enterprise.city or ext.get("city"),
+        "district": enterprise.district,
+        "industry_code": enterprise.industry_code,
+        "industry_category": enterprise.industry_category or 行业默认名称(enterprise.industry_code),
+        "industry": enterprise.industry_category or ext.get("industry") or 行业默认名称(enterprise.industry_code),
+        "primary_industry": ext.get("primary_industry") or enterprise.industry_category or 行业默认名称(enterprise.industry_code),
+        "sub_industry": enterprise.sub_industry,
         "company_type": 企业类型文本(enterprise),
         "region": 省市区文本(enterprise),
-        "contact": contact.name if contact else "",
-        "phone": (contact.mobile or contact.phone) if contact else "",
-        "email": contact.email if contact else "",
-        "main_business": enterprise.main_business,
-        "export_experience": "是" if enterprise.has_foreign_trade_experience else "否",
-        "target_markets": enterprise.target_markets,
+        "contact": contact.name if contact else ext.get("primary_contact_name", ""),
+        "primary_contact_name": ext.get("primary_contact_name") or (contact.name if contact else ""),
+        "primary_contact_position": ext.get("primary_contact_position") or (contact.position if contact else ""),
+        "primary_contact_mobile": ext.get("primary_contact_mobile") or (contact.mobile if contact else ""),
+        "contact_phone": ext.get("contact_phone") or (contact.phone if contact else ""),
+        "contact_email": ext.get("contact_email") or (contact.email if contact else ""),
+        "phone": (contact.mobile or contact.phone) if contact else ext.get("primary_contact_mobile") or ext.get("contact_phone"),
+        "email": contact.email if contact else ext.get("contact_email"),
+        "main_business": enterprise.main_business or ext.get("main_business_direction") or ext.get("enterprise_description"),
+        "main_products": enterprise.main_products,
+        "export_experience": "是" if enterprise.has_foreign_trade_experience else (ext.get("has_export_experience") or "否"),
+        "has_export_experience": ext.get("has_export_experience") or ("是" if enterprise.has_foreign_trade_experience else "否"),
+        "export_countries": enterprise.export_countries,
+        "target_markets": enterprise.target_markets or ext.get("target_countries"),
+        "target_countries": ext.get("target_countries") or enterprise.target_markets,
+        "annual_capacity": enterprise.annual_capacity,
+        "employee_count": enterprise.employee_count,
+        "employee_count_range": ext.get("employee_count_range") or (估算人员规模(enterprise.employee_count) if enterprise.employee_count else ""),
+        "factory_area": enterprise.factory_area or ext.get("factory_area"),
+        "main_equipment": enterprise.main_equipment,
+        "annual_revenue": enterprise.annual_revenue,
+        "export_revenue": enterprise.export_revenue,
+        "service_needs": enterprise.service_needs,
+        "risk_notes": enterprise.risk_notes,
         "material_completeness": completeness,
         "created_at": enterprise.created_at,
         "updated_at": enterprise.updated_at,
     }
-    return [values.get(column, "") for column in columns]
+    values.update({key: value for key, value in ext.items() if key not in values or values.get(key) in (None, "", [])})
+    return [导出值文本(values.get(column, "")) for column in columns]
 
 
 def 构建企业查询(source):
@@ -3412,25 +3581,70 @@ def 产品价格区间(product):
 
 def 产品导出行(product, columns):
     enterprise = product.enterprise
+    extra = 兼容产品基础信息字段(product, product.product_extra_fields or {})
     values = {
         "product_code": product.product_code,
         "product_name_cn": product.product_name_cn,
         "product_name_en": product.product_name_en,
         "enterprise": enterprise.company_name if enterprise else "",
+        "enterprise_code": enterprise.enterprise_code if enterprise else "",
+        "industry_code": product.industry_code,
+        "industry_name": product.industry_name,
         "product_category": product.product_category,
+        "product_type": product.product_type,
         "brand": product.brand,
         "model": product.model,
         "hs_code": product.hs_code,
-        "target_market": product.target_market,
-        "certification_status": product.certification_status or product.certifications,
+        "function_description": product.function_description or extra.get("desc_usage"),
+        "application_scenario": product.application_scenario or extra.get("desc_scenarios"),
+        "target_market": product.target_market or extra.get("target_market_tags"),
+        "export_suitability": product.export_suitability,
+        "recommendation_level": product.recommendation_level,
+        "existing_sales_countries": product.existing_sales_countries,
+        "certifications": product.certifications or extra.get("cert_product"),
+        "certification_status": product.certification_status or product.certifications or extra.get("cert_status"),
+        "product_selling_points": product.product_selling_points or extra.get("desc_core_selling_points"),
         "price_range": 产品价格区间(product),
-        "moq": product.moq,
-        "delivery_cycle": product.delivery_cycle or product.production_cycle,
+        "exw_price": product.exw_price or extra.get("price_exw"),
+        "fob_price": product.fob_price or extra.get("price_fob"),
+        "cif_price": product.cif_price or extra.get("price_cif"),
+        "ddp_price": product.ddp_price or extra.get("price_ddp"),
+        "currency": product.currency,
+        "price_display": product.price_display,
+        "moq": product.moq or extra.get("trade_moq"),
+        "delivery_cycle": product.delivery_cycle or product.production_cycle or extra.get("trade_mass_cycle"),
+        "production_cycle": product.production_cycle or extra.get("trade_mass_cycle"),
+        "sample_policy": product.sample_policy or extra.get("trade_sample_policy"),
+        "customization_supported": product.customization_supported if product.customization_supported else extra.get("support_customization"),
+        "notes": product.notes,
+        "main_image": product.main_image,
         "status": product.status,
         "created_at": product.created_at,
         "updated_at": product.updated_at,
+        # 兼容产品扩展配置中的身份字段命名。
+        "identity_name_cn": product.product_name_cn,
+        "identity_name_en": product.product_name_en,
+        "identity_model": product.model,
+        "identity_sku": product.product_code,
+        "identity_hs_code": product.hs_code,
+        "desc_usage": product.function_description or extra.get("desc_usage"),
+        "desc_scenarios": product.application_scenario or extra.get("desc_scenarios"),
+        "desc_core_selling_points": product.product_selling_points or extra.get("desc_core_selling_points"),
+        "price_exw": product.exw_price or extra.get("price_exw"),
+        "price_fob": product.fob_price or extra.get("price_fob"),
+        "price_cif": product.cif_price or extra.get("price_cif"),
+        "price_ddp": product.ddp_price or extra.get("price_ddp"),
+        "trade_moq": product.moq or extra.get("trade_moq"),
+        "trade_sample_policy": product.sample_policy or extra.get("trade_sample_policy"),
+        "trade_mass_cycle": product.delivery_cycle or product.production_cycle or extra.get("trade_mass_cycle"),
+        "cert_status": product.certification_status or extra.get("cert_status"),
+        "cert_product": product.certifications or extra.get("cert_product"),
+        "support_customization": ("是" if product.customization_supported else "否") if product.customization_supported is not None else extra.get("support_customization"),
+        "target_market_tags": product.target_market or extra.get("target_market_tags"),
+        "product_status_review": extra.get("product_status_review") or product.status,
     }
-    return [values.get(column, "") for column in columns]
+    values.update({key: value for key, value in extra.items() if key not in values or values.get(key) in (None, "", [])})
+    return [导出值文本(values.get(column, "")) for column in columns]
 
 
 def 构建产品总表Sheet(query, columns):
