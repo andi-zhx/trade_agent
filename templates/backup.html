@@ -67,6 +67,25 @@
 <div class="card shadow-sm mb-3">
     <div class="card-header">导出管理</div>
     <div class="card-body">
+        <form class="row g-2 align-items-end mb-3" method="get" onsubmit="const routes={enterprise_table:'{{ url_for('export_enterprises_backup_selected') }}',product_table:'{{ url_for('export_products_backup_selected') }}',enterprise_package:'{{ url_for('export_enterprise_packages_selected') }}',product_card:'{{ url_for('export_product_cards_selected') }}'}; this.action=routes[this.export_type.value];">
+            <div class="col-md-3">
+                <label class="form-label small text-muted" for="export_type">导出功能</label>
+                <select class="form-select" id="export_type" name="export_type">
+                    <option value="enterprise_table">企业总表</option>
+                    <option value="product_table">产品总表</option>
+                    <option value="enterprise_package">企业资料包（ZIP）</option>
+                    <option value="product_card">产品资料卡（ZIP）</option>
+                </select>
+            </div>
+            <div class="col-md-6">
+                <label class="form-label small text-muted" for="keyword">文本筛选</label>
+                <input class="form-control" id="keyword" name="keyword" placeholder="输入企业/产品名称、编号、英文名或型号；留空导出全部">
+            </div>
+            <div class="col-md-3 d-grid">
+                <button class="btn btn-primary" type="submit">按条件导出</button>
+            </div>
+            <div class="col-12 small text-muted">企业资料包和产品资料卡会按筛选结果生成多个 Excel 文件并打包为 ZIP。</div>
+        </form>
         <div class="d-flex gap-2 flex-wrap mb-3">
             <a class="btn btn-outline-primary" href="{{ url_for('export_skus_all') }}">SKU 明细导出</a>
             <a class="btn btn-outline-primary" href="{{ url_for('export_attachments_all') }}">附件清单导出</a>
