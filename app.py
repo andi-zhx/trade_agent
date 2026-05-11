@@ -2627,7 +2627,12 @@ def create_app():
         enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
         all_products = Product.query.order_by(Product.product_name_cn.asc()).all()
         enterprise_options = [
-            {"id": e.id, "label": f"{e.enterprise_code} - {e.company_name}"}
+            {
+                "id": e.id,
+                "code": e.enterprise_code or "",
+                "name": e.company_name or "",
+                "label": f"{e.enterprise_code or ''} - {e.company_name or ''}",
+            }
             for e in enterprises
         ]
         product_options = [
