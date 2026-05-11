@@ -1697,13 +1697,10 @@ def create_app():
 
         通用分组映射 = {group.get("key"): group for group in COMMON_ENTERPRISE_FIELD_GROUPS}
         行业分组列表 = 行业专项字段组(企业.industry_code)
-        标签完成度 = 完整度信息.get("tabs", {})
-        A完成度 = 标签完成度.get("A", {})
-        B完成度 = 标签完成度.get("B", {})
         详情Tabs = [
             {"key": "entry", "title": "入库信息", "groups": []},
-            {"key": "basic", "title": f"基本信息 {A完成度.get('done', 0)}/{A完成度.get('total', 13)}", "groups": [通用分组映射.get("A")] if 通用分组映射.get("A") else []},
-            {"key": "business", "title": f"工商信息 {B完成度.get('done', 0)}/{B完成度.get('total', 14)}", "groups": [通用分组映射.get("B")] if 通用分组映射.get("B") else []},
+            {"key": "basic", "title": "基本信息", "groups": [通用分组映射.get("A")] if 通用分组映射.get("A") else []},
+            {"key": "business", "title": "工商信息", "groups": [通用分组映射.get("B")] if 通用分组映射.get("B") else []},
             {"key": "contact", "title": "联系信息", "groups": [通用分组映射.get("C")] if 通用分组映射.get("C") else []},
             {"key": "operations", "title": "经营情况", "groups": [item for item in [通用分组映射.get("D"), *行业分组列表] if item]},
             {"key": "production", "title": "生产能力", "groups": [通用分组映射.get("E")] if 通用分组映射.get("E") else []},
@@ -2628,12 +2625,24 @@ def create_app():
     @app.route("/documents/upload", methods=["GET", "POST"])
     def document_upload():
         enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
+        all_products = Product.query.order_by(Product.product_name_cn.asc()).all()
+        enterprise_options = [
+            {"id": e.id, "label": f"{e.enterprise_code} - {e.company_name}"}
+            for e in enterprises
+        ]
+        product_options = [
+            {"id": p.id, "enterprise_id": p.enterprise_id, "label": f"{p.product_code} - {p.product_name_cn}"}
+            for p in all_products
+        ]
 
         def 渲染上传页(products, form_data, document_types):
             return render_template(
                 "documents/upload.html",
                 enterprises=enterprises,
                 products=products,
+                all_products=all_products,
+                enterprise_options=enterprise_options,
+                product_options=product_options,
                 document_types=document_types,
                 enterprise_document_types=ENTERPRISE_DOCUMENT_TYPE_OPTIONS,
                 product_document_types=PRODUCT_DOCUMENT_TYPE_OPTIONS,

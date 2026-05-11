@@ -11,12 +11,28 @@
     <div class="card-body row g-3">
         <div class="col-md-4">
             <label class="form-label">所属企业 <span class="text-danger">*</span></label>
-            <select name="enterprise_id" class="form-select" required>
-                <option value="">请选择企业</option>
+            {% set selected_enterprise = namespace(label='') %}
+            {% for e in enterprises %}
+                {% if form_data.get('enterprise_id')|string == e.id|string %}
+                    {% set selected_enterprise.label = e.enterprise_code ~ ' - ' ~ e.company_name %}
+                {% endif %}
+            {% endfor %}
+            <input type="hidden" name="enterprise_id" id="documentEnterpriseId" value="{{ form_data.get('enterprise_id', '') }}">
+            <input
+                id="documentEnterpriseSearch"
+                class="form-control"
+                list="documentEnterpriseOptions"
+                autocomplete="off"
+                required
+                value="{{ selected_enterprise.label }}"
+                placeholder="输入企业名称或编号搜索"
+            >
+            <datalist id="documentEnterpriseOptions">
                 {% for e in enterprises %}
-                <option value="{{ e.id }}" {% if form_data.get('enterprise_id')|string == e.id|string %}selected{% endif %}>{{ e.enterprise_code }} - {{ e.company_name }}</option>
+                <option value="{{ e.enterprise_code }} - {{ e.company_name }}"></option>
                 {% endfor %}
-            </select>
+            </datalist>
+            <div class="form-text">可输入企业名称或编号进行模糊搜索，并从候选项中选择。</div>
         </div>
         <div class="col-md-4">
             <label class="form-label">所属产品</label>
@@ -69,13 +85,51 @@
 </form>
 <script>
 (function () {
+    const form = document.querySelector('form');
+    const enterpriseSearch = document.getElementById('documentEnterpriseSearch');
+    const enterpriseIdInput = document.getElementById('documentEnterpriseId');
     const productSelect = document.getElementById('documentProductSelect');
     const typeSelect = document.getElementById('documentTypeSelect');
-    if (!productSelect || !typeSelect) return;
+    if (!enterpriseSearch || !enterpriseIdInput || !productSelect || !typeSelect) return;
 
+    const enterpriseOptions = {{ (enterprise_options if enterprise_options is defined else []) | tojson }};
+    const productOptions = {{ (product_options if product_options is defined else []) | tojson }};
     const enterpriseTypes = {{ (enterprise_document_types if enterprise_document_types is defined else document_types) | tojson }};
     const productTypes = {{ (product_document_types if product_document_types is defined else document_types) | tojson }};
     const initialValue = {{ form_data.get('document_type', '') | tojson }};
+    const initialProductId = {{ form_data.get('product_id', '') | string | tojson }};
+
+    function findEnterprise(input) {
+        const keyword = (input || '').trim().toLowerCase();
+        if (!keyword) return null;
+        const exact = enterpriseOptions.find((item) => item.label.toLowerCase() === keyword);
+        if (exact) return exact;
+        const matched = enterpriseOptions.filter((item) => item.label.toLowerCase().includes(keyword));
+        return matched.length === 1 ? matched[0] : null;
+    }
+
+    function renderProductOptions(enterpriseId, keepCurrent = false) {
+        const previous = keepCurrent ? (productSelect.value || initialProductId) : '';
+        productSelect.innerHTML = '<option value="">（可选）</option>';
+        productOptions
+            .filter((item) => String(item.enterprise_id) === String(enterpriseId || ''))
+            .forEach((item) => {
+                const option = document.createElement('option');
+                option.value = item.id;
+                option.textContent = item.label;
+                if (String(item.id) === String(previous)) option.selected = true;
+                productSelect.appendChild(option);
+            });
+    }
+
+    function syncEnterpriseSelection({ keepProduct = false } = {}) {
+        const selected = findEnterprise(enterpriseSearch.value);
+        enterpriseIdInput.value = selected ? selected.id : '';
+        enterpriseSearch.setCustomValidity(selected ? '' : '请从候选企业中选择一项');
+        renderProductOptions(selected ? selected.id : '', keepProduct);
+        renderTypeOptions();
+        return selected;
+    }
 
     function renderTypeOptions() {
         const source = productSelect.value ? productTypes : enterpriseTypes;
@@ -90,8 +144,21 @@
         });
     }
 
+    enterpriseSearch.addEventListener('input', () => syncEnterpriseSelection());
+    enterpriseSearch.addEventListener('blur', () => {
+        const selected = syncEnterpriseSelection({ keepProduct: true });
+        if (selected) enterpriseSearch.value = selected.label;
+    });
     productSelect.addEventListener('change', renderTypeOptions);
-    renderTypeOptions();
+    form?.addEventListener('submit', (event) => {
+        const selected = syncEnterpriseSelection({ keepProduct: true });
+        if (!selected) {
+            event.preventDefault();
+            enterpriseSearch.reportValidity();
+        }
+    });
+
+    syncEnterpriseSelection({ keepProduct: true });
 })();
 </script>
 {% endblock %}
