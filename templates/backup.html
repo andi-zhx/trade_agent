@@ -77,9 +77,11 @@
                     <option value="product_card">产品资料卡（ZIP）</option>
                 </select>
             </div>
-            <div class="col-md-6">
+            <div class="col-md-6 position-relative">
                 <label class="form-label small text-muted" for="keyword">文本筛选</label>
-                <input class="form-control" id="keyword" name="keyword" placeholder="输入企业/产品名称、编号、英文名或型号；留空导出全部">
+                <input class="form-control" id="keyword" name="keyword" placeholder="输入企业/产品名称、编号、英文名或型号；留空导出全部" autocomplete="off" aria-describedby="keywordHelp">
+                <div id="keywordSuggestions" class="list-group export-keyword-suggestions d-none" role="listbox" aria-label="文本筛选建议"></div>
+                <div id="keywordHelp" class="form-text">支持模糊查询，输入部分企业或产品信息后可从建议中点选。</div>
             </div>
             <div class="col-md-3 d-grid">
                 <button class="btn btn-primary" type="submit">按条件导出</button>
@@ -145,4 +147,120 @@
         <li>系统每天自动备份数据库和 uploads 目录，并按配置的保留天数/数量清理旧备份。</li>
     </ul>
 </div>
+{% endblock %}
+{% block scripts %}
+<script>
+(() => {
+    const keywordInput = document.getElementById('keyword');
+    const exportType = document.getElementById('export_type');
+    const suggestions = document.getElementById('keywordSuggestions');
+    if (!keywordInput || !exportType || !suggestions) return;
+
+    let controller = null;
+    let activeIndex = -1;
+    let items = [];
+
+    const hideSuggestions = () => {
+        suggestions.classList.add('d-none');
+        suggestions.innerHTML = '';
+        items = [];
+        activeIndex = -1;
+    };
+
+    const renderSuggestions = (records) => {
+        suggestions.innerHTML = '';
+        items = records;
+        activeIndex = -1;
+        if (!records.length) {
+            hideSuggestions();
+            return;
+        }
+        records.forEach((record, index) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'list-group-item list-group-item-action export-keyword-suggestion';
+            button.setAttribute('role', 'option');
+            button.dataset.index = String(index);
+
+            const header = document.createElement('div');
+            header.className = 'd-flex justify-content-between gap-2';
+            const title = document.createElement('span');
+            title.className = 'fw-semibold text-truncate';
+            title.textContent = record.title || '';
+            const badge = document.createElement('span');
+            badge.className = 'badge text-bg-light border flex-shrink-0';
+            badge.textContent = record.type_label || '';
+            header.append(title, badge);
+
+            const subtitle = document.createElement('div');
+            subtitle.className = 'small text-muted text-truncate';
+            subtitle.textContent = record.subtitle || '';
+            button.append(header, subtitle);
+
+            button.addEventListener('mousedown', (event) => {
+                event.preventDefault();
+                keywordInput.value = record.value || '';
+                hideSuggestions();
+                keywordInput.focus();
+            });
+            suggestions.appendChild(button);
+        });
+        suggestions.classList.remove('d-none');
+    };
+
+    const updateActiveItem = () => {
+        suggestions.querySelectorAll('.export-keyword-suggestion').forEach((item, index) => {
+            item.classList.toggle('active', index === activeIndex);
+        });
+    };
+
+    const fetchSuggestions = async () => {
+        const query = keywordInput.value.trim();
+        if (query.length < 1) {
+            hideSuggestions();
+            return;
+        }
+        if (controller) controller.abort();
+        controller = new AbortController();
+        try {
+            const params = new URLSearchParams({ q: query, export_type: exportType.value });
+            const response = await fetch(`{{ url_for('backup_keyword_suggestions') }}?${params.toString()}`, { signal: controller.signal });
+            if (!response.ok) throw new Error('suggestion request failed');
+            const data = await response.json();
+            renderSuggestions(data.results || []);
+        } catch (error) {
+            if (error.name !== 'AbortError') hideSuggestions();
+        }
+    };
+
+    let debounceTimer = null;
+    keywordInput.addEventListener('input', () => {
+        window.clearTimeout(debounceTimer);
+        debounceTimer = window.setTimeout(fetchSuggestions, 180);
+    });
+    keywordInput.addEventListener('focus', fetchSuggestions);
+    exportType.addEventListener('change', fetchSuggestions);
+    keywordInput.addEventListener('keydown', (event) => {
+        if (suggestions.classList.contains('d-none')) return;
+        if (event.key === 'ArrowDown') {
+            event.preventDefault();
+            activeIndex = Math.min(activeIndex + 1, items.length - 1);
+            updateActiveItem();
+        } else if (event.key === 'ArrowUp') {
+            event.preventDefault();
+            activeIndex = Math.max(activeIndex - 1, 0);
+            updateActiveItem();
+        } else if (event.key === 'Enter' && activeIndex >= 0) {
+            event.preventDefault();
+            keywordInput.value = items[activeIndex].value || '';
+            hideSuggestions();
+        } else if (event.key === 'Escape') {
+            hideSuggestions();
+        }
+    });
+    document.addEventListener('click', (event) => {
+        if (!suggestions.contains(event.target) && event.target !== keywordInput) hideSuggestions();
+    });
+})();
+</script>
 {% endblock %}
