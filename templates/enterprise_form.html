@@ -182,7 +182,7 @@
                 aria-controls="tab-pane-{{ tab_key }}"
                 aria-selected="{{ 'true' if loop.first else 'false' }}"
             >
-                {{ tab_title_map.get(tab_key, tab.title) }} <span class="ms-1 text-muted small" data-module-progress></span>
+                {{ tab_title_map.get(tab_key, tab.title) }}
             </button>
         </li>
         {% endfor %}
