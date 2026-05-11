@@ -74,7 +74,6 @@
                     <div class="btn-group btn-group-sm">
                         <a class="btn btn-outline-primary" href="{{ url_for('enterprise_detail', id=企业.id) }}">查看</a>
                         <a class="btn btn-outline-warning" href="{{ url_for('enterprise_edit', id=企业.id) }}">编辑</a>
-                        <a class="btn btn-outline-info" href="{{ url_for('document_upload', enterprise_id=企业.id) }}">上传附件</a>
                         {% if 是管理员 %}
                         <form method="post" action="{{ url_for('enterprise_delete', id=企业.id) }}" onsubmit="return confirm('请确认已勾选二次确认：删除企业【{{ 企业.company_name }}】？');" class="d-inline">
                             <input type="hidden" name="confirm_delete" value="YES">
