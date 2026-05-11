@@ -3425,6 +3425,23 @@ def 全部行业字段组(行业字段配置):
     return 字段组
 
 
+EXCLUDED_EXPORT_COLUMN_LABELS = {
+    "行业专项-工业机械与装备-工业机械专项-设备加工能力",
+    "行业专项-工业机械与装备-工业机械专项-装配能力",
+    "行业专项-工业机械与装备-工业机械专项-调试能力",
+    "行业专项-工业机械与装备-工业机械专项-研发团队人数",
+    "行业专项-工业机械与装备-工业机械专项-已交付设备案例",
+    "行业专项-工业机械与装备-工业机械专项-海外项目经验",
+    "行业专项-工业机械与装备-工业机械专项-售后备件能力",
+}
+
+
+def 过滤导出列(列列表):
+    """移除不在企业/产品详情中展示的导出选项。"""
+
+    return [(键名, 标题) for 键名, 标题 in 列列表 if 标题 not in EXCLUDED_EXPORT_COLUMN_LABELS]
+
+
 ENTERPRISE_EXPORT_BASE_COLUMNS = [
     ("enterprise_code", "企业编号"),
     ("status", "入库状态"),
@@ -3463,10 +3480,12 @@ ENTERPRISE_EXPORT_BASE_COLUMNS = [
     ("updated_at", "更新时间"),
 ]
 
-ENTERPRISE_EXPORT_COLUMNS = 合并导出列(
-    ENTERPRISE_EXPORT_BASE_COLUMNS,
-    配置字段导出列(COMMON_ENTERPRISE_FIELD_GROUPS),
-    配置字段导出列(全部行业字段组(INDUSTRY_EXTRA_FIELD_CONFIG), "行业专项"),
+ENTERPRISE_EXPORT_COLUMNS = 过滤导出列(
+    合并导出列(
+        ENTERPRISE_EXPORT_BASE_COLUMNS,
+        配置字段导出列(COMMON_ENTERPRISE_FIELD_GROUPS),
+        配置字段导出列(全部行业字段组(INDUSTRY_EXTRA_FIELD_CONFIG), "行业专项"),
+    )
 )
 
 
@@ -3511,10 +3530,12 @@ PRODUCT_EXPORT_BASE_COLUMNS = [
     ("updated_at", "更新时间"),
 ]
 
-PRODUCT_EXPORT_COLUMNS = 合并导出列(
-    PRODUCT_EXPORT_BASE_COLUMNS,
-    配置字段导出列(COMMON_PRODUCT_FIELD_GROUPS),
-    配置字段导出列(全部行业字段组(INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG), "行业专项"),
+PRODUCT_EXPORT_COLUMNS = 过滤导出列(
+    合并导出列(
+        PRODUCT_EXPORT_BASE_COLUMNS,
+        配置字段导出列(COMMON_PRODUCT_FIELD_GROUPS),
+        配置字段导出列(全部行业字段组(INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG), "行业专项"),
+    )
 )
 
 

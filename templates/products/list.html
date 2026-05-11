@@ -164,6 +164,10 @@
                 <input type="hidden" name="{{ name }}" value="{{ filters.get(name, '') }}">
                 {% endfor %}
                 <div class="alert alert-light border small mb-3">已包含新增/编辑产品时可填写的基础信息、非必填项和行业专项属性。</div>
+                <div class="d-flex gap-2 mb-3">
+                    <button type="button" class="btn btn-sm btn-outline-primary" data-export-column-toggle data-target="#productExportModal" data-checked="true">全选</button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" data-export-column-toggle data-target="#productExportModal" data-checked="false">取消全选</button>
+                </div>
                 <div class="row g-2 overflow-auto" style="max-height: 55vh;">
                     {% for key, label in product_export_columns %}
                     <div class="col-md-4">
@@ -182,4 +186,16 @@
         </form>
     </div>
 </div>
+<script>
+document.querySelectorAll('[data-export-column-toggle]').forEach((button) => {
+    button.addEventListener('click', () => {
+        const modal = document.querySelector(button.dataset.target);
+        if (!modal) return;
+        const checked = button.dataset.checked === 'true';
+        modal.querySelectorAll('input[name="columns"]').forEach((checkbox) => {
+            checkbox.checked = checked;
+        });
+    });
+});
+</script>
 {% endblock %}
