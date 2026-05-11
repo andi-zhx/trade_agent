@@ -106,3 +106,35 @@ body {
 #enterpriseForm .enterprise-radio-item { margin-right: .9rem !important; }
 #enterpriseForm .enterprise-radio-item .form-check-input[type="radio"] { border-radius: 50%; }
 #enterpriseTabContent { width: 100%; min-height: 520px; }
+
+
+.table-action-buttons {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: .4rem;
+    align-items: center;
+}
+
+.table-action-buttons .btn {
+    min-width: 3.25rem;
+}
+
+.export-keyword-suggestions {
+    position: absolute;
+    top: calc(100% + .25rem);
+    left: 0;
+    right: 0;
+    z-index: 1050;
+    max-height: 18rem;
+    overflow-y: auto;
+    box-shadow: 0 .5rem 1rem rgba(15, 23, 42, .12);
+}
+
+.export-keyword-suggestion {
+    cursor: pointer;
+}
+
+.export-keyword-suggestion:hover,
+.export-keyword-suggestion.active {
+    background-color: #f1f5f9;
+}

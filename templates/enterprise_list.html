@@ -70,14 +70,14 @@
                     </span>
                 </td>
                 <td>{{ 企业.updated_at.strftime('%Y-%m-%d %H:%M') if 企业.updated_at else '-' }}</td>
-                <td>
-                    <div class="btn-group btn-group-sm">
-                        <a class="btn btn-outline-primary" href="{{ url_for('enterprise_detail', id=企业.id) }}">查看</a>
-                        <a class="btn btn-outline-warning" href="{{ url_for('enterprise_edit', id=企业.id) }}">编辑</a>
+                <td class="text-nowrap">
+                    <div class="table-action-buttons">
+                        <a class="btn btn-sm btn-outline-primary" href="{{ url_for('enterprise_detail', id=企业.id) }}">查看</a>
+                        <a class="btn btn-sm btn-outline-warning" href="{{ url_for('enterprise_edit', id=企业.id) }}">编辑</a>
                         {% if 是管理员 %}
                         <form method="post" action="{{ url_for('enterprise_delete', id=企业.id) }}" onsubmit="return confirm('请确认已勾选二次确认：删除企业【{{ 企业.company_name }}】？');" class="d-inline">
                             <input type="hidden" name="confirm_delete" value="YES">
-                            <button type="submit" class="btn btn-outline-danger">删除</button>
+                            <button type="submit" class="btn btn-sm btn-outline-danger">删除</button>
                         </form>
                         {% endif %}
                     </div>

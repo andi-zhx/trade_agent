@@ -12,7 +12,7 @@ import re
 from functools import wraps
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from flask import Flask, abort, flash, has_request_context, redirect, render_template, request, send_file, send_from_directory, session, url_for
+from flask import Flask, abort, flash, has_request_context, jsonify, redirect, render_template, request, send_file, send_from_directory, session, url_for
 from jinja2.runtime import Undefined
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font
@@ -1123,6 +1123,77 @@ def create_app():
             logs=操作日志,
             export_logs=导出日志,
         )
+
+    @app.get("/backup/keyword-suggestions")
+    @admin_required
+    def backup_keyword_suggestions():
+        keyword = request.args.get("q", "", type=str).strip()
+        export_type = request.args.get("export_type", "", type=str).strip()
+        if not keyword:
+            return jsonify({"results": []})
+
+        like = f"%{keyword}%"
+        results = []
+        include_enterprises = export_type in {"enterprise_table", "enterprise_package", ""}
+        include_products = export_type in {"product_table", "product_card", ""}
+
+        if include_enterprises:
+            enterprises = (
+                Enterprise.query.filter(
+                    or_(
+                        Enterprise.company_name.ilike(like),
+                        Enterprise.english_name.ilike(like),
+                        Enterprise.enterprise_code.ilike(like),
+                    )
+                )
+                .order_by(Enterprise.updated_at.desc())
+                .limit(8)
+                .all()
+            )
+            for enterprise in enterprises:
+                subtitle_parts = [enterprise.enterprise_code, enterprise.english_name, (enterprise.industry_category or 行业默认名称(enterprise.industry_code))]
+                results.append(
+                    {
+                        "type": "enterprise",
+                        "type_label": "企业",
+                        "title": enterprise.company_name or enterprise.enterprise_code,
+                        "subtitle": " · ".join(part for part in subtitle_parts if part),
+                        "value": enterprise.company_name or enterprise.enterprise_code or enterprise.english_name,
+                    }
+                )
+
+        if include_products:
+            products = (
+                Product.query.join(Enterprise, Product.enterprise_id == Enterprise.id)
+                .filter(
+                    or_(
+                        Product.product_name_cn.ilike(like),
+                        Product.product_name_en.ilike(like),
+                        Product.product_code.ilike(like),
+                        Product.model.ilike(like),
+                        Enterprise.company_name.ilike(like),
+                        Enterprise.english_name.ilike(like),
+                        Enterprise.enterprise_code.ilike(like),
+                    )
+                )
+                .order_by(Product.updated_at.desc())
+                .limit(8)
+                .all()
+            )
+            for product in products:
+                enterprise_name = product.enterprise.company_name if product.enterprise else ""
+                subtitle_parts = [product.product_code, product.product_name_en, product.model, enterprise_name]
+                results.append(
+                    {
+                        "type": "product",
+                        "type_label": "产品",
+                        "title": product.product_name_cn or product.product_name_en or product.product_code,
+                        "subtitle": " · ".join(part for part in subtitle_parts if part),
+                        "value": product.product_name_cn or product.product_name_en or product.product_code or product.model,
+                    }
+                )
+
+        return jsonify({"results": results[:10]})
 
     @app.get("/backup/download/<string:backup_type>/<path:filename>")
     @admin_required
