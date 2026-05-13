@@ -14,7 +14,19 @@
     {% set show_when_any = field.show_when_any if field.show_when_any is defined else None %}
     {% set col_class = 'col-12' if field.span_full_row or field.type in ['checkbox_group', 'checkbox_tags', 'radio_group', 'dynamic_contacts'] else ('col-lg-6' if field.type == 'textarea' else 'col-lg-3 col-md-4') %}
     <div class="{{ col_class }}" data-module-field {% if field.required %}data-required-field="{{ field.key }}" data-required-label="{{ field.label }}"{% endif %} {% if show_when %}data-show-when='{{ show_when|tojson|forceescape }}'{% endif %}{% if show_when_any %} data-show-when-any='{{ show_when_any|tojson|forceescape }}'{% endif %}>
-    {% if field.type == 'textarea' %}
+    {% if field.type == 'auto' %}
+        <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
+        <input class="form-control" value="{{ 企业.enterprise_code if 企业 else (field.placeholder or '自动生成') }}" disabled>
+    {% elif field.type == 'industry_select' %}
+        <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
+        {% set 当前行业代码 = request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '') %}
+        {% set 当前行业名称 = request.form.get('industry_category') if request.method == 'POST' else (企业.industry_category if 企业 else '') %}
+        <select class="form-select" id="industryCode" name="industry_code">
+            <option value="">请选择行业大类</option>
+            {% for item in 行业列表 %}<option value="{{ item.code }}" data-name="{{ item.name }}" {% if item.code == 当前行业代码 %}selected{% endif %}>{{ item.code }} {{ item.name }}</option>{% endfor %}
+        </select>
+        <input type="hidden" id="industryName" name="industry_category" value="{{ 当前行业名称 }}">
+    {% elif field.type == 'textarea' %}
         <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
         <textarea class="form-control js-char-count" rows="{{ 8 if field.key == 'business_scope' else 2 }}" maxlength="{{ field.maxlength if field.maxlength is defined else 200 }}" data-maxlength="{{ field.maxlength if field.maxlength is defined else 200 }}" name="{{ field.key }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>{{ extra_value(field.key) }}</textarea>
         <div class="form-text"><span class="js-char-counter">0</span>/{{ field.maxlength if field.maxlength is defined else 200 }}</div>
@@ -103,6 +115,10 @@
         {% if field.key == 'registered_name' and not cur_value %}
             {% set cur_value = extra_value('company_full_name') %}
         {% endif %}
+        {% if field.key == 'project_owner' and not cur_value %}{% set cur_value = 企业.project_owner if 企业 else '' %}{% endif %}
+        {% if field.key == 'province' and not cur_value %}{% set cur_value = 企业.province if 企业 else '' %}{% endif %}
+        {% if field.key == 'city' and not cur_value %}{% set cur_value = 企业.city if 企业 else '' %}{% endif %}
+        {% if field.key == 'sub_industry' and not cur_value %}{% set cur_value = 企业.sub_industry if 企业 else '' %}{% endif %}
         <input class="form-control" type="{{ field.type if field.type in ['date','number','email','url'] else 'text' }}" name="{{ field.key }}" value="{{ cur_value }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>
         {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
     {% endif %}
@@ -155,7 +171,6 @@
     {% set current_industry = request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '') %}
     {% set industry_tabs = (行业字段配置.get(current_industry, []) if 行业字段配置 else []) %}
     {% set tab_title_map = {
-        'ENTRY': '入库信息',
         'A': '基本信息',
         'B': '工商信息',
         'C': '联系信息',
@@ -166,7 +181,7 @@
         'H': '资质合规',
         'J': '附件资料'
     } %}
-    {% set tab_groups = [{'key': 'ENTRY', 'title': tab_title_map['ENTRY'], 'fields': []}] + 通用字段组 + industry_tabs + [{'key': 'J', 'title': tab_title_map['J'], 'fields': []}] %}
+    {% set tab_groups = 通用字段组 + industry_tabs + [{'key': 'J', 'title': tab_title_map['J'], 'fields': []}] %}
 
     <ul class="nav nav-tabs flex-nowrap overflow-auto" id="enterpriseTabs" role="tablist">
         {% for tab in tab_groups %}
@@ -189,18 +204,8 @@
     </ul>
 
     <div class="tab-content border border-top-0 rounded-bottom bg-white p-3 shadow-sm" id="enterpriseTabContent">
-        <div class="tab-pane fade show active" id="tab-pane-ENTRY" role="tabpanel" aria-labelledby="tab-btn-ENTRY" tabindex="0" data-module-pane data-module-key="ENTRY">
-            <div class="row g-3">
-                    <div class="col-md-3"><label class="form-label">企业编号</label><input class="form-control" value="{{ 企业.enterprise_code if 企业 else '自动生成（保存后可见）' }}" disabled></div>
-                    <div class="col-md-3" data-module-field data-required-field="project_owner" data-required-label="项目负责人"><label class="form-label field-required">项目负责人</label><input class="form-control" name="project_owner" value="{{ request.form.get('project_owner') if request.method == 'POST' else (企业.project_owner if 企业 else '') }}"></div>
-                    <div class="col-md-3"><label class="form-label">行业分类</label><select class="form-select" id="industryCode" name="industry_code"><option value="">请选择行业分类</option>{% set 当前行业代码 = request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '') %}{% for item in 行业列表 %}<option value="{{ item.code }}" data-name="{{ item.name }}" {% if item.code == 当前行业代码 %}selected{% endif %}>{{ item.code }} {{ item.name }}</option>{% endfor %}</select></div>
-                    <div class="col-md-3"><label class="form-label">行业名称（可编辑）</label><input id="industryName" class="form-control" name="industry_category" value="{{ request.form.get('industry_category') if request.method == 'POST' else (企业.industry_category if 企业 else '') }}" placeholder="选择行业后自动填充，可手动修改"></div>
-                    <div class="col-md-3"><label class="form-label">企业当前阶段</label><select class="form-select" name="enterprise_stage"><option value="">请选择</option>{% set 当前阶段值 = request.form.get('enterprise_stage') if request.method == 'POST' else ((企业扩展字段 or {}).get('enterprise_stage', '')) %}{% for s in ENTRY_STAGE_OPTIONS %}<option value="{{ s }}" {% if s == 当前阶段值 %}selected{% endif %}>{{ s }}</option>{% endfor %}</select></div>
-            </div>
-        </div>
-
         {% for group in 通用字段组 %}
-        <div class="tab-pane fade" id="tab-pane-{{ group.key }}" role="tabpanel" aria-labelledby="tab-btn-{{ group.key }}" tabindex="0" data-module-pane data-module-key="{{ group.key }}">
+        <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="tab-pane-{{ group.key }}" role="tabpanel" aria-labelledby="tab-btn-{{ group.key }}" tabindex="0" data-module-pane data-module-key="{{ group.key }}">
             <div class="row g-3">
                 {% for field in group.fields %}
                     {{ render_field(field) }}
@@ -298,23 +303,25 @@
     const industrySelect = document.getElementById('industryCode');
     const industryName = document.getElementById('industryName');
     const completenessBadge = document.getElementById('overviewCompleteness');
+    const companyFullNameInput = form.querySelector('[name="company_full_name"]');
+    const registeredNameInput = form.querySelector('[name="registered_name"]');
+    let registeredNameAutoSynced = !registeredNameInput?.value || registeredNameInput?.value === companyFullNameInput?.value;
     const existingUploadedTypes = new Set({{ ((已上传附件列表 or []) | map(attribute='document_type') | list) | tojson }});
     const requiredFields = [
         ['project_owner', '项目负责人'],
+        ['industry_code', '行业大类'],
         ['company_full_name', '企业全称'],
         ['registered_name', '注册名称'],
-        ['legal_representative', '法人代表'],
+        ['company_type', '企业类型'],
         ['unified_social_credit_code', '统一社会信用代码'],
-        ['business_registration_number', '工商注册号'],
-        ['business_term', '营业期限'],
+        ['legal_representative', '法定代表人'],
         ['registered_capital', '注册资本'],
-        ['paid_in_capital', '实缴资本'],
-        ['company_type', '企业注册类型'],
-        ['approval_date', '核准日期'],
+        ['founded_date', '成立日期'],
+        ['business_term_start', '营业期限起始日期'],
         ['is_listed_or_pre_ipo', '是否上市'],
         ['has_import_export_qualification', '是否具备进出口相关资质'],
     ];
-    const coreBasicFields = requiredFields.filter(([key]) => ['company_full_name'].includes(key));
+    const coreBasicFields = requiredFields.filter(([key]) => ['industry_code', 'company_full_name'].includes(key));
     const coreBusinessFields = requiredFields.filter(([key]) => !['project_owner', 'company_full_name', 'is_listed_or_pre_ipo', 'has_import_export_qualification'].includes(key));
     const saveButtons = Array.from(form.querySelectorAll('button[type="submit"][data-action="save"]'));
 
@@ -365,6 +372,15 @@
 
     form.querySelectorAll('button[type="submit"][data-action]').forEach((btn) => {
         btn.addEventListener('click', () => { actionInput.value = btn.dataset.action; });
+    });
+
+    registeredNameInput?.addEventListener('input', () => {
+        registeredNameAutoSynced = !registeredNameInput.value || registeredNameInput.value === (companyFullNameInput?.value || '');
+    });
+    companyFullNameInput?.addEventListener('input', () => {
+        if (registeredNameAutoSynced && registeredNameInput) {
+            registeredNameInput.value = companyFullNameInput.value;
+        }
     });
 
     form.addEventListener('submit', () => {

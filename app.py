@@ -98,12 +98,10 @@ def 导出企业资料完整度标签(enterprise):
         ext.get("registered_name") or enterprise.company_name,
         ext.get("legal_representative"),
         ext.get("unified_social_credit_code") or enterprise.unified_social_credit_code,
-        ext.get("business_registration_number"),
-        ext.get("business_term"),
         ext.get("registered_capital") or enterprise.registered_capital,
-        ext.get("paid_in_capital"),
         ext.get("company_type") or enterprise.company_type,
-        ext.get("approval_date"),
+        ext.get("founded_date") or (enterprise.founded_date.strftime("%Y-%m-%d") if enterprise.founded_date else ""),
+        ext.get("business_term_start"),
         ext.get("is_listed_or_pre_ipo"),
         ext.get("has_import_export_qualification"),
     ]
@@ -720,12 +718,13 @@ def create_app():
         if not ext.get("company_full_name"):
             ext["company_full_name"] = (企业.company_name or "").strip()
         if not ext.get("registered_name"):
-            ext["registered_name"] = (ext.get("company_full_name") or 企业.company_name or "").strip()
+            ext["registered_name"] = (getattr(企业, "registered_name", None) or ext.get("company_full_name") or 企业.company_name or "").strip()
         if not ext.get("founded_date"):
             ext["founded_date"] = 企业.founded_date.strftime("%Y-%m-%d") if 企业.founded_date else ""
         if not ext.get("legal_representative"):
             ext["legal_representative"] = (
-                ext.get("legal_person")
+                getattr(企业, "legal_representative", None)
+                or ext.get("legal_person")
                 or ext.get("corporate_representative")
                 or ext.get("法定代表人")
                 or ""
@@ -751,6 +750,14 @@ def create_app():
                 or ext.get("registration_number")
                 or ""
             ).strip()
+        if not ext.get("business_term_start") and getattr(企业, "business_term_start", None):
+            ext["business_term_start"] = 企业.business_term_start.strftime("%Y-%m-%d")
+        if not ext.get("business_term_end") and getattr(企业, "business_term_end", None):
+            ext["business_term_end"] = 企业.business_term_end.strftime("%Y-%m-%d")
+        if not ext.get("business_term"):
+            起始日期 = (ext.get("business_term_start") or "").strip()
+            终止日期 = (ext.get("business_term_end") or "").strip()
+            ext["business_term"] = f"{起始日期}至{终止日期}" if 起始日期 and 终止日期 else 起始日期
         if not ext.get("business_term"):
             ext["business_term"] = (
                 ext.get("business_validity_period")
@@ -758,6 +765,12 @@ def create_app():
                 or ext.get("营业期限")
                 or ""
             ).strip()
+        if ext.get("business_term") and not ext.get("business_term_start"):
+            日期片段 = re.findall(r"\d{4}-\d{1,2}-\d{1,2}", ext.get("business_term") or "")
+            if 日期片段:
+                ext["business_term_start"] = 日期片段[0]
+            if len(日期片段) > 1 and not ext.get("business_term_end"):
+                ext["business_term_end"] = 日期片段[1]
         if not ext.get("paid_in_capital"):
             ext["paid_in_capital"] = (
                 ext.get("actual_paid_capital")
@@ -792,9 +805,8 @@ def create_app():
         基本信息字段 = [
             ("企业全称", ext.get("company_full_name") or 企业.company_name),
             ("企业简称", ext.get("company_short_name")),
-            ("成立时间", ext.get("founded_date") or (企业.founded_date.strftime("%Y-%m-%d") if 企业.founded_date else "")),
-            ("行业分类", 企业.industry_code),
-            ("行业名称", 企业.industry_category or ext.get("industry")),
+            ("行业大类", 企业.industry_code),
+            ("细分行业", 企业.sub_industry),
             ("核心产品", ext.get("core_products") or 企业.main_products),
             ("企业网址", ext.get("website")),
             ("运营状态", ext.get("operating_status")),
@@ -807,18 +819,13 @@ def create_app():
         工商信息字段 = [
             ("注册名称", ext.get("registered_name")),
             ("法人代表", ext.get("legal_representative")),
-            ("注册时间", ext.get("registration_date") or ext.get("registered_date") or ext.get("founded_date")),
+            ("成立日期", ext.get("founded_date") or (企业.founded_date.strftime("%Y-%m-%d") if 企业.founded_date else "")),
             ("统一社会信用代码", ext.get("unified_social_credit_code") or 企业.unified_social_credit_code),
-            ("工商注册号", ext.get("business_registration_number")),
             ("注册资本", ext.get("registered_capital") or 企业.registered_capital),
-            ("企业注册类型", ext.get("company_type") or 企业.company_type),
-            ("行业", ext.get("industry") or 企业.industry_category),
-            ("登记机关", ext.get("registration_authority")),
+            ("企业类型", ext.get("company_type") or 企业.company_type),
             ("注册地址", ext.get("registered_address") or 企业.registered_address),
-            ("经营范围", ext.get("business_scope")),
-            ("营业期限", ext.get("business_term")),
-            ("核准日期", ext.get("approval_date")),
-            ("实缴资本", ext.get("paid_in_capital")),
+            ("营业期限起始日期", ext.get("business_term_start")),
+            ("营业期限终止日期", ext.get("business_term_end")),
         ]
         return {
             "A": [(字段名, 字段已填写(字段值)) for 字段名, 字段值 in 基本信息字段],
@@ -831,12 +838,10 @@ def create_app():
         ("工商信息-注册名称", lambda 企业, ext: ext.get("registered_name")),
         ("工商信息-法人代表", lambda 企业, ext: ext.get("legal_representative")),
         ("工商信息-统一社会信用代码", lambda 企业, ext: ext.get("unified_social_credit_code") or 企业.unified_social_credit_code),
-        ("工商信息-工商注册号", lambda 企业, ext: ext.get("business_registration_number")),
-        ("工商信息-营业期限", lambda 企业, ext: ext.get("business_term")),
         ("工商信息-注册资本", lambda 企业, ext: ext.get("registered_capital") or 企业.registered_capital),
-        ("工商信息-实缴资本", lambda 企业, ext: ext.get("paid_in_capital")),
-        ("工商信息-企业注册类型", lambda 企业, ext: ext.get("company_type") or 企业.company_type),
-        ("工商信息-核准日期", lambda 企业, ext: ext.get("approval_date")),
+        ("工商信息-企业类型", lambda 企业, ext: ext.get("company_type") or 企业.company_type),
+        ("工商信息-成立日期", lambda 企业, ext: ext.get("founded_date") or (企业.founded_date.strftime("%Y-%m-%d") if 企业.founded_date else "")),
+        ("工商信息-营业期限起始日期", lambda 企业, ext: ext.get("business_term_start")),
         ("经营情况-是否上市", lambda 企业, ext: ext.get("is_listed_or_pre_ipo")),
         ("资质合规-是否具备进出口相关资质", lambda 企业, ext: ext.get("has_import_export_qualification")),
     ]
@@ -1656,8 +1661,12 @@ def create_app():
                 company_name=企业名称,
                 english_name=扩展字段.get("english_name") or None,
                 unified_social_credit_code=扩展字段.get("unified_social_credit_code") or None,
+                registered_name=扩展字段.get("registered_name") or 企业名称,
+                legal_representative=扩展字段.get("legal_representative") or None,
                 founded_date=读取日期(扩展字段.get("founded_date")),
                 registered_capital=扩展字段.get("registered_capital") or None,
+                business_term_start=读取日期(扩展字段.get("business_term_start")),
+                business_term_end=读取日期(扩展字段.get("business_term_end")),
                 registered_address=扩展字段.get("registered_address") or None,
                 business_address=扩展字段.get("business_address") or None,
                 province=request.form.get("province", "").strip() or None,
@@ -1878,8 +1887,12 @@ def create_app():
             企业.company_name = (扩展字段.get("company_full_name") or "").strip() or 企业.company_name or f"未命名企业-{企业.enterprise_code}"
             企业.english_name = 扩展字段.get("english_name") or None
             企业.unified_social_credit_code = 扩展字段.get("unified_social_credit_code") or None
+            企业.registered_name = 扩展字段.get("registered_name") or 企业.company_name
+            企业.legal_representative = 扩展字段.get("legal_representative") or None
             企业.founded_date = 读取日期(扩展字段.get("founded_date"))
             企业.registered_capital = 扩展字段.get("registered_capital") or None
+            企业.business_term_start = 读取日期(扩展字段.get("business_term_start"))
+            企业.business_term_end = 读取日期(扩展字段.get("business_term_end"))
             企业.registered_address = 扩展字段.get("registered_address") or None
             企业.business_address = 扩展字段.get("business_address") or None
             企业.province = request.form.get("province", "").strip() or None
@@ -4808,6 +4821,18 @@ def init_db(app):
         if "city" not in enterprise_columns:
             db.session.execute(text("ALTER TABLE enterprises ADD COLUMN city VARCHAR(50)"))
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_enterprises_city ON enterprises (city)"))
+        enterprise_schema_additions = {
+            "registered_name": ("VARCHAR(255)", "ix_enterprises_registered_name"),
+            "legal_representative": ("VARCHAR(100)", None),
+            "business_term_start": ("DATE", None),
+            "business_term_end": ("DATE", None),
+        }
+        for 列名, (字段类型, 索引名) in enterprise_schema_additions.items():
+            if 列名 not in enterprise_columns:
+                db.session.execute(text(f"ALTER TABLE enterprises ADD COLUMN {列名} {字段类型}"))
+                enterprise_columns.add(列名)
+            if 索引名:
+                db.session.execute(text(f"CREATE INDEX IF NOT EXISTS {索引名} ON enterprises ({列名})"))
         for 列名 in DEPRECATED_ENTERPRISE_EXTRA_FIELD_KEYS:
             if 列名 in enterprise_columns:
                 db.session.execute(text(f"ALTER TABLE enterprises DROP COLUMN {列名}"))
