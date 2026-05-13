@@ -46,7 +46,7 @@
     {%- set key = field.key -%}
     {%- set val = ext.get(key) -%}
     {%- if key == 'company_full_name' and not val -%}{% set val = 企业.company_name %}{%- endif -%}
-    {%- if key == 'registered_name' and not val -%}{% set val = ext.get('company_full_name') or 企业.company_name %}{%- endif -%}
+    {%- if key == 'registered_name' and not val -%}{% set val = 企业.registered_name or ext.get('company_full_name') or 企业.company_name %}{%- endif -%}
     {%- if key == 'company_short_name' and not val -%}{% set val = ext.get('short_name') %}{%- endif -%}
     {%- if key == 'english_name' and not val -%}{% set val = 企业.english_name %}{%- endif -%}
     {%- if key == 'unified_social_credit_code' and not val -%}{% set val = 企业.unified_social_credit_code %}{%- endif -%}
@@ -61,6 +61,9 @@
     {%- if key == 'one_sentence_intro' and not val -%}{% set val = ext.get('slogan') %}{%- endif -%}
     {%- if key == 'enterprise_description' and not val -%}{% set val = ext.get('company_profile') or ext.get('main_business') or 企业.main_business %}{%- endif -%}
     {%- if key == 'registered_capital' and not val -%}{% set val = 企业.registered_capital %}{%- endif -%}
+    {%- if key == 'legal_representative' and not val -%}{% set val = 企业.legal_representative %}{%- endif -%}
+    {%- if key == 'business_term_start' and not val -%}{% set val = 企业.business_term_start.strftime('%Y-%m-%d') if 企业.business_term_start else '' %}{%- endif -%}
+    {%- if key == 'business_term_end' and not val -%}{% set val = 企业.business_term_end.strftime('%Y-%m-%d') if 企业.business_term_end else '' %}{%- endif -%}
     {%- if key == 'industry' and not val -%}{% set val = ext.get('primary_industry') or 企业.industry_category %}{%- endif -%}
     {%- if key == 'export_experience' and not val -%}{% set val = '是' if 企业.has_foreign_trade_experience else '否' %}{%- endif -%}
     {%- if key == 'factory_area_range' and not val -%}{% set val = 企业.factory_area %}{%- endif -%}
