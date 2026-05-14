@@ -3,7 +3,7 @@
 
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h4 mb-0">备份管理（仅管理员）</h1>
+    <h1 class="h4 mb-0">备份管理</h1>
 </div>
 
 <div class="card shadow-sm mb-3">
@@ -26,6 +26,7 @@
                 <div>{{ latest_files_backup_time.strftime('%Y-%m-%d %H:%M:%S') if latest_files_backup_time else '暂无' }}</div>
             </div>
         </div>
+        <div class="alert alert-info small mb-3">管理员和普通用户均可查看备份管理、执行系统文件备份，并导出导入失败记录。</div>
         <div class="d-flex gap-2 flex-wrap">
             <form method="post">
                 <input type="hidden" name="action" value="backup_db">
