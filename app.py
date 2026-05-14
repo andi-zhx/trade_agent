@@ -2053,8 +2053,6 @@ def create_app():
         page = request.args.get("page", 1, type=int)
         q_enterprise = request.args.get("enterprise", "").strip()
         q_keyword = request.args.get("keyword", "").strip()
-        q_category = request.args.get("category", "").strip()
-        q_product_type = request.args.get("product_type", "").strip()
         q_export_suitability = request.args.get("export_suitability", "").strip()
         q_recommendation_level = request.args.get("recommendation_level", "").strip()
         q_certification = request.args.get("certification_status", "").strip()
@@ -2078,10 +2076,6 @@ def create_app():
                     Product.model.ilike(keyword_like),
                 )
             )
-        if q_category:
-            query = query.filter(Product.product_category.ilike(f"%{q_category}%"))
-        if q_product_type:
-            query = query.filter(Product.product_type == q_product_type)
         if q_export_suitability:
             query = query.filter(Product.export_suitability == q_export_suitability)
         if q_recommendation_level:
@@ -2097,14 +2091,6 @@ def create_app():
 
         分页 = query.order_by(Product.updated_at.desc()).paginate(page=page, per_page=PER_PAGE, error_out=False)
         enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
-        categories = [
-            r[0]
-            for r in db.session.query(Product.product_category)
-            .filter(Product.product_category.isnot(None), Product.product_category != "")
-            .distinct()
-            .order_by(Product.product_category)
-            .all()
-        ]
         target_market_options = [
             r[0]
             for r in db.session.query(Product.target_market)
@@ -2117,9 +2103,7 @@ def create_app():
             "products/list.html",
             分页=分页,
             enterprises=enterprises,
-            categories=categories,
             industries=行业下拉选项(),
-            product_type_options=Product.PRODUCT_TYPE_OPTIONS,
             export_suitability_options=Product.EXPORT_SUITABILITY_OPTIONS,
             recommendation_level_options=Product.RECOMMENDATION_LEVEL_OPTIONS,
             certification_status_options=Product.CERTIFICATION_STATUS_OPTIONS,

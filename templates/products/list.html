@@ -32,22 +32,6 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-2">
-                <select name="category" class="form-select">
-                    <option value="">产品品类（全部）</option>
-                    {% for category in categories %}
-                    <option value="{{ category }}" {% if filters.get('category') == category %}selected{% endif %}>{{ category }}</option>
-                    {% endfor %}
-                </select>
-            </div>
-            <div class="col-md-2">
-                <select name="product_type" class="form-select">
-                    <option value="">产品类型（全部）</option>
-                    {% for option in product_type_options %}
-                    <option value="{{ option }}" {% if filters.get('product_type') == option %}selected{% endif %}>{{ option }}</option>
-                    {% endfor %}
-                </select>
-            </div>
             <div class="col-md-2"><button class="btn btn-outline-primary w-100">筛选</button></div>
             <div class="col-md-1"><a href="{{ url_for('product_list') }}" class="btn btn-outline-secondary w-100">重置</a></div>
         </form>
@@ -65,7 +49,6 @@
         <th>产品类型</th>
         <th>MOQ</th>
         <th>交期</th>
-        <th>认证情况</th>
         <th>目标市场</th>
         <th>价格</th>
         <th>更新时间</th>
@@ -92,7 +75,6 @@
         <td>{{ p.product_type or '-' }}</td>
         <td>{{ p.moq or extra.get('trade_moq') or '-' }}</td>
         <td>{{ p.delivery_cycle or p.production_cycle or extra.get('trade_mass_cycle') or '-' }}</td>
-        <td>{{ p.certification_status or p.certifications or '-' }}</td>
         <td>{{ p.target_market or '-' }}</td>
         <td>
             {% if p.price_display %}
@@ -116,7 +98,7 @@
         </td>
     </tr>
     {% else %}
-    <tr><td colspan="12" class="text-center text-muted">暂无产品数据</td></tr>
+    <tr><td colspan="11" class="text-center text-muted">暂无产品数据</td></tr>
     {% endfor %}
     </tbody>
 </table>
@@ -126,19 +108,19 @@
 <nav aria-label="产品分页" class="d-flex justify-content-center mt-3">
     <ul class="pagination mb-0">
         <li class="page-item {% if not 分页.has_prev %}disabled{% endif %}">
-            <a class="page-link" href="{{ url_for('product_list', page=分页.prev_num, keyword=filters.get('keyword',''), enterprise=filters.get('enterprise',''), industry=filters.get('industry',''), category=filters.get('category',''), product_type=filters.get('product_type','')) }}">上一页</a>
+            <a class="page-link" href="{{ url_for('product_list', page=分页.prev_num, keyword=filters.get('keyword',''), enterprise=filters.get('enterprise',''), industry=filters.get('industry','')) }}">上一页</a>
         </li>
         {% for pageno in 分页.iter_pages(left_edge=1, left_current=1, right_current=2, right_edge=1) %}
             {% if pageno %}
             <li class="page-item {% if pageno == 分页.page %}active{% endif %}">
-                <a class="page-link" href="{{ url_for('product_list', page=pageno, keyword=filters.get('keyword',''), enterprise=filters.get('enterprise',''), industry=filters.get('industry',''), category=filters.get('category',''), product_type=filters.get('product_type','')) }}">{{ pageno }}</a>
+                <a class="page-link" href="{{ url_for('product_list', page=pageno, keyword=filters.get('keyword',''), enterprise=filters.get('enterprise',''), industry=filters.get('industry','')) }}">{{ pageno }}</a>
             </li>
             {% else %}
             <li class="page-item disabled"><span class="page-link">…</span></li>
             {% endif %}
         {% endfor %}
         <li class="page-item {% if not 分页.has_next %}disabled{% endif %}">
-            <a class="page-link" href="{{ url_for('product_list', page=分页.next_num, keyword=filters.get('keyword',''), enterprise=filters.get('enterprise',''), industry=filters.get('industry',''), category=filters.get('category',''), product_type=filters.get('product_type','')) }}">下一页</a>
+            <a class="page-link" href="{{ url_for('product_list', page=分页.next_num, keyword=filters.get('keyword',''), enterprise=filters.get('enterprise',''), industry=filters.get('industry','')) }}">下一页</a>
         </li>
     </ul>
 </nav>
@@ -152,7 +134,7 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="关闭"></button>
             </div>
             <div class="modal-body">
-                {% for name in ['keyword','enterprise','industry','category','product_type','export_suitability','recommendation_level','certification_status','target_market','status'] %}
+                {% for name in ['keyword','enterprise','industry','export_suitability','recommendation_level','certification_status','target_market','status'] %}
                 <input type="hidden" name="{{ name }}" value="{{ filters.get(name, '') }}">
                 {% endfor %}
                 <div class="alert alert-light border small mb-3">已包含新增/编辑产品时可填写的基础信息、非必填项和行业专项属性。</div>
