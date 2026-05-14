@@ -389,6 +389,20 @@ def create_app():
 
         return wrapped
 
+    def backup_management_required(view_func):
+        @wraps(view_func)
+        def wrapped(*args, **kwargs):
+            用户 = 当前用户()
+            if not 用户:
+                flash("请先登录后再访问。", "warning")
+                return redirect(url_for("登录"))
+            if 用户.role not in {"管理员", "普通用户"}:
+                flash("无备份管理权限。", "danger")
+                return redirect(url_for("dashboard"))
+            return view_func(*args, **kwargs)
+
+        return wrapped
+
     def 验证删除权限(返回地址=None):
         用户 = 当前用户()
         if not 用户:
@@ -1102,7 +1116,7 @@ def create_app():
         return redirect(url_for("backup_tools"))
 
     @app.route("/backup", methods=["GET", "POST"])
-    @admin_required
+    @backup_management_required
     def backup_tools():
         app.config["DATABASE_BACKUP_ROOT"].mkdir(parents=True, exist_ok=True)
         app.config["FILES_BACKUP_ROOT"].mkdir(parents=True, exist_ok=True)
@@ -1157,7 +1171,7 @@ def create_app():
         )
 
     @app.get("/backup/keyword-suggestions")
-    @admin_required
+    @backup_management_required
     def backup_keyword_suggestions():
         keyword = request.args.get("q", "", type=str).strip()
         export_type = request.args.get("export_type", "", type=str).strip()
@@ -1228,7 +1242,7 @@ def create_app():
         return jsonify({"results": results[:10]})
 
     @app.get("/backup/download/<string:backup_type>/<path:filename>")
-    @admin_required
+    @backup_management_required
     def download_backup(backup_type, filename):
         if backup_type == "database" and filename.startswith("database_backup_") and filename.endswith(".sqlite"):
             目录 = app.config["DATABASE_BACKUP_ROOT"]
