@@ -389,6 +389,19 @@ def create_app():
 
         return wrapped
 
+    def 验证删除权限(返回地址=None):
+        用户 = 当前用户()
+        if not 用户:
+            flash("请先登录后再访问。", "warning")
+            return redirect(url_for("登录"))
+        if 用户.role != "管理员":
+            flash("无权限", "danger")
+            return redirect(返回地址 or request.referrer or url_for("dashboard"))
+        if request.form.get("admin_password", "").strip() != "admin123":
+            flash("管理员密码确认失败，未执行删除操作。", "danger")
+            return redirect(返回地址 or request.referrer or url_for("dashboard"))
+        return None
+
     def 计算文件哈希(文件路径):
         sha256 = hashlib.sha256()
         with open(文件路径, "rb") as 文件:
@@ -1997,8 +2010,10 @@ def create_app():
         )
 
     @app.route("/enterprises/<int:id>/delete", methods=["POST"])
-    @admin_required
     def enterprise_delete(id):
+        权限响应 = 验证删除权限(url_for("enterprise_list"))
+        if 权限响应:
+            return 权限响应
         企业 = Enterprise.query.get_or_404(id)
         if request.form.get("confirm_delete") != "YES":
             flash("请勾选二次确认后再删除企业。", "warning")
@@ -2299,6 +2314,9 @@ def create_app():
     @app.post("/products/<int:product_id>/skus/<int:sku_id>/delete")
     def product_sku_delete(product_id, sku_id):
         product = Product.query.get_or_404(product_id)
+        权限响应 = 验证删除权限(获取SKU返回地址(product.id))
+        if 权限响应:
+            return 权限响应
         sku = ProductSKU.query.filter_by(id=sku_id, product_id=product.id).first_or_404()
         code = sku.sku_code
         软删除对象(sku)
@@ -2611,8 +2629,10 @@ def create_app():
         )
 
     @app.post("/products/<int:product_id>/delete")
-    @admin_required
     def product_delete(product_id):
+        权限响应 = 验证删除权限(url_for("product_list"))
+        if 权限响应:
+            return 权限响应
         product = Product.query.get_or_404(product_id)
         if request.form.get("confirm_delete") != "YES":
             flash("请勾选二次确认后再删除产品。", "warning")
@@ -2643,6 +2663,9 @@ def create_app():
     @app.post("/products/<int:product_id>/attachments/<int:document_id>/delete")
     def product_attachment_delete(product_id, document_id):
         product = Product.query.get_or_404(product_id)
+        权限响应 = 验证删除权限(url_for("product_edit", product_id=product.id, tab="attachment"))
+        if 权限响应:
+            return 权限响应
         document = Document.query.filter_by(id=document_id, product_id=product.id).first_or_404()
         if product.main_image == f"/{document.file_path}":
             product.main_image = None
@@ -2864,10 +2887,12 @@ def create_app():
         )
 
     @app.post("/documents/<int:document_id>/delete")
-    @admin_required
     def document_delete(document_id):
-        document = Document.query.get_or_404(document_id)
         返回地址 = request.form.get("next", "").strip()
+        权限响应 = 验证删除权限(返回地址 or url_for("document_list"))
+        if 权限响应:
+            return 权限响应
+        document = Document.query.get_or_404(document_id)
         if request.form.get("confirm_delete") != "YES":
             flash("请勾选二次确认后再删除文件。", "warning")
             return redirect(返回地址 or url_for("document_list"))

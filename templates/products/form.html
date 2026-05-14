@@ -21,6 +21,7 @@
 
 <form method="post" action="{{ form_action }}" enctype="multipart/form-data">
     <input type="hidden" name="_active_tab" id="activeTabInput" value="{{ initial_tab or 'overview' }}">
+    <div class="alert alert-info py-2 small">新增产品仅“所属企业、产品编号、产品名称”为必填项，其余字段均可后续补充。</div>
 
     <ul class="nav nav-tabs flex-nowrap overflow-auto" id="productFormTabs" role="tablist">
         <li class="nav-item" role="presentation">
@@ -284,7 +285,7 @@
                                 <td>{{ doc.uploaded_at.strftime('%Y-%m-%d %H:%M') if doc.uploaded_at else '-' }}</td>
                                 <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('document_download', document_id=doc.id) }}">下载</a></td>
                                 <td>
-                                    <form method="post" action="{{ url_for('product_attachment_delete', product_id=product.id, document_id=doc.id) }}" onsubmit="return confirm('确认删除该附件？');">
+                                    <form method="post" action="{{ url_for('product_attachment_delete', product_id=product.id, document_id=doc.id) }}" onsubmit="return confirmPrivilegedDelete(this, '确认删除该附件？');">
                                         <button class="btn btn-sm btn-outline-danger" type="submit">删除</button>
                                     </form>
                                 </td>
@@ -306,6 +307,7 @@
 {% if not is_new_product %}
 <form id="skuDeleteForm" method="post">
     <input type="hidden" name="next" value="{{ url_for('product_edit', product_id=product.id, tab='sku') }}">
+    <input type="hidden" name="admin_password" value="">
 </form>
 
 <div class="modal fade" id="skuCreateModal" tabindex="-1">
@@ -555,10 +557,13 @@
 
     document.querySelectorAll('.sku-delete-btn').forEach((btn) => {
         btn.addEventListener('click', () => {
-            if (!confirm('确认删除该SKU？删除后不可恢复。')) return;
+            const password = window.getPrivilegedDeletePassword('确认删除该SKU？删除后不可恢复。');
+            if (!password) return;
             const form = document.getElementById('skuDeleteForm');
             if (!form) return;
             form.action = btn.dataset.action;
+            const passwordInput = form.querySelector('input[name="admin_password"]');
+            if (passwordInput) passwordInput.value = password;
             form.submit();
         });
     });

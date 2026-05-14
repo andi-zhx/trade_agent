@@ -90,12 +90,10 @@
                 <td>{{ d.uploaded_at.strftime('%Y-%m-%d %H:%M') }}</td>
                 <td>
                     <a class="btn btn-sm btn-outline-success" href="{{ url_for('document_download', document_id=d.id) }}">下载</a>
-                    {% if 是管理员 %}
-                    <form method="post" action="{{ url_for('document_delete', document_id=d.id) }}" class="d-inline" onsubmit="return confirm('确认删除该文件？');">
+                    <form method="post" action="{{ url_for('document_delete', document_id=d.id) }}" class="d-inline" onsubmit="return confirmPrivilegedDelete(this, '确认删除该文件？');">
                         <input type="hidden" name="confirm_delete" value="YES">
                         <button class="btn btn-sm btn-outline-danger" type="submit">删除</button>
                     </form>
-                    {% endif %}
                 </td>
             </tr>
             {% else %}

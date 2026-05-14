@@ -262,7 +262,7 @@
                                             class="btn btn-sm btn-outline-danger"
                                             type="submit"
                                             form="deleteEnterpriseDocumentForm{{ item.id }}"
-                                            onclick="return confirm('确认删除该文件？')"
+                                            onclick="return confirmPrivilegedDelete(this, '确认删除该文件？')"
                                         >删除</button>
                                     </td>
                                 </tr>
@@ -294,6 +294,7 @@
 >
     <input type="hidden" name="confirm_delete" value="YES">
     <input type="hidden" name="next" value="{{ request.path }}">
+    <input type="hidden" name="admin_password" value="">
 </form>
 {% endfor %}
 
