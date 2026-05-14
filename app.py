@@ -1461,17 +1461,14 @@ def create_app():
         样例映射 = {
             "产品编号": "PRD-20260430-001",
             "产品名称": "智能温湿度传感器",
-            "产品英文名称": "Smart Temperature & Humidity Sensor",
             "所属企业名称": "示例科技股份有限公司",
             "产品品类": "工业传感器",
             "产品类型": "温湿度传感器",
-            "HS编码": "9025800000",
             "产能-周期（天）": "30",
             "产能-实际完工合格件数（件）": "10000",
             "MOQ": "100",
             "交期": "15天",
             "均价": "USD 18-22",
-            "备注": "适合欧美市场项目优先推荐",
         }
         样例 = [样例映射.get(字段, "") for 字段 in 表头]
         return 表头, 样例
@@ -1557,11 +1554,11 @@ def create_app():
         return render_template(
             "import_form.html",
             标题="产品 Excel 导入",
-            提示="支持按产品编号更新或新增产品；可根据所属企业编号或所属企业名称关联企业。",
+            提示="支持按产品编号更新或新增产品；上传时产品编号和所属企业名称为必填项，其余字段可为空。",
             返回地址=返回地址,
             返回文案="返回产品库",
             字段提示=产品导入字段提示(),
-            必填字段=["所属企业编号或所属企业名称", "产品名称（或产品中文名）", "HS编码"],
+            必填字段=["产品编号", "所属企业名称"],
             模板下载地址=url_for("download_product_import_template"),
             模板下载文案="下载产品导入模板",
         )
@@ -2124,6 +2121,18 @@ def create_app():
             product_export_columns=PRODUCT_EXPORT_COLUMNS,
         )
 
+    @app.get("/products/check-code")
+    def check_product_code():
+        product_code = request.args.get("product_code", "", type=str).strip()
+        current_id = request.args.get("current_id", type=int)
+        exists = False
+        if product_code:
+            query = Product.query.filter(Product.product_code == product_code)
+            if current_id:
+                query = query.filter(Product.id != current_id)
+            exists = query.first() is not None
+        return jsonify({"exists": exists})
+
     @app.route("/products/new", methods=["GET", "POST"])
     def product_new():
         enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
@@ -2151,7 +2160,6 @@ def create_app():
 
             product = Product(
                 enterprise_id=enterprise.id,
-                product_code=generate_product_code(enterprise.id),
             )
             try:
                 fill_product_from_form(product, request.form)
@@ -2518,10 +2526,7 @@ def create_app():
                     资料缺失提示=资料缺失提示,
                 )
 
-            old_enterprise_id = product.enterprise_id
             product.enterprise_id = enterprise.id
-            if old_enterprise_id != enterprise.id:
-                product.product_code = generate_product_code(enterprise.id)
             try:
                 fill_product_from_form(product, request.form)
             except ValueError as exc:
@@ -3006,6 +3011,16 @@ def 兼容产品基础信息字段(product, 扩展字段):
 
 
 def fill_product_from_form(product, form):
+    product_code = form.get("product_code", "").strip()
+    if not product_code:
+        raise ValueError("产品编号为必填项")
+    duplicate_query = Product.query.filter(Product.product_code == product_code)
+    if product.id:
+        duplicate_query = duplicate_query.filter(Product.id != product.id)
+    if duplicate_query.first():
+        raise ValueError("产品编号已存在，请更换后再保存")
+    product.product_code = product_code
+
     enterprise = Enterprise.query.get(product.enterprise_id) if product.enterprise_id else None
     选中行业代码 = (enterprise.industry_code if enterprise else "") or (form.get("industry_code") or "").strip()
     行业信息 = INDUSTRY_MAP.get(选中行业代码) if 选中行业代码 else None
@@ -4083,20 +4098,16 @@ def 企业导入字段提示():
 
 def 产品导入字段提示():
     return [
-        ("产品编号", "用于更新匹配；留空则新增并自动生成"),
-        ("产品名称", "必填，兼容旧列名“产品中文名”"),
-        ("产品英文名称", "对应产品概览-基础信息-产品英文名称"),
-        ("所属企业名称", "与“所属企业编号”二选一必填；按企业名称匹配"),
-        ("所属企业编号", "与“所属企业名称”二选一必填；按企业编号匹配"),
+        ("产品编号", "必填；用于更新匹配或新增产品，不再自动生成"),
+        ("产品名称", "对应产品概览-基础信息-产品名称，兼容旧列名“产品中文名”；可为空"),
+        ("所属企业名称", "必填；按企业名称匹配"),
         ("产品品类", "对应产品概览-基础信息-产品品类，兼容旧列名“产品类别”"),
         ("产品类型", "对应产品概览-基础信息-产品类型"),
-        ("HS编码", "对应产品概览-基础信息-HS编码（必填）"),
         ("产能-周期（天）", "对应产品概览-基础信息-产能-周期（天）"),
         ("产能-实际完工合格件数（件）", "对应产品概览-基础信息-产能-实际完工合格件数（件）"),
         ("MOQ", "对应产品概览-交易摘要-MOQ"),
         ("交期", "对应产品概览-交易摘要-交期，兼容旧列名“批量生产周期”"),
         ("均价", "对应产品概览-交易摘要-价格展示（兼容列名“价格展示”）"),
-        ("备注", "对应产品概览-备注-内部备注"),
     ]
 
 
@@ -4301,7 +4312,6 @@ def 导入企业Excel(file_storage, batch=None):
 
     success = 0
     failed = []
-    已读取企业编号 = {}
     for row_num, row in enumerate(rows[1:], start=2):
         try:
             if not any(单元格文本(cell) for cell in row):
@@ -4426,65 +4436,51 @@ def 导入产品Excel(file_storage, batch=None):
         return 0, [{"行号": 1, "原因": "文件为空", "数据": {}}]
     header = [单元格文本(c) for c in rows[0]]
     idx = 规范导入表头(header, 产品导入列名别名)
-    if "所属企业名称" not in idx and "所属企业编号" not in idx:
-        原因 = "缺少必填列: 所属企业名称 或 所属企业编号"
-        记录导入错误(batch, 1, "所属企业", 原因)
-        return 0, [{"行号": 1, "原因": 原因, "数据": {}}]
-    if "产品名称" not in idx and "产品中文名" not in idx:
-        原因 = "缺少必填列: 产品名称"
-        记录导入错误(batch, 1, "产品名称", 原因)
-        return 0, [{"行号": 1, "原因": 原因, "数据": {}}]
-    if "HS编码" not in idx:
-        原因 = "缺少必填列: HS编码"
-        记录导入错误(batch, 1, "HS编码", 原因)
+    缺失表头 = [字段 for 字段 in ["产品编号", "所属企业名称"] if 字段 not in idx]
+    if 缺失表头:
+        原因 = f"缺少必填列: {', '.join(缺失表头)}"
+        记录导入错误(batch, 1, "、".join(缺失表头), 原因)
         return 0, [{"行号": 1, "原因": 原因, "数据": {}}]
 
     enterprise_list = Enterprise.query.all()
-    enterprise_code_map = {e.enterprise_code: e for e in enterprise_list if e.enterprise_code}
     enterprise_name_map = {e.company_name: e for e in enterprise_list if e.company_name}
     success = 0
     failed = []
-    已读取企业编号 = {}
     for row_num, row in enumerate(rows[1:], start=2):
         try:
             if not any(单元格文本(cell) for cell in row):
                 continue
             enterprise_name = 读取行字段(row, idx, "所属企业名称")
-            enterprise_code = 读取行字段(row, idx, "所属企业编号")
-            if not enterprise_name and not enterprise_code:
-                记录导入错误(batch, row_num, "所属企业", "企业名称缺失", 导入行上下文(row, idx, ["所属企业名称", "所属企业编号", "产品名称", "HS编码"]))
-                raise ValueError("所属企业名称或所属企业编号不能为空")
-            enterprise = enterprise_name_map.get(enterprise_name) if enterprise_name else None
-            if not enterprise and enterprise_code:
-                enterprise = enterprise_code_map.get(enterprise_code)
-            if not enterprise:
-                记录导入错误(batch, row_num, "所属企业", f"未找到企业：{enterprise_name or enterprise_code}", 导入行上下文(row, idx, ["所属企业名称", "所属企业编号", "产品名称", "HS编码"]))
-                raise ValueError(f"未找到企业：{enterprise_name or enterprise_code}")
-            name_cn = 取首个存在字段值(row, idx, "产品名称", "产品中文名")
-            hs_code_value = 读取行字段(row, idx, "HS编码")
+            product_code = 读取行字段(row, idx, "产品编号")
             行错误 = []
-            if not name_cn:
-                行错误.append(("产品名称", "产品名称缺失"))
-            if not hs_code_value:
-                行错误.append(("HS编码", "HS编码缺失"))
+            if not product_code:
+                行错误.append(("产品编号", "产品编号缺失"))
+            if not enterprise_name:
+                行错误.append(("所属企业名称", "所属企业名称缺失"))
             if 行错误:
-                上下文 = 导入行上下文(row, idx, ["所属企业名称", "所属企业编号", "产品名称", "产品中文名", "HS编码"])
+                上下文 = 导入行上下文(row, idx, ["产品编号", "所属企业名称", "产品名称", "产品中文名"])
                 for 字段, 原因 in 行错误:
                     记录导入错误(batch, row_num, 字段, 原因, 上下文, 导入错误字段建议.get(字段))
                 raise ValueError("；".join(原因 for _, 原因 in 行错误))
-            product_code = 读取行字段(row, idx, "产品编号")
-            product = Product.query.filter_by(product_code=product_code).first() if product_code else None
+            enterprise = enterprise_name_map.get(enterprise_name)
+            if not enterprise:
+                记录导入错误(batch, row_num, "所属企业名称", f"未找到企业：{enterprise_name}", 导入行上下文(row, idx, ["产品编号", "所属企业名称", "产品名称"]))
+                raise ValueError(f"未找到企业：{enterprise_name}")
+            name_cn = 取首个存在字段值(row, idx, "产品名称", "产品中文名")
+            hs_code_value = 读取行字段(row, idx, "HS编码")
+            product = Product.query.filter_by(product_code=product_code).first()
             if not product:
                 product = Product(
                     enterprise_id=enterprise.id,
-                    product_code=product_code or generate_product_code(enterprise.id),
+                    product_code=product_code,
                 )
                 db.session.add(product)
 
             extra = dict(product.product_extra_fields or {})
             product.enterprise_id = enterprise.id
-            product.product_name_cn = name_cn
-            product.product_name_en = 取首个存在字段值(row, idx, "产品英文名称", "产品英文名") or None
+            product.product_name_cn = name_cn or product.product_name_cn or product_code
+            if "产品英文名称" in idx or "产品英文名" in idx:
+                product.product_name_en = 取首个存在字段值(row, idx, "产品英文名称", "产品英文名") or None
             if "行业编号" in idx:
                 product.industry_code = 读取行字段(row, idx, "行业编号") or None
             行业名称 = 取首个存在字段值(row, idx, "行业名称", "行业分类")
@@ -4496,7 +4492,8 @@ def 导入产品Excel(file_storage, batch=None):
                 product.industry_code = enterprise.industry_code
             product.product_category = 取首个存在字段值(row, idx, "产品品类", "产品类别") or None
             product.product_type = 读取行字段(row, idx, "产品类型") or None if "产品类型" in idx else None
-            product.hs_code = hs_code_value or None
+            if "HS编码" in idx:
+                product.hs_code = hs_code_value or None
             if "产能-周期（天）" in idx:
                 product.capacity_cycle_days = 读取整数(读取行字段(row, idx, "产能-周期（天）"))
             if "产能-实际完工合格件数（件）" in idx:
@@ -4557,8 +4554,8 @@ def 导入产品Excel(file_storage, batch=None):
             success += 1
         except Exception as exc:
             if batch and not batch.errors.filter_by(row_number=row_num).first():
-                记录导入错误(batch, row_num, "整行", str(exc), 导入行上下文(row, idx, ["所属企业名称", "所属企业编号", "产品名称", "HS编码"]))
-            failed.append({"行号": row_num, "原因": str(exc), "数据": {"所属企业编号": 读取行字段(row, idx, "所属企业编号"), "产品名称": 取首个存在字段值(row, idx, "产品名称", "产品中文名")}})
+                记录导入错误(batch, row_num, "整行", str(exc), 导入行上下文(row, idx, ["产品编号", "所属企业名称", "产品名称"]))
+            failed.append({"行号": row_num, "原因": str(exc), "数据": {"产品编号": 读取行字段(row, idx, "产品编号"), "所属企业名称": 读取行字段(row, idx, "所属企业名称"), "产品名称": 取首个存在字段值(row, idx, "产品名称", "产品中文名")}})
     db.session.commit()
     return success, failed
 
@@ -4576,7 +4573,6 @@ def 导入SKUExcel(product, file_storage):
 
     success = 0
     failed = []
-    已读取企业编号 = {}
     for row_num, row in enumerate(rows[1:], start=2):
         try:
             if not any(单元格文本(cell) for cell in row):
