@@ -170,6 +170,8 @@ class Product(AuditSoftDeleteMixin, db.Model):
     moq = db.Column(db.String(50))
     delivery_cycle = db.Column(db.String(100))
     production_cycle = db.Column(db.String(100))
+    capacity_cycle_days = db.Column(db.Integer)
+    capacity_qualified_pieces = db.Column(db.Integer)
     exw_price = db.Column(db.Numeric(18, 2))
     fob_price = db.Column(db.Numeric(18, 2))
     cif_price = db.Column(db.Numeric(18, 2))

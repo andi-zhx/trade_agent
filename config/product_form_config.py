@@ -10,6 +10,8 @@ COMMON_PRODUCT_FIELD_GROUPS = [
             {"key": "identity_model", "label": "型号", "type": "text"},
             {"key": "identity_sku", "label": "SKU", "type": "text"},
             {"key": "identity_hs_code", "label": "HS编码", "type": "text"},
+            {"key": "capacity_cycle_days", "label": "产能-周期（天）", "type": "number"},
+            {"key": "capacity_qualified_pieces", "label": "产能-实际完工合格件数（件）", "type": "number"},
             {"key": "identity_series", "label": "产品系列", "type": "text"},
         ],
     },

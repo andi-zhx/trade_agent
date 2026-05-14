@@ -1466,6 +1466,8 @@ def create_app():
             "产品品类": "工业传感器",
             "产品类型": "温湿度传感器",
             "HS编码": "9025800000",
+            "产能-周期（天）": "30",
+            "产能-实际完工合格件数（件）": "10000",
             "MOQ": "100",
             "交期": "15天",
             "均价": "USD 18-22",
@@ -1786,7 +1788,6 @@ def create_app():
             {"key": "trade", "title": "外贸能力", "groups": [通用分组映射.get("F")] if 通用分组映射.get("F") else []},
             {"key": "finance", "title": "财务信用", "groups": [通用分组映射.get("G")] if 通用分组映射.get("G") else []},
             {"key": "compliance", "title": "资质合规", "groups": [通用分组映射.get("H")] if 通用分组映射.get("H") else []},
-            {"key": "project", "title": "项目判断与备注", "groups": [通用分组映射.get("I")] if 通用分组映射.get("I") else []},
             {"key": "attachments", "title": "附件资料", "groups": []},
         ]
 
@@ -3019,13 +3020,20 @@ def fill_product_from_form(product, form):
     product.product_name_en = form.get("product_name_en", "").strip() or None
     product.product_category = form.get("product_category", "").strip() or None
     product.hs_code = form.get("hs_code", "").strip() or None
+    product.capacity_cycle_days = 读取整数(form.get("capacity_cycle_days"))
+    product.capacity_qualified_pieces = 读取整数(form.get("capacity_qualified_pieces"))
     product.function_description = form.get("function_description", "").strip() or None
     if "application_scenario" in form:
         旧应用场景 = form.get("application_scenario", "").strip()
     else:
         旧应用场景 = (product.application_scenario or "").strip()
     应用场景标签 = [item.strip() for item in form.getlist("positioning_scenarios") if item and item.strip()]
-    product.application_scenario = "、".join(应用场景标签) if 应用场景标签 else (旧应用场景 or None)
+    其他应用场景 = form.get("positioning_scenario_other", "").strip()
+    if "其他" in 应用场景标签 and 其他应用场景:
+        应用场景展示值 = [其他应用场景 if item == "其他" else item for item in 应用场景标签]
+    else:
+        应用场景展示值 = 应用场景标签
+    product.application_scenario = "、".join(应用场景展示值) if 应用场景展示值 else (旧应用场景 or None)
     定制支持文本 = form.get("support_customization", "").strip()
     if 定制支持文本:
         product.customization_supported = 定制支持文本 == "是"
@@ -3050,7 +3058,9 @@ def fill_product_from_form(product, form):
     if 核心卖点:
         product.product_extra_fields["desc_core_selling_points"] = 核心卖点
     if 应用场景标签:
-        product.product_extra_fields["desc_scenarios"] = "、".join(应用场景标签)
+        product.product_extra_fields["desc_scenarios"] = "、".join(应用场景展示值)
+        if 其他应用场景:
+            product.product_extra_fields["positioning_scenario_other"] = 其他应用场景
     目标客户标签 = [item.strip() for item in form.getlist("target_customer_tags") if item and item.strip()]
     if 目标客户标签:
         product.product_extra_fields["desc_target_customer"] = "、".join(目标客户标签)
@@ -3610,6 +3620,8 @@ PRODUCT_EXPORT_BASE_COLUMNS = [
     ("moq", "MOQ"),
     ("delivery_cycle", "交付周期"),
     ("production_cycle", "生产周期"),
+    ("capacity_cycle_days", "产能-周期（天）"),
+    ("capacity_qualified_pieces", "产能-实际完工合格件数（件）"),
     ("sample_policy", "样品政策"),
     ("customization_supported", "是否支持定制"),
     ("notes", "备注"),
@@ -3828,6 +3840,8 @@ def 产品导出行(product, columns):
         "moq": product.moq or extra.get("trade_moq"),
         "delivery_cycle": product.delivery_cycle or product.production_cycle or extra.get("trade_mass_cycle"),
         "production_cycle": product.production_cycle or extra.get("trade_mass_cycle"),
+        "capacity_cycle_days": product.capacity_cycle_days,
+        "capacity_qualified_pieces": product.capacity_qualified_pieces,
         "sample_policy": product.sample_policy or extra.get("trade_sample_policy"),
         "customization_supported": product.customization_supported if product.customization_supported else extra.get("support_customization"),
         "notes": product.notes,
@@ -4077,6 +4091,8 @@ def 产品导入字段提示():
         ("产品品类", "对应产品概览-基础信息-产品品类，兼容旧列名“产品类别”"),
         ("产品类型", "对应产品概览-基础信息-产品类型"),
         ("HS编码", "对应产品概览-基础信息-HS编码（必填）"),
+        ("产能-周期（天）", "对应产品概览-基础信息-产能-周期（天）"),
+        ("产能-实际完工合格件数（件）", "对应产品概览-基础信息-产能-实际完工合格件数（件）"),
         ("MOQ", "对应产品概览-交易摘要-MOQ"),
         ("交期", "对应产品概览-交易摘要-交期，兼容旧列名“批量生产周期”"),
         ("均价", "对应产品概览-交易摘要-价格展示（兼容列名“价格展示”）"),
@@ -4114,6 +4130,8 @@ def 产品导入字段提示():
     "moq": "MOQ",
     "delivery_cycle": "交期",
     "production_cycle": "交期",
+    "capacity_cycle_days": "产能-周期（天）",
+    "capacity_qualified_pieces": "产能-实际完工合格件数（件）",
     "price_display": "价格展示",
     "currency": "币种",
     "sample_policy": "样品政策",
@@ -4479,6 +4497,10 @@ def 导入产品Excel(file_storage, batch=None):
             product.product_category = 取首个存在字段值(row, idx, "产品品类", "产品类别") or None
             product.product_type = 读取行字段(row, idx, "产品类型") or None if "产品类型" in idx else None
             product.hs_code = hs_code_value or None
+            if "产能-周期（天）" in idx:
+                product.capacity_cycle_days = 读取整数(读取行字段(row, idx, "产能-周期（天）"))
+            if "产能-实际完工合格件数（件）" in idx:
+                product.capacity_qualified_pieces = 读取整数(读取行字段(row, idx, "产能-实际完工合格件数（件）"))
             product.brand = 取首个存在字段值(row, idx, "品牌", "SKU") or None
             product.model = 读取行字段(row, idx, "型号") or None if "型号" in idx else None
             product.export_suitability = 读取行字段(row, idx, "是否适合出口") or None if "是否适合出口" in idx else None
@@ -4769,7 +4791,7 @@ def 生成出海方案分析(企业, 产品列表, 资质列表, 文件列表):
         for 产品 in 产品列表
     )
     有稳定产能和生产周期 = bool(企业.annual_capacity) and any(
-        (产品.monthly_capacity or "").strip() and (产品.production_cycle or "").strip() for 产品 in 产品列表
+        产品.capacity_qualified_pieces is not None and (产品.capacity_cycle_days is not None or (产品.production_cycle or "").strip()) for 产品 in 产品列表
     )
     有目标市场或已出口国家 = bool(企业.target_markets or 企业.export_countries) or any(
         (产品.target_market or "").strip() or (产品.existing_sales_countries or "").strip() for 产品 in 产品列表
@@ -4981,6 +5003,12 @@ def init_db(app):
         if "production_cycle" not in product_columns:
             db.session.execute(text("ALTER TABLE products ADD COLUMN production_cycle VARCHAR(100)"))
             product_columns.add("production_cycle")
+        if "capacity_cycle_days" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN capacity_cycle_days INTEGER"))
+            product_columns.add("capacity_cycle_days")
+        if "capacity_qualified_pieces" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN capacity_qualified_pieces INTEGER"))
+            product_columns.add("capacity_qualified_pieces")
         if "sample_policy" not in product_columns:
             db.session.execute(text("ALTER TABLE products ADD COLUMN sample_policy VARCHAR(255)"))
             product_columns.add("sample_policy")
