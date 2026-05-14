@@ -12,7 +12,7 @@
 {% macro render_field(field) -%}
     {% set show_when = field.show_when if field.show_when is defined else None %}
     {% set show_when_any = field.show_when_any if field.show_when_any is defined else None %}
-    {% set col_class = 'col-12' if field.span_full_row or field.type in ['checkbox_group', 'checkbox_tags', 'radio_group', 'dynamic_contacts'] else ('col-lg-6' if field.type == 'textarea' else 'col-lg-3 col-md-4') %}
+    {% set col_class = field.col_class if field.col_class is defined else ('col-12' if field.span_full_row or field.type in ['checkbox_group', 'checkbox_tags', 'radio_group', 'dynamic_contacts'] else ('col-lg-6' if field.type == 'textarea' else 'col-lg-3 col-md-4')) %}
     <div class="{{ col_class }}" data-module-field {% if field.required %}data-required-field="{{ field.key }}" data-required-label="{{ field.label }}"{% endif %} {% if show_when %}data-show-when='{{ show_when|tojson|forceescape }}'{% endif %}{% if show_when_any %} data-show-when-any='{{ show_when_any|tojson|forceescape }}'{% endif %}>
     {% if field.type == 'auto' %}
         <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
