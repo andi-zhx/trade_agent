@@ -21,18 +21,18 @@
         <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
         {% set 当前行业代码 = request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '') %}
         {% set 当前行业名称 = request.form.get('industry_category') if request.method == 'POST' else (企业.industry_category if 企业 else '') %}
-        <select class="form-select" id="industryCode" name="industry_code">
+        <select class="form-select" id="industryCode" name="industry_code" {% if field.required %}required{% endif %}>
             <option value="">请选择行业分类</option>
             {% for item in 行业列表 %}<option value="{{ item.code }}" data-name="{{ item.name }}" {% if item.code == 当前行业代码 %}selected{% endif %}>{{ item.code }} {{ item.name }}</option>{% endfor %}
         </select>
         <input type="hidden" id="industryName" name="industry_category" value="{{ 当前行业名称 }}">
     {% elif field.type == 'textarea' %}
         <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
-        <textarea class="form-control js-char-count" rows="{{ 8 if field.key == 'business_scope' else 2 }}" maxlength="{{ field.maxlength if field.maxlength is defined else 200 }}" data-maxlength="{{ field.maxlength if field.maxlength is defined else 200 }}" name="{{ field.key }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>{{ extra_value(field.key) }}</textarea>
+        <textarea class="form-control js-char-count" rows="{{ 8 if field.key == 'business_scope' else 2 }}" maxlength="{{ field.maxlength if field.maxlength is defined else 200 }}" data-maxlength="{{ field.maxlength if field.maxlength is defined else 200 }}" name="{{ field.key }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.required %}required{% endif %}>{{ extra_value(field.key) }}</textarea>
         <div class="form-text"><span class="js-char-counter">0</span>/{{ field.maxlength if field.maxlength is defined else 200 }}</div>
     {% elif field.type == 'select' %}
         <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
-        <select class="form-select" name="{{ field.key }}">
+        <select class="form-select" name="{{ field.key }}" {% if field.required %}required{% endif %}>
             <option value="">请选择</option>
             {% set cur = extra_value(field.key) %}
             {% for opt in field.options %}<option value="{{ opt }}" {% if opt == cur %}selected{% endif %}>{{ opt }}</option>{% endfor %}
@@ -40,11 +40,11 @@
     {% elif field.type == 'select_or_text' %}
         <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
         {% set cur = extra_value(field.key) %}
-        <input class="form-control" list="{{ field.key }}_list" name="{{ field.key }}" value="{{ cur }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>
+        <input class="form-control" list="{{ field.key }}_list" name="{{ field.key }}" value="{{ cur }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.required %}required{% endif %}>
         <datalist id="{{ field.key }}_list">{% for opt in field.options %}<option value="{{ opt }}"></option>{% endfor %}</datalist>
     {% elif field.type == 'year' %}
         <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
-        <input class="form-control" type="number" min="1900" max="2100" step="1" name="{{ field.key }}" value="{{ extra_value(field.key) }}" placeholder="例如：2020">
+        <input class="form-control" type="number" min="1900" max="2100" step="1" name="{{ field.key }}" value="{{ extra_value(field.key) }}" placeholder="例如：2020" {% if field.required %}required{% endif %}>
     {% elif field.type == 'radio_group' %}
         <label class="form-label d-block {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
         {% set cur = extra_value(field.key) %}
@@ -112,6 +112,9 @@
     {% else %}
         <label class="form-label {% if field.required %}field-required{% endif %}">{{ field.label }}</label>
         {% set cur_value = extra_value(field.key) %}
+        {% if field.key == 'enterprise_code' and not cur_value %}
+            {% set cur_value = 企业.enterprise_code if 企业 else '' %}
+        {% endif %}
         {% if field.key == 'registered_name' and not cur_value %}
             {% set cur_value = extra_value('company_full_name') %}
         {% endif %}
@@ -119,7 +122,7 @@
         {% if field.key == 'province' and not cur_value %}{% set cur_value = 企业.province if 企业 else '' %}{% endif %}
         {% if field.key == 'city' and not cur_value %}{% set cur_value = 企业.city if 企业 else '' %}{% endif %}
         {% if field.key == 'sub_industry' and not cur_value %}{% set cur_value = 企业.sub_industry if 企业 else '' %}{% endif %}
-        <input class="form-control" type="{{ field.type if field.type in ['date','number','email','url'] else 'text' }}" name="{{ field.key }}" value="{{ cur_value }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %}>
+        <input class="form-control" type="{{ field.type if field.type in ['date','number','email','url'] else 'text' }}" name="{{ field.key }}" value="{{ cur_value }}" {% if field.placeholder %}placeholder="{{ field.placeholder }}"{% endif %} {% if field.required %}required{% endif %} {% if field.key == 'enterprise_code' and 模式 == 'edit' %}readonly{% endif %}>
         {% if field.help_text %}<div class="form-text">{{ field.help_text }}</div>{% endif %}
     {% endif %}
     </div>
@@ -157,8 +160,8 @@
     <div class="card shadow-sm enterprise-overview-sticky">
         <div class="card-body py-2">
             <div class="row g-2">
-                <div class="col-md-2"><strong>企业编号：</strong>{{ 企业.enterprise_code if 企业 else '自动生成' }}</div>
-                <div class="col-md-2"><strong>行业分类：</strong>{{ request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '-') }}</div>
+                <div class="col-md-2"><strong>企业编号：</strong>{{ request.form.get('enterprise_code') if request.method == 'POST' else (企业.enterprise_code if 企业 else '待输入') }}</div>
+                <div class="col-md-2"><strong>行业大类：</strong>{{ request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '-') }}</div>
                 <div class="col-md-2"><strong>项目负责人：</strong>{{ request.form.get('project_owner') if request.method == 'POST' else (企业.project_owner if 企业 else '-') }}</div>
                 <div class="col-md-2">
                     <strong>资料完整度：</strong>
