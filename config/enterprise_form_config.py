@@ -35,7 +35,7 @@ COMMON_ENTERPRISE_FIELD_GROUPS = [
             {"key": "legal_representative", "label": "法定代表人", "type": "text", "required": True},
             {"key": "registered_capital", "label": "注册资本", "type": "text", "required": True},
             {"key": "founded_date", "label": "成立日期", "type": "date", "required": True},
-            {"key": "business_term_start", "label": "营业期限起始日期", "type": "date", "required": True},
+            {"key": "business_term_start", "label": "营业期限起始日期", "type": "date"},
             {"key": "business_term_end", "label": "营业期限终止日期", "type": "date", "placeholder": "无终止日期可不填"},
             {"key": "registered_address", "label": "注册地址", "type": "text", "required": True},
             {"key": "business_scope", "label": "经营范围", "type": "textarea", "maxlength": 2000, "span_full_row": True, "placeholder": "请填写营业执照经营范围"},

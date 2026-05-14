@@ -768,6 +768,12 @@ def create_app():
             ext["operating_status"] = (ext.get("business_status") or "未知").strip()
         if not ext.get("company_type"):
             ext["company_type"] = (企业.company_type or "").strip()
+        if not ext.get("unified_social_credit_code"):
+            ext["unified_social_credit_code"] = (getattr(企业, "unified_social_credit_code", None) or "").strip()
+        if not ext.get("registered_capital"):
+            ext["registered_capital"] = (getattr(企业, "registered_capital", None) or "").strip()
+        if not ext.get("registered_address"):
+            ext["registered_address"] = (getattr(企业, "registered_address", None) or "").strip()
         if not ext.get("business_registration_number"):
             ext["business_registration_number"] = (
                 ext.get("industry_commerce_registration_number")
@@ -1457,7 +1463,8 @@ def create_app():
             "法定代表人": "张三",
             "注册资本": "1000万元人民币",
             "成立日期": "2020-01-15",
-            "营业期限": "2020-01-15",
+            "营业期限起始日期": "2020-01-15",
+            "营业期限终止日期": "",
             "注册地址": "广东省深圳市南山区示例路 1 号",
             "联系人": "李四",
             "联系电话": "13800138000",
@@ -4096,7 +4103,8 @@ def 企业导入字段提示():
         ("法定代表人", "对应工商信息-法定代表人"),
         ("注册资本", "对应工商信息-注册资本"),
         ("成立日期", "对应工商信息-成立日期，格式建议为 YYYY-MM-DD"),
-        ("营业期限", "对应工商信息-营业期限起始日期，格式建议为 YYYY-MM-DD"),
+        ("营业期限起始日期", "对应工商信息-营业期限起始日期，非必填，格式建议为 YYYY-MM-DD"),
+        ("营业期限终止日期", "对应工商信息-营业期限终止日期，非必填，格式建议为 YYYY-MM-DD；无终止日期可不填"),
         ("注册地址", "对应工商信息-注册地址"),
         ("联系人", "对应联系信息-主联系人姓名，可为空"),
         ("联系电话", "对应联系信息-电话/手机，可为空"),
@@ -4122,6 +4130,9 @@ def 产品导入字段提示():
     "行业分类": "行业大类",
     "industry_code": "行业大类",
     "industry_name": "行业大类",
+    "business_term_start": "营业期限起始日期",
+    "business_term_end": "营业期限终止日期",
+    "营业期限": "营业期限起始日期",
 }
 
 
@@ -4375,8 +4386,19 @@ def 导入企业Excel(file_storage, batch=None):
             enterprise.legal_representative = 读取行字段(row, idx, "法定代表人") or enterprise.legal_representative
             enterprise.registered_capital = 读取行字段(row, idx, "注册资本") or enterprise.registered_capital
             enterprise.founded_date = 读取首个日期(读取行字段(row, idx, "成立日期")) or enterprise.founded_date
-            enterprise.business_term_start = 读取首个日期(读取行字段(row, idx, "营业期限")) or enterprise.business_term_start
+            enterprise.business_term_start = 读取首个日期(读取行字段(row, idx, "营业期限起始日期")) or enterprise.business_term_start
+            enterprise.business_term_end = 读取首个日期(读取行字段(row, idx, "营业期限终止日期")) or enterprise.business_term_end
             enterprise.registered_address = 读取行字段(row, idx, "注册地址") or enterprise.registered_address
+            if enterprise.unified_social_credit_code:
+                ext["unified_social_credit_code"] = enterprise.unified_social_credit_code
+            if enterprise.registered_capital:
+                ext["registered_capital"] = enterprise.registered_capital
+            if enterprise.business_term_start:
+                ext["business_term_start"] = enterprise.business_term_start.strftime("%Y-%m-%d")
+            if enterprise.business_term_end:
+                ext["business_term_end"] = enterprise.business_term_end.strftime("%Y-%m-%d")
+            if enterprise.registered_address:
+                ext["registered_address"] = enterprise.registered_address
             if province is not None:
                 enterprise.province = province
             if city is not None:
