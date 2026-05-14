@@ -53,6 +53,7 @@ class Enterprise(AuditSoftDeleteMixin, db.Model):
     business_term_start = db.Column(db.Date)
     business_term_end = db.Column(db.Date)
     registered_address = db.Column(db.String(255))
+    business_scope = db.Column(db.Text)
     business_address = db.Column(db.String(255))
     province = db.Column(db.String(50), index=True)
     city = db.Column(db.String(50), index=True)

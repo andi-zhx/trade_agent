@@ -43,7 +43,6 @@
                 <th>企业编号</th>
                 <th>企业全称</th>
                 <th>行业分类</th>
-                <th>行业名称</th>
                 <th>省份/城市</th>
                 <th>人员规模</th>
                 <th>公司类型</th>
@@ -59,8 +58,7 @@
             <tr>
                 <td>{{ 企业.enterprise_code }}</td>
                 <td class="text-truncate" style="max-width: 220px;">{{ 企业.company_name or ext.get('company_full_name') or '-' }}</td>
-                <td>{{ 企业.industry_code or '-' }}</td>
-                <td>{{ 企业.industry_display_name or '-' }}</td>
+                <td>{{ ((企业.industry_code ~ ' ' ~ (企业.industry_display_name or '')) if 企业.industry_code else (企业.industry_display_name or '-')) }}</td>
                 <td>{{ (企业.province or '-') ~ ' / ' ~ (企业.city or '-') }}</td>
                 <td>{{ ext.get('employee_count_range') or (企业.employee_count ~ '人' if 企业.employee_count else '-') }}</td>
                 <td><span class="badge bg-light text-dark border">{{ ext.get('company_type') or 企业.company_type or '-' }}</span></td>
@@ -85,7 +83,7 @@
             </tr>
             {% else %}
             <tr>
-                <td colspan="10" class="text-center text-muted py-4">暂无数据</td>
+                <td colspan="9" class="text-center text-muted py-4">暂无数据</td>
             </tr>
             {% endfor %}
             </tbody>

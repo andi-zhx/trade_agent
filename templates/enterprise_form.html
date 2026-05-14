@@ -22,7 +22,7 @@
         {% set 当前行业代码 = request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '') %}
         {% set 当前行业名称 = request.form.get('industry_category') if request.method == 'POST' else (企业.industry_category if 企业 else '') %}
         <select class="form-select" id="industryCode" name="industry_code">
-            <option value="">请选择行业大类</option>
+            <option value="">请选择行业分类</option>
             {% for item in 行业列表 %}<option value="{{ item.code }}" data-name="{{ item.name }}" {% if item.code == 当前行业代码 %}selected{% endif %}>{{ item.code }} {{ item.name }}</option>{% endfor %}
         </select>
         <input type="hidden" id="industryName" name="industry_category" value="{{ 当前行业名称 }}">
@@ -158,7 +158,7 @@
         <div class="card-body py-2">
             <div class="row g-2">
                 <div class="col-md-2"><strong>企业编号：</strong>{{ 企业.enterprise_code if 企业 else '自动生成' }}</div>
-                <div class="col-md-2"><strong>行业大类：</strong>{{ request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '-') }}</div>
+                <div class="col-md-2"><strong>行业分类：</strong>{{ request.form.get('industry_code') if request.method == 'POST' else (企业.industry_code if 企业 else '-') }}</div>
                 <div class="col-md-2"><strong>项目负责人：</strong>{{ request.form.get('project_owner') if request.method == 'POST' else (企业.project_owner if 企业 else '-') }}</div>
                 <div class="col-md-2">
                     <strong>资料完整度：</strong>
@@ -309,7 +309,7 @@
     const existingUploadedTypes = new Set({{ ((已上传附件列表 or []) | map(attribute='document_type') | list) | tojson }});
     const requiredFields = [
         ['project_owner', '项目负责人'],
-        ['industry_code', '行业大类'],
+        ['industry_code', '行业分类'],
         ['company_full_name', '企业全称'],
         ['registered_name', '注册名称'],
         ['company_type', '企业类型'],

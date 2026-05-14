@@ -223,6 +223,7 @@ python app.py
 为避免历史数据报错，系统启动初始化时会自动执行兼容检查：
 
 - 若缺少企业扩展字段列：自动补齐 `enterprise_extra_fields`，并清理企业库已下线的 `recommendation_level` / `recommended_for_pool` 扩展字段。
+- 若缺少企业新增/编辑表单对应的企业主表字段（如 `industry_code` / `industry_category` / `business_scope` 等）：自动补齐对应列与索引，确保页面字段调整同步到表结构。
 - 若缺少产品行业字段：自动补齐 `industry_code` / `industry_name`
 - 若缺少产品扩展字段：自动补齐 `product_extra_fields`
 - 若缺少产品状态字段：自动补齐 `status` 并回填默认值
