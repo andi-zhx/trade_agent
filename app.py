@@ -30,6 +30,7 @@ from config.enterprise_form_config import (
 )
 from config.industry_config import INDUSTRY_MAP, INDUSTRY_OPTIONS
 from config.product_form_config import COMMON_PRODUCT_FIELD_GROUPS, INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG
+from utils.completeness import calculate_enterprise_material_completeness
 from models import (
     AuditSoftDeleteMixin,
     BackupRecord,
@@ -101,23 +102,10 @@ def 估算人员规模(employee_count):
 
 
 def 导出企业资料完整度标签(enterprise):
-    ext = 清理企业扩展字段(enterprise.enterprise_extra_fields or {})
-    required_values = [
-        enterprise.project_owner,
-        ext.get("company_full_name") or enterprise.company_name,
-        ext.get("registered_name") or enterprise.company_name,
-        ext.get("legal_representative"),
-        ext.get("unified_social_credit_code") or enterprise.unified_social_credit_code,
-        ext.get("registered_capital") or enterprise.registered_capital,
-        ext.get("company_type") or enterprise.company_type,
-        ext.get("founded_date") or (enterprise.founded_date.strftime("%Y-%m-%d") if enterprise.founded_date else ""),
-        ext.get("business_term_start"),
-        ext.get("is_listed_or_pre_ipo"),
-        ext.get("has_import_export_qualification"),
-    ]
-    done = sum(1 for value in required_values if value and str(value).strip())
-    score = int(round((done / len(required_values)) * 100)) if required_values else 0
-    return f"{score}%"
+    documents = []
+    if enterprise and getattr(enterprise, "id", None):
+        documents = Document.query.filter_by(enterprise_id=enterprise.id).all()
+    return calculate_enterprise_material_completeness(enterprise, documents).get("total_label", "0%")
 
 
 PRODUCT_FORM_SECTIONS = [
@@ -934,33 +922,27 @@ def create_app():
                 已上传类型.add(文件类型)
         return 已上传类型
 
-    def 计算企业资料完整度(企业, 扩展字段, 本次上传类型=None):
-        核心字段 = 企业核心完整度字段(企业, 扩展字段 or {})
-        基本已填 = sum(1 for _, ok in 核心字段["A"] if ok)
-        工商已填 = sum(1 for _, ok in 核心字段["B"] if ok)
-        基本总数 = len(核心字段["A"])
-        工商总数 = len(核心字段["B"])
-        总字段数 = 基本总数 + 工商总数
-        分数 = int(round(((基本已填 + 工商已填) / 总字段数) * 100)) if 总字段数 else 0
+    def 计算企业资料完整度(企业, 扩展字段=None, 本次上传类型=None, documents=None):
+        原扩展字段 = getattr(企业, "enterprise_extra_fields", None)
+        if 扩展字段 is not None:
+            企业.enterprise_extra_fields = 扩展字段
+        if documents is None:
+            documents = 本次上传类型 or []
+        完整度 = calculate_enterprise_material_completeness(企业, documents)
+        if 扩展字段 is not None:
+            企业.enterprise_extra_fields = 原扩展字段
+        return 完整度
 
-        if 分数 >= 80:
-            颜色 = "success"
-        elif 分数 >= 50:
-            颜色 = "warning"
-        else:
-            颜色 = "danger"
-
-        缺失项 = [字段名 for 字段名, ok in [*核心字段["A"], *核心字段["B"]] if not ok]
-        return {
-            "score": 分数,
-            "label": f"{分数}%",
-            "color": 颜色,
-            "missing_items": 缺失项,
-            "tabs": {
-                "A": {"done": 基本已填, "total": 基本总数},
-                "B": {"done": 工商已填, "total": 工商总数},
-            },
-        }
+    def 写入企业资料完整度(企业, documents=None):
+        扩展字段 = 清理企业扩展字段(企业.enterprise_extra_fields or {})
+        企业.enterprise_extra_fields = 扩展字段
+        完整度信息 = calculate_enterprise_material_completeness(企业, documents or [])
+        扩展字段["material_completeness_score"] = 完整度信息["total_score"]
+        扩展字段["material_completeness"] = 完整度信息["total_label"]
+        扩展字段["material_completeness_detail"] = 完整度信息
+        扩展字段["material_missing_items"] = 完整度信息["missing_fields"]
+        企业.enterprise_extra_fields = 扩展字段
+        return 完整度信息
 
     def 产品行业专项字段组(行业代码):
         return INDUSTRY_PRODUCT_EXTRA_FIELD_CONFIG.get((行业代码 or "").strip(), [])
@@ -1722,11 +1704,8 @@ def create_app():
             )
 
             外贸负责人 = (扩展字段.get("trade_lead") or "").strip()
-            完整度信息 = 计算企业资料完整度(企业, 扩展字段, set())
-            扩展字段["material_completeness_score"] = 完整度信息["score"]
-            扩展字段["material_completeness"] = 完整度信息["label"]
-            扩展字段["material_missing_items"] = 完整度信息["missing_items"]
-            企业.enterprise_extra_fields = 扩展字段
+            完整度信息 = 写入企业资料完整度(企业, set())
+            扩展字段 = 企业.enterprise_extra_fields
 
             缺失必填字段 = 企业必填缺失字段(企业, 扩展字段)
             if 缺失必填字段:
@@ -1779,6 +1758,7 @@ def create_app():
             except ValueError as exc:
                 flash(str(exc), "danger")
                 return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
+            写入企业资料完整度(企业, Document.query.filter_by(enterprise_id=企业.id).all())
             记录审计日志("新增企业", "enterprise", target_id=企业.id, detail=企业.company_name)
             db.session.commit()
             flash(f"企业 {企业.company_name or 企业.unified_social_credit_code or 企业.enterprise_code} 保存成功，上传文件 {上传数} 个。", "success")
@@ -1859,7 +1839,7 @@ def create_app():
             "是" if 企业.has_foreign_trade_experience else "否",
             扩展字段.get("annual_sales") or "-",
             扩展字段.get("annual_exports") or "-",
-            扩展字段.get("material_completeness") or "-",
+            导出企业资料完整度标签(企业),
             企业.updated_at.strftime("%Y-%m-%d %H:%M"),
         ]]
         缓冲区 = BytesIO()
@@ -1954,11 +1934,8 @@ def create_app():
             企业.updated_at = datetime.utcnow()
 
             外贸负责人 = (扩展字段.get("trade_lead") or "").strip()
-            完整度信息 = 计算企业资料完整度(企业, 扩展字段, 提取本次上传文件类型())
-            扩展字段["material_completeness_score"] = 完整度信息["score"]
-            扩展字段["material_completeness"] = 完整度信息["label"]
-            扩展字段["material_missing_items"] = 完整度信息["missing_items"]
-            企业.enterprise_extra_fields = 扩展字段
+            完整度信息 = 写入企业资料完整度(企业, 提取本次上传文件类型())
+            扩展字段 = 企业.enterprise_extra_fields
             if 外贸负责人 and not 外贸联系人:
                 外贸联系人 = Contact(
                     enterprise_id=企业.id,
@@ -2004,6 +1981,7 @@ def create_app():
             except ValueError as exc:
                 flash(str(exc), "danger")
                 return render_template("enterprise_form.html", 模式="edit", 企业=企业, 外贸负责人=外贸负责人, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=兼容企业基础信息字段(企业, 企业.enterprise_extra_fields or {}), 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
+            写入企业资料完整度(企业, Document.query.filter_by(enterprise_id=企业.id).all())
             记录审计日志("编辑企业", "enterprise", target_id=企业.id, detail=企业.company_name)
             db.session.commit()
             flash(f"企业信息更新成功，新增上传文件 {上传数} 个。", "success")
@@ -2869,6 +2847,9 @@ def create_app():
                     PRODUCT_DOCUMENT_TYPE_OPTIONS if product_id else ENTERPRISE_DOCUMENT_TYPE_OPTIONS,
                 )
             document.version = version
+            if enterprise and not product_id:
+                db.session.flush()
+                写入企业资料完整度(enterprise, Document.query.filter_by(enterprise_id=enterprise.id).all())
             记录审计日志("上传文件", "document", target_id=document.id, detail=document.document_name)
             db.session.commit()
             flash("文件上传并归档成功。", "success")
@@ -2911,7 +2892,10 @@ def create_app():
             flash("请勾选二次确认后再删除文件。", "warning")
             return redirect(返回地址 or url_for("document_list"))
         记录审计日志("删除文件", "document", target_id=document.id, detail=document.document_name)
+        enterprise = Enterprise.query.get(document.enterprise_id) if document.enterprise_id else None
         软删除对象(document)
+        if enterprise:
+            写入企业资料完整度(enterprise, Document.query.filter_by(enterprise_id=enterprise.id).all())
         db.session.commit()
         flash("文件已删除。", "success")
         return redirect(返回地址 or url_for("document_list"))
@@ -3379,7 +3363,7 @@ def 导出企业总表():
             item.target_markets,
             ext.get("target_customer_types"),
             ext.get("acceptable_cooperation_modes"),
-            ext.get("material_completeness"),
+            导出企业资料完整度标签(item),
             item.risk_notes,
             item.updated_at.strftime("%Y-%m-%d %H:%M:%S") if item.updated_at else "",
         ])

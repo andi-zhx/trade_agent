@@ -128,12 +128,15 @@
     </div>
 {%- endmacro %}
 
-{% set overview_completeness = extra_value('material_completeness', '0%') %}
-{% set overview_score = extra_value('material_completeness_score', '0')|int %}
+{% set overview_detail = (企业扩展字段 or {}).get('material_completeness_detail') or {} %}
+{% set overview_modules = overview_detail.get('modules', {}) if overview_detail else {} %}
+{% set overview_completeness = overview_detail.get('total_label') or extra_value('material_completeness', '0%') %}
+{% set overview_score = overview_detail.get('total_score') if overview_detail.get('total_score') is not none else (extra_value('material_completeness_score', '0')|int) %}
 
 {% block content %}
 <style>
     .enterprise-overview-sticky .row { font-size: 1rem; }
+    .completeness-badges { gap: .35rem; }
     #enterpriseTabs .nav-link { color: #000; }
     #enterpriseTabs .nav-link.active { background-color: #e7f1ff; color: #000; }
 </style>
@@ -163,9 +166,16 @@
                 <div class="col-md-2"><strong>企业编号：</strong>{{ request.form.get('enterprise_code') if request.method == 'POST' else (企业.enterprise_code if 企业 else '待输入') }}</div>
                 <div class="col-md-2"><strong>行业大类：</strong>{{ request.form.get('industry_category') or request.form.get('industry_code') if request.method == 'POST' else (企业.industry_category or 企业.industry_code if 企业 else '-') }}</div>
                 <div class="col-md-2"><strong>项目负责人：</strong>{{ request.form.get('project_owner') if request.method == 'POST' else (企业.project_owner if 企业 else '-') }}</div>
-                <div class="col-md-2">
-                    <strong>资料完整度：</strong>
-                    <span id="overviewCompleteness" class="badge bg-{% if overview_score >= 80 %}success{% elif overview_score >= 50 %}warning text-dark{% else %}danger{% endif %}">{{ overview_completeness }}</span>
+                <div class="col-md-6">
+                    <div class="d-flex flex-wrap align-items-center completeness-badges">
+                        <strong>总完整度：</strong>
+                        <span id="overviewCompleteness" class="badge bg-{% if overview_score >= 80 %}success{% elif overview_score >= 50 %}warning text-dark{% else %}danger{% endif %}">{{ overview_completeness }}</span>
+                        <span class="badge text-bg-light border">基础信息：<span data-completeness-module="basic">{{ (overview_modules.get('basic') or {}).get('score', 0) }}%</span></span>
+                        <span class="badge text-bg-light border">工商经营：<span data-completeness-module="business">{{ (overview_modules.get('business') or {}).get('score', 0) }}%</span></span>
+                        <span class="badge text-bg-light border">外贸能力：<span data-completeness-module="export">{{ (overview_modules.get('export') or {}).get('score', 0) }}%</span></span>
+                        <span class="badge text-bg-light border">附件资料：<span data-completeness-module="documents">{{ (overview_modules.get('documents') or {}).get('score', 0) }}%</span></span>
+                        <span class="badge text-bg-light border">行业专项：<span data-completeness-module="industry">{{ (overview_modules.get('industry') or {}).get('score', 100 if not (overview_modules.get('industry') or {}).get('total') else 0) }}%</span></span>
+                    </div>
                 </div>
             </div>
         </div>
@@ -322,11 +332,16 @@
         ['registered_capital', '注册资本'],
         ['founded_date', '成立日期'],
         ['business_term_start', '营业期限起始日期'],
-        ['is_listed_or_pre_ipo', '是否上市'],
         ['has_import_export_qualification', '是否具备进出口相关资质'],
     ];
-    const coreBasicFields = requiredFields.filter(([key]) => ['industry_code', 'company_full_name'].includes(key));
-    const coreBusinessFields = requiredFields.filter(([key]) => !['project_owner', 'company_full_name', 'is_listed_or_pre_ipo', 'has_import_export_qualification'].includes(key));
+    const completenessFieldGroups = {
+        basic: ['enterprise_code', 'project_owner', 'industry_code', 'industry_category', 'company_full_name', 'registered_name', 'province', 'city', 'sub_industry', 'primary_contact_name', 'primary_contact_mobile', 'contact_phone', 'contact_email', 'dynamic_contacts'],
+        business: ['unified_social_credit_code', 'company_type', 'legal_representative', 'registered_capital', 'founded_date', 'business_term_start', 'business_scope', 'employee_count_range', 'annual_revenue_range', 'factory_area_range', 'production_line_count', 'business_directions', 'enterprise_description'],
+        export: ['has_import_export_qualification', 'has_overseas_business', 'major_export_regions', 'export_experience', 'customer_types', 'certificate_completeness', 'target_expansion_markets', 'foreign_trade_support_needs', 'foreign_trade_team_size', 'attended_international_expo', 'cross_border_platforms', 'export_docs_familiarity'],
+    };
+    const documentTypeWeights = {'营业执照': 4, '企业介绍': 2, 'BP/融资材料': 1, '工厂照片': 1, '资质荣誉': 1, '财务/经营资料': 1, '其他': 0.5};
+    const coreBasicFields = completenessFieldGroups.basic.map((key) => [key, key]).filter(([key]) => document.querySelector(`[name="${key}"]`) || key === 'industry_category');
+    const coreBusinessFields = completenessFieldGroups.business.map((key) => [key, key]).filter(([key]) => document.querySelector(`[name="${key}"]`));
     const saveButtons = Array.from(form.querySelectorAll('button[type="submit"][data-action="save"]'));
 
     const enterpriseUploadRules = {
@@ -451,20 +466,64 @@
         });
     };
 
+    const isDynamicContactsFilled = () => Array.from(document.querySelectorAll('.dynamic-contact-row')).some((row) => {
+        const name = row.querySelector('[name="dynamic_contacts_name[]"]')?.value || '';
+        const mobile = row.querySelector('[name="dynamic_contacts_mobile[]"]')?.value || '';
+        return name.trim() || mobile.trim();
+    });
+
+    const isCompletenessFieldFilled = (key) => {
+        if (key === 'industry_category') return getFieldValues('industry_code').length > 0 || (industryName?.value || '').trim();
+        if (key === 'dynamic_contacts') return isDynamicContactsFilled();
+        return getFieldValues(key).length > 0;
+    };
+
+    const visibleConfiguredFields = (keys) => keys.filter((key) => key === 'industry_category' || key === 'dynamic_contacts' || document.querySelector(`[name="${key}"]`));
+
+    const calculateFieldModule = (keys) => {
+        const configured = visibleConfiguredFields(keys);
+        const done = configured.reduce((acc, key) => acc + (isCompletenessFieldFilled(key) ? 1 : 0), 0);
+        return {score: configured.length ? Math.round(done / configured.length * 100) : 100, done, total: configured.length};
+    };
+
+    const calculateDocumentModule = () => {
+        const covered = new Set(existingUploadedTypes);
+        document.querySelectorAll('.enterprise-upload-row').forEach((row) => {
+            const type = row.querySelector('[name="enterprise_upload_type"]')?.value || '';
+            const files = row.querySelector('[name="enterprise_upload_file"]')?.files || [];
+            if (type && files.length) covered.add(type);
+        });
+        const total = Object.values(documentTypeWeights).reduce((a, b) => a + b, 0);
+        const done = Object.entries(documentTypeWeights).reduce((acc, [type, points]) => acc + (covered.has(type) ? points : 0), 0);
+        return {score: total ? Math.round(done / total * 100) : 0, done, total};
+    };
+
     const calculateCompleteness = () => {
-        const total = coreBasicFields.length + coreBusinessFields.length;
-        const done = [...coreBasicFields, ...coreBusinessFields].reduce((acc, [key]) => acc + (getFieldValues(key).length > 0 ? 1 : 0), 0);
-        return total ? Math.round((done / total) * 100) : 0;
+        const modules = {
+            basic: calculateFieldModule(completenessFieldGroups.basic),
+            business: calculateFieldModule(completenessFieldGroups.business),
+            export: calculateFieldModule(completenessFieldGroups.export),
+            documents: calculateDocumentModule(),
+            industry: calculateFieldModule(Array.from(document.querySelectorAll('#enterpriseTabContent [data-module-pane]:not([data-module-key="A"]):not([data-module-key="B"]):not([data-module-key="C"]):not([data-module-key="D"]):not([data-module-key="E"]):not([data-module-key="F"]):not([data-module-key="G"]):not([data-module-key="H"]):not([data-module-key="J"]) [name]')).map((el) => el.name).filter(Boolean))
+        };
+        const weights = modules.industry.total ? {basic: 40, business: 20, export: 20, documents: 10, industry: 10} : {basic: 44.4, business: 22.2, export: 22.2, documents: 11.1, industry: 0};
+        const totalScore = Math.round(Object.keys(modules).reduce((acc, key) => acc + modules[key].score * weights[key] / 100, 0));
+        return {score: Math.max(0, Math.min(100, totalScore)), modules};
     };
 
     const syncCompletenessOverview = () => {
         if (!completenessBadge) return;
-        const score = calculateCompleteness();
+        const result = calculateCompleteness();
+        const score = result.score;
         completenessBadge.textContent = `${score}%`;
         completenessBadge.className = 'badge';
         if (score >= 80) completenessBadge.classList.add('bg-success');
         else if (score >= 50) completenessBadge.classList.add('bg-warning', 'text-dark');
         else completenessBadge.classList.add('bg-danger');
+        Object.entries(result.modules).forEach(([key, module]) => {
+            const el = document.querySelector(`[data-completeness-module="${key}"]`);
+            if (el) el.textContent = `${module.score}%`;
+        });
     };
 
     let lastAutoIndustryName = '';
