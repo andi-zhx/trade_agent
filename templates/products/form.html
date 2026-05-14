@@ -55,8 +55,9 @@
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">产品编号</label>
-                            <input class="form-control" value="{{ product.product_code if product else '请先保存产品概览后自动生成' }}" disabled>
+                            <label class="form-label">产品编号 <span class="text-danger">*</span></label>
+                            <input name="product_code" id="productCodeInput" class="form-control" required autocomplete="off" data-check-url="{{ url_for('check_product_code') }}" data-current-id="{{ product.id if product else '' }}" value="{{ request.form.get('product_code') if request.method == 'POST' else (product.product_code if product else '') }}">
+                            <div class="form-text" id="productCodeFeedback">请手动输入产品编号，系统会自动检查是否重复。</div>
                         </div>
                         <div class="col-md-6"><label class="form-label">产品名称 <span class="text-danger">*</span></label><input name="product_name_cn" required class="form-control" value="{{ request.form.get('product_name_cn') if request.method == 'POST' else (product.product_name_cn if product else '') }}"></div>
                         <div class="col-md-6"><label class="form-label">产品英文名称</label><input name="product_name_en" class="form-control" value="{{ request.form.get('product_name_en') if request.method == 'POST' else (product.product_name_en if product else '') }}"></div>
@@ -373,6 +374,56 @@
     const industryExtraConfig = {{ industry_extra_groups|tojson }};
     const productExtraValues = {{ product_extra_values|tojson }};
     const activeTabInput = document.getElementById('activeTabInput');
+
+
+    const productCodeInput = document.getElementById('productCodeInput');
+    const productCodeFeedback = document.getElementById('productCodeFeedback');
+    let productCodeTimer = null;
+
+    const setProductCodeFeedback = (message, state) => {
+        if (!productCodeFeedback) return;
+        productCodeFeedback.textContent = message;
+        productCodeFeedback.classList.remove('text-danger', 'text-success', 'text-muted');
+        if (state === 'danger') productCodeFeedback.classList.add('text-danger');
+        else if (state === 'success') productCodeFeedback.classList.add('text-success');
+        else productCodeFeedback.classList.add('text-muted');
+    };
+
+    const checkProductCode = async () => {
+        if (!productCodeInput) return;
+        const code = (productCodeInput.value || '').trim();
+        productCodeInput.classList.remove('is-invalid', 'is-valid');
+        if (!code) {
+            setProductCodeFeedback('产品编号为必填项。', 'danger');
+            productCodeInput.classList.add('is-invalid');
+            return;
+        }
+        const url = productCodeInput.dataset.checkUrl;
+        if (!url) return;
+        const params = new URLSearchParams({ product_code: code });
+        if (productCodeInput.dataset.currentId) params.set('current_id', productCodeInput.dataset.currentId);
+        try {
+            const response = await fetch(`${url}?${params.toString()}`, { headers: { 'Accept': 'application/json' } });
+            const data = await response.json();
+            if (data.exists) {
+                setProductCodeFeedback('产品编号已存在，请更换后再保存。', 'danger');
+                productCodeInput.classList.add('is-invalid');
+            } else {
+                setProductCodeFeedback('产品编号可用。', 'success');
+                productCodeInput.classList.add('is-valid');
+            }
+        } catch (error) {
+            setProductCodeFeedback('暂时无法检查产品编号，请保存时以系统校验为准。', 'muted');
+        }
+    };
+
+    if (productCodeInput) {
+        productCodeInput.addEventListener('input', () => {
+            clearTimeout(productCodeTimer);
+            productCodeTimer = setTimeout(checkProductCode, 300);
+        });
+        if ((productCodeInput.value || '').trim()) checkProductCode();
+    }
 
     const tabButtons = document.querySelectorAll('#productFormTabs button[data-bs-toggle="tab"]');
     tabButtons.forEach((btn) => {
