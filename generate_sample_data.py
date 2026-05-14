@@ -8,6 +8,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 
 from app import create_app
+from config.industry_config import INDUSTRY_NAMES
 from models import Enterprise, Product, ProductSKU, db
 
 ENTERPRISE_COUNT = 50
@@ -24,7 +25,6 @@ CITIES = {
     "上海市": ["上海市"],
     "北京市": ["北京市"],
 }
-INDUSTRY_NAMES = ["电子信息", "纺织服装", "机械装备", "家居日用", "食品饮料"]
 PRODUCT_CATEGORIES = ["工业传感器", "控制模块", "智能终端", "配套部件"]
 MARKETS = ["东南亚", "中东", "欧洲", "北美", "拉美", "非洲"]
 COUNTRIES = ["越南", "泰国", "阿联酋", "德国", "美国", "巴西"]
@@ -58,7 +58,7 @@ def build_enterprise(i: int) -> Enterprise:
         city=city,
         district=random.choice(["南山区", "高新区", "开发区", "工业园"]),
         company_type=random.choice(["有限责任公司", "股份有限公司"]),
-        industry_code=f"I{random.randint(10, 99)}",
+        industry_code=industry,
         industry_category=industry,
         sub_industry=random.choice(["核心零部件", "系统集成", "消费品制造"]),
         main_products=random.choice(["工业传感器、控制模块", "智能终端、连接器", "电源模块、执行器"]),

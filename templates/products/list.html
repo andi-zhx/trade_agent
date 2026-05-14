@@ -28,7 +28,7 @@
                 <select name="industry" class="form-select">
                     <option value="">行业（全部）</option>
                     {% for item in industries %}
-                    <option value="{{ item.code }}" {% if filters.get('industry') == item.code %}selected{% endif %}>{{ item.code }} {{ item.name }}</option>
+                    <option value="{{ item.code }}" {% if filters.get('industry') == item.code %}selected{% endif %}>{{ item.name }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -84,7 +84,7 @@
         <td>{{ p.enterprise.company_name if p.enterprise else '-' }}</td>
         <td>
             {% if p.industry_code or p.product_category %}
-                {{ (p.industry_code ~ ' ' ~ (p.industry_name or '')) if p.industry_code else '-' }} / {{ p.product_category or '-' }}
+                {{ p.industry_name or p.industry_code or '-' }} / {{ p.product_category or '-' }}
             {% else %}
                 -
             {% endif %}

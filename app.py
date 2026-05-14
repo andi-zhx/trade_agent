@@ -72,6 +72,16 @@ def 行业默认名称(行业代码):
     return item["name"]
 
 
+def 行业显示名称(行业代码, 行业名称=None):
+    """展示行业名称；当存储值就是行业名称时避免重复显示。"""
+
+    行业代码 = (行业代码 or "").strip()
+    行业名称 = (行业名称 or "").strip() or 行业默认名称(行业代码)
+    if 行业名称:
+        return 行业名称
+    return 行业代码
+
+
 def 估算人员规模(employee_count):
     if not employee_count:
         return ""
@@ -810,7 +820,7 @@ def create_app():
         基本信息字段 = [
             ("企业全称", ext.get("company_full_name") or 企业.company_name),
             ("企业简称", ext.get("company_short_name")),
-            ("行业分类", 企业.industry_code),
+            ("行业分类", 行业显示名称(企业.industry_code, 企业.industry_category)),
             ("细分行业", 企业.sub_industry),
             ("核心产品", ext.get("core_products") or 企业.main_products),
             ("企业网址", ext.get("website")),
@@ -1816,7 +1826,7 @@ def create_app():
         行数据 = [[
             企业.enterprise_code,
             企业.company_name,
-            f"{企业.industry_code or ''} {企业.industry_category or ''}".strip() or "-",
+            行业显示名称(企业.industry_code, 企业.industry_category) or "-",
             企业.province or "-",
             企业.city or "-",
             企业性质,
@@ -2447,7 +2457,7 @@ def create_app():
             product.product_code,
             product.product_name_cn,
             enterprise.company_name if enterprise else "-",
-            f"{product.industry_code or ''} {product.industry_name or ''}".strip() or "-",
+            行业显示名称(product.industry_code, product.industry_name) or "-",
             product.product_category or "-",
             product.hs_code or "-",
             product.moq or product_extra.get("trade_moq") or "-",
