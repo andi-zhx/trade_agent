@@ -164,20 +164,7 @@
 <div class="tab-content border border-top-0 rounded-bottom p-3 bg-white" id="enterpriseDetailTabContent">
     {% for tab in 详情Tabs %}
     <div class="tab-pane fade {% if loop.first %}show active{% endif %}" id="pane-{{ tab.key }}" role="tabpanel" aria-labelledby="tab-{{ tab.key }}">
-        {% if tab.key == 'entry' %}
-            <div class="table-responsive">
-                <table class="table table-bordered align-middle small mb-0">
-                    <tbody>
-                        <tr><th class="table-light" style="width: 220px;">企业编号</th><td>{{ show_text(企业.enterprise_code) }}</td></tr>
-                        <tr><th class="table-light">项目负责人</th><td>{{ show_text(企业.project_owner) }}</td></tr>
-                        <tr><th class="table-light">行业分类</th><td>{{ show_industry_classification(企业) }}</td></tr>
-                        <tr><th class="table-light">省份</th><td>{{ show_text(企业.province) }}</td></tr>
-                        <tr><th class="table-light">城市</th><td>{{ show_text(企业.city) }}</td></tr>
-                        <tr><th class="table-light">区县</th><td>{{ show_text(企业.district) }}</td></tr>
-                    </tbody>
-                </table>
-            </div>
-        {% elif tab.key == 'attachments' %}
+        {% if tab.key == 'attachments' %}
             {% if 文件列表 %}
                 <div class="table-responsive">
                     <table class="table table-sm table-bordered align-middle mb-0">

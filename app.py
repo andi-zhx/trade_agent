@@ -1429,44 +1429,22 @@ def create_app():
 
 
     def 企业导入模板数据():
-        表头 = [
-            "企业编号",
-            "行业分类",
-            "企业全称",
-            "英文名称",
-            "统一社会信用代码",
-            "省市",
-            "联系人",
-            "联系电话",
-            "邮箱",
-            "核心产品",
-            "年销售额",
-            "年出口额",
-            "是否有出口经验",
-            "厂房面积",
-            "员工数量",
-            "产线数量",
-            "最近更新时间",
-        ]
-        样例 = [
-            "ENT-20260430-001",
-            "电子信息",
-            "示例科技股份有限公司",
-            "Example Tech Co., Ltd.",
-            "91310000MA1EXAMPLE",
-            "广东省 / 深圳市",
-            "张三",
-            "13800138000",
-            "contact@example.com",
-            "工业传感器、控制模块",
-            "5000万-1亿",
-            "1000万-5000万",
-            "是",
-            "12000㎡",
-            "260",
-            "8",
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        ]
+        表头 = [字段 for 字段, _ in 企业导入字段提示()]
+        样例映射 = {
+            "企业编号": "ENT-20260430-001",
+            "行业分类": "电子电器与智能硬件",
+            "企业全称": "示例科技股份有限公司",
+            "企业类型": "有限责任公司",
+            "统一社会信用代码": "91310000MA1EXAMPLE",
+            "法定代表人": "张三",
+            "注册资本": "1000万元人民币",
+            "成立日期": "2020-01-15",
+            "营业期限": "2020-01-15",
+            "注册地址": "广东省深圳市南山区示例路 1 号",
+            "联系人": "李四",
+            "联系电话": "13800138000",
+        }
+        样例 = [样例映射.get(字段, "") for 字段 in 表头]
         return 表头, 样例
 
     def 产品导入模板数据():
@@ -1540,7 +1518,7 @@ def create_app():
             返回地址=返回地址,
             返回文案="返回企业库",
             字段提示=企业导入字段提示(),
-            必填字段=["企业全称", "核心产品", "联系方式"],
+            必填字段=["企业编号", "企业全称"],
             模板下载地址=url_for("download_enterprise_import_template"),
             模板下载文案="下载企业导入模板",
         )
@@ -1784,7 +1762,6 @@ def create_app():
         通用分组映射 = {group.get("key"): group for group in COMMON_ENTERPRISE_FIELD_GROUPS}
         行业分组列表 = 行业专项字段组(企业.industry_code)
         详情Tabs = [
-            {"key": "entry", "title": "入库信息", "groups": []},
             {"key": "basic", "title": "基本信息", "groups": [通用分组映射.get("A")] if 通用分组映射.get("A") else []},
             {"key": "business", "title": "工商信息", "groups": [通用分组映射.get("B")] if 通用分组映射.get("B") else []},
             {"key": "contact", "title": "联系信息", "groups": [通用分组映射.get("C")] if 通用分组映射.get("C") else []},
@@ -4059,23 +4036,18 @@ def 读取导入表格(file_storage):
 
 def 企业导入字段提示():
     return [
-        ("企业编号", "对应入库信息-企业编号"),
-        ("行业分类", "对应入库信息-行业分类"),
+        ("企业编号", "对应基本信息-企业编号（必填，用于更新匹配或新增）"),
+        ("行业分类", "对应基本信息-行业分类"),
         ("企业全称", "对应基本信息-企业全称（必填）"),
-        ("英文名称", "对应基本信息-英文名称"),
+        ("企业类型", "对应工商信息-企业类型"),
         ("统一社会信用代码", "对应工商信息-统一社会信用代码"),
-        ("省市", "对应基本信息-省份、城市，格式建议为“省 / 市”"),
-        ("联系人", "企业联系人姓名（联系方式必填项之一）"),
-        ("联系电话", "企业联系电话或手机（联系方式必填项之一）"),
-        ("邮箱", "企业联系邮箱（联系方式必填项之一）"),
-        ("核心产品", "对应企业核心产品（必填）"),
-        ("年销售额", "对应财务信用-年营业收入区间"),
-        ("年出口额", "对应财务信用-年出口额区间"),
-        ("是否有出口经验", "对应外贸能力-是否有出口经验，支持是/否"),
-        ("厂房面积", "对应生产能力-厂房面积"),
-        ("员工数量", "对应基本信息-人员规模"),
-        ("产线数量", "对应生产能力-产线数量"),
-        ("最近更新时间", "导入模板样例行会自动写入系统时间，导入时可忽略"),
+        ("法定代表人", "对应工商信息-法定代表人"),
+        ("注册资本", "对应工商信息-注册资本"),
+        ("成立日期", "对应工商信息-成立日期，格式建议为 YYYY-MM-DD"),
+        ("营业期限", "对应工商信息-营业期限起始日期，格式建议为 YYYY-MM-DD"),
+        ("注册地址", "对应工商信息-注册地址"),
+        ("联系人", "对应联系信息-主联系人姓名，可为空"),
+        ("联系电话", "对应联系信息-电话/手机，可为空"),
     ]
 
 
@@ -4175,6 +4147,43 @@ def 解析省市(value):
     return parts[0] or None, parts[1] or None
 
 
+def 读取首个日期(值):
+    text = 单元格文本(值)
+    if not text:
+        return None
+    标准文本 = text.replace("/", "-").replace(".", "-")
+    日期 = 读取日期(标准文本)
+    if 日期:
+        return 日期
+    match = re.search(r"\d{4}[-/]\d{1,2}[-/]\d{1,2}", text)
+    if not match:
+        return None
+    年, 月, 日 = re.split(r"[-/]", match.group(0))
+    try:
+        return date(int(年), int(月), int(日))
+    except ValueError:
+        return None
+
+
+def 解析导入行业(value):
+    text = 单元格文本(value)
+    if not text:
+        return None, None
+    if text in INDUSTRY_MAP:
+        item = INDUSTRY_MAP[text]
+        return item["code"], item["name"]
+    for item in INDUSTRY_OPTIONS:
+        if text == item["name"] or text in {f'{item["code"]} {item["name"]}', f'{item["code"]}-{item["name"]}', f'{item["code"]}｜{item["name"]}'}:
+            return item["code"], item["name"]
+    return None, text
+
+
+def 联系电话字段键(value):
+    text = 单元格文本(value)
+    digits = re.sub(r"\D", "", text)
+    if len(digits) == 11 and digits.startswith("1"):
+        return "primary_contact_mobile"
+    return "contact_phone"
 
 
 导入错误字段建议 = {
@@ -4240,12 +4249,9 @@ def 导入企业Excel(file_storage, batch=None):
     if not rows:
         return 0, [{"行号": 1, "原因": "文件为空", "数据": {}}]
     header = [单元格文本(c) for c in rows[0]]
-    idx = {name: i for i, name in enumerate(header)}
-    联系字段 = ["联系人", "联系人姓名", "联系电话", "手机", "电话", "邮箱", "联系方式"]
-    必填 = ["企业全称", "核心产品"]
+    idx = 规范导入表头(header)
+    必填 = ["企业编号", "企业全称"]
     缺失 = [f for f in 必填 if f not in idx]
-    if not any(f in idx for f in 联系字段):
-        缺失.append("联系方式")
     if 缺失:
         原因 = f"缺少必填列: {', '.join(缺失)}"
         for 字段 in 缺失:
@@ -4256,37 +4262,59 @@ def 导入企业Excel(file_storage, batch=None):
     failed = []
     for row_num, row in enumerate(rows[1:], start=2):
         try:
-            company_name = 单元格文本(row[idx["企业全称"]])
+            if not any(单元格文本(cell) for cell in row):
+                continue
+            enterprise_code = 读取行字段(row, idx, "企业编号")
+            company_name = 读取行字段(row, idx, "企业全称")
             core_products = 读取行字段(row, idx, "核心产品")
-            contact_info = 取首个存在字段值(row, idx, "联系方式", "联系人", "联系人姓名", "联系电话", "手机", "电话", "邮箱")
+            contact_name = 取首个存在字段值(row, idx, "联系人", "联系人姓名")
+            contact_phone = 取首个存在字段值(row, idx, "联系电话", "手机", "电话", "联系方式")
+            contact_info = contact_phone or contact_name or 取首个存在字段值(row, idx, "邮箱")
             行错误 = []
+            if not enterprise_code:
+                行错误.append(("企业编号", "企业编号缺失"))
             if not company_name:
                 行错误.append(("企业全称", "企业名称缺失"))
-            if not core_products:
-                行错误.append(("核心产品", "核心产品缺失"))
-            if not contact_info:
-                行错误.append(("联系方式", "联系方式缺失"))
             if 行错误:
-                上下文 = 导入行上下文(row, idx, ["企业编号", "企业全称", "核心产品", "联系人", "联系电话", "手机", "邮箱", "联系方式"])
+                上下文 = 导入行上下文(row, idx, ["企业编号", "企业全称", "联系人", "联系电话", "手机", "电话", "邮箱", "联系方式"])
                 for 字段, 原因 in 行错误:
                     记录导入错误(batch, row_num, 字段, 原因, 上下文, 导入错误字段建议.get(字段))
                 raise ValueError("；".join(原因 for _, 原因 in 行错误))
-            enterprise_code = 单元格文本(row[idx["企业编号"]]) if "企业编号" in idx else ""
-            enterprise = Enterprise.query.filter_by(enterprise_code=enterprise_code).first() if enterprise_code else None
+            enterprise = Enterprise.query.filter_by(enterprise_code=enterprise_code).first()
             if not enterprise:
-                enterprise = Enterprise(enterprise_code=enterprise_code or 生成企业编号())
+                enterprise = Enterprise(enterprise_code=enterprise_code)
                 db.session.add(enterprise)
 
             ext = dict(enterprise.enterprise_extra_fields or {})
             province = city = None
             if "省市" in idx:
-                province, city = 解析省市(row[idx["省市"]])
+                province, city = 解析省市(读取行字段(row, idx, "省市"))
             enterprise.company_name = company_name
-            enterprise.english_name = 单元格文本(row[idx["英文名称"]]) or None if "英文名称" in idx else None
-            enterprise.unified_social_credit_code = 单元格文本(row[idx["统一社会信用代码"]]) or None if "统一社会信用代码" in idx else None
-            enterprise.industry_category = 单元格文本(row[idx["行业分类"]]) or None if "行业分类" in idx else None
-            enterprise.province = province
-            enterprise.city = city
+            ext["company_full_name"] = company_name
+            enterprise.english_name = 读取行字段(row, idx, "英文名称") or enterprise.english_name
+            enterprise.unified_social_credit_code = 读取行字段(row, idx, "统一社会信用代码") or None if "统一社会信用代码" in idx else enterprise.unified_social_credit_code
+            if "行业分类" in idx:
+                行业文本 = 读取行字段(row, idx, "行业分类")
+                if 行业文本:
+                    行业代码, 行业名称 = 解析导入行业(行业文本)
+                    enterprise.industry_code = 行业代码 or enterprise.industry_code
+                    enterprise.industry_category = 行业名称
+                    ext["industry"] = 行业名称
+            enterprise.company_type = 读取行字段(row, idx, "企业类型") or enterprise.company_type
+            enterprise.legal_representative = 读取行字段(row, idx, "法定代表人") or enterprise.legal_representative
+            enterprise.registered_capital = 读取行字段(row, idx, "注册资本") or enterprise.registered_capital
+            enterprise.founded_date = 读取首个日期(读取行字段(row, idx, "成立日期")) or enterprise.founded_date
+            enterprise.business_term_start = 读取首个日期(读取行字段(row, idx, "营业期限")) or enterprise.business_term_start
+            enterprise.registered_address = 读取行字段(row, idx, "注册地址") or enterprise.registered_address
+            if province is not None:
+                enterprise.province = province
+            if city is not None:
+                enterprise.city = city
+            if contact_name:
+                ext["primary_contact_name"] = contact_name
+            if contact_phone:
+                ext[联系电话字段键(contact_phone)] = contact_phone
+                ext["import_contact_info"] = contact_phone
             if "企业性质" in idx:
                 企业性质文本 = 单元格文本(row[idx["企业性质"]])
                 enterprise.company_type = 企业性质文本 or None
@@ -4296,16 +4324,23 @@ def 导入企业Excel(file_storage, batch=None):
                 enterprise.is_brand_owner = "品牌商" in tokens
                 enterprise.is_oem_odm = "OEM/ODM工厂" in tokens or "OEM" in tokens or "ODM" in tokens
                 enterprise.is_service_provider = "服务商" in tokens
-            enterprise.main_business = 单元格文本(row[idx["主营业务"]]) or None if "主营业务" in idx else None
-            enterprise.main_products = core_products or None
-            ext["core_products"] = core_products or None
+            if "主营业务" in idx:
+                enterprise.main_business = 读取行字段(row, idx, "主营业务") or None
+            if core_products:
+                enterprise.main_products = core_products
+                ext["core_products"] = core_products
             if contact_info:
                 ext["import_contact_info"] = contact_info
-            enterprise.export_countries = 单元格文本(row[idx["出口国家"]]) or None if "出口国家" in idx else None
-            enterprise.target_markets = 单元格文本(row[idx["目标市场"]]) or None if "目标市场" in idx else None
-            enterprise.factory_area = 单元格文本(row[idx["厂房面积"]]) or None if "厂房面积" in idx else None
-            enterprise.employee_count = 读取整数(单元格文本(row[idx["员工数量"]])) if "员工数量" in idx else None
-            enterprise.risk_notes = 单元格文本(row[idx["风险备注"]]) or None if "风险备注" in idx else None
+            if "出口国家" in idx:
+                enterprise.export_countries = 读取行字段(row, idx, "出口国家") or None
+            if "目标市场" in idx:
+                enterprise.target_markets = 读取行字段(row, idx, "目标市场") or None
+            if "厂房面积" in idx:
+                enterprise.factory_area = 读取行字段(row, idx, "厂房面积") or None
+            if "员工数量" in idx:
+                enterprise.employee_count = 读取整数(读取行字段(row, idx, "员工数量"))
+            if "风险备注" in idx:
+                enterprise.risk_notes = 读取行字段(row, idx, "风险备注") or None
             if "是否有出口经验" in idx:
                 enterprise.has_foreign_trade_experience = 读取布尔文本(row[idx["是否有出口经验"]])
             if "年销售额" in idx:
