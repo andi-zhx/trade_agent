@@ -838,17 +838,16 @@ def create_app():
         }
 
     ENTERPRISE_REQUIRED_FIELD_RULES = [
-        ("入库信息-项目负责人", lambda 企业, ext: 企业.project_owner),
+        ("基本信息-企业编号", lambda 企业, ext: 企业.enterprise_code),
+        ("基本信息-行业大类", lambda 企业, ext: 企业.industry_code),
         ("基本信息-企业全称", lambda 企业, ext: ext.get("company_full_name") or 企业.company_name),
-        ("工商信息-注册名称", lambda 企业, ext: ext.get("registered_name")),
-        ("工商信息-法人代表", lambda 企业, ext: ext.get("legal_representative")),
-        ("工商信息-统一社会信用代码", lambda 企业, ext: ext.get("unified_social_credit_code") or 企业.unified_social_credit_code),
-        ("工商信息-注册资本", lambda 企业, ext: ext.get("registered_capital") or 企业.registered_capital),
         ("工商信息-企业类型", lambda 企业, ext: ext.get("company_type") or 企业.company_type),
+        ("工商信息-统一社会信用代码", lambda 企业, ext: ext.get("unified_social_credit_code") or 企业.unified_social_credit_code),
+        ("工商信息-法定代表人", lambda 企业, ext: ext.get("legal_representative")),
+        ("工商信息-注册资本", lambda 企业, ext: ext.get("registered_capital") or 企业.registered_capital),
         ("工商信息-成立日期", lambda 企业, ext: ext.get("founded_date") or (企业.founded_date.strftime("%Y-%m-%d") if 企业.founded_date else "")),
         ("工商信息-营业期限起始日期", lambda 企业, ext: ext.get("business_term_start")),
-        ("经营情况-是否上市", lambda 企业, ext: ext.get("is_listed_or_pre_ipo")),
-        ("资质合规-是否具备进出口相关资质", lambda 企业, ext: ext.get("has_import_export_qualification")),
+        ("工商信息-注册地址", lambda 企业, ext: ext.get("registered_address") or 企业.registered_address),
     ]
 
     def 企业必填缺失字段(企业, 扩展字段):
@@ -1432,7 +1431,7 @@ def create_app():
         表头 = [字段 for 字段, _ in 企业导入字段提示()]
         样例映射 = {
             "企业编号": "ENT-20260430-001",
-            "行业分类": "电子电器与智能硬件",
+            "行业大类": "电子电器与智能硬件",
             "企业全称": "示例科技股份有限公司",
             "企业类型": "有限责任公司",
             "统一社会信用代码": "91310000MA1EXAMPLE",
@@ -1637,8 +1636,8 @@ def create_app():
             联系人子表单 = 扩展字段.get("dynamic_contacts", [])
             主联系人数 = sum(1 for item in 联系人子表单 if item.get("is_primary_contact"))
             出口经验 = 扩展字段.get("export_experience")
-            企业编号 = 生成企业编号()
-            企业名称 = (扩展字段.get("company_full_name") or "").strip() or f"未命名企业-{企业编号}"
+            企业编号 = (request.form.get("enterprise_code") or 扩展字段.get("enterprise_code") or "").strip()
+            企业名称 = (扩展字段.get("company_full_name") or "").strip() or f"未命名企业-{企业编号 or '待编号'}"
             企业 = Enterprise(
                 enterprise_code=企业编号,
                 company_name=企业名称,
@@ -1699,6 +1698,13 @@ def create_app():
             if 主联系人数 > 1:
                 flash("联系人子表单中“是否主联系人”只能选择一位。", "danger")
                 return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
+
+            if not 企业编号:
+                flash("企业编号为必填项，请手动输入后再保存。", "danger")
+                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=[])
+            if Enterprise.query.filter_by(enterprise_code=企业编号).first():
+                flash("企业编号已存在，请修改后再保存。", "danger")
+                return render_template("enterprise_form.html", 模式="new", 企业=None, 行业列表=行业下拉选项(), 通用字段组=COMMON_ENTERPRISE_FIELD_GROUPS, 行业字段配置=INDUSTRY_EXTRA_FIELD_CONFIG, 企业扩展字段=扩展字段, 企业文件类型选项=ENTERPRISE_UPLOAD_TYPES, 重复风险提示=["企业编号已存在，请修改后再保存。"])
 
             重复风险提示 = 企业重复风险检查(企业.company_name, 企业.unified_social_credit_code)
             if 操作动作 == "save" and 重复风险提示:
@@ -4036,8 +4042,8 @@ def 读取导入表格(file_storage):
 
 def 企业导入字段提示():
     return [
-        ("企业编号", "对应基本信息-企业编号（必填，用于更新匹配或新增）"),
-        ("行业分类", "对应基本信息-行业分类"),
+        ("企业编号", "对应基本信息-企业编号（必填，不可与库内或导入文件内其他企业重复）"),
+        ("行业大类", "对应基本信息-行业大类"),
         ("企业全称", "对应基本信息-企业全称（必填）"),
         ("企业类型", "对应工商信息-企业类型"),
         ("统一社会信用代码", "对应工商信息-统一社会信用代码"),
@@ -4066,6 +4072,13 @@ def 产品导入字段提示():
         ("均价", "对应产品概览-交易摘要-价格展示（兼容列名“价格展示”）"),
         ("备注", "对应产品概览-备注-内部备注"),
     ]
+
+
+企业导入列名别名 = {
+    "行业分类": "行业大类",
+    "industry_code": "行业大类",
+    "industry_name": "行业大类",
+}
 
 
 产品导入列名别名 = {
@@ -4249,7 +4262,7 @@ def 导入企业Excel(file_storage, batch=None):
     if not rows:
         return 0, [{"行号": 1, "原因": "文件为空", "数据": {}}]
     header = [单元格文本(c) for c in rows[0]]
-    idx = 规范导入表头(header)
+    idx = 规范导入表头(header, 企业导入列名别名)
     必填 = ["企业编号", "企业全称"]
     缺失 = [f for f in 必填 if f not in idx]
     if 缺失:
@@ -4260,6 +4273,7 @@ def 导入企业Excel(file_storage, batch=None):
 
     success = 0
     failed = []
+    已读取企业编号 = {}
     for row_num, row in enumerate(rows[1:], start=2):
         try:
             if not any(单元格文本(cell) for cell in row):
@@ -4280,10 +4294,21 @@ def 导入企业Excel(file_storage, batch=None):
                 for 字段, 原因 in 行错误:
                     记录导入错误(batch, row_num, 字段, 原因, 上下文, 导入错误字段建议.get(字段))
                 raise ValueError("；".join(原因 for _, 原因 in 行错误))
-            enterprise = Enterprise.query.filter_by(enterprise_code=enterprise_code).first()
-            if not enterprise:
-                enterprise = Enterprise(enterprise_code=enterprise_code)
-                db.session.add(enterprise)
+
+            上下文 = 导入行上下文(row, idx, ["企业编号", "企业全称", "统一社会信用代码"])
+            if enterprise_code in 已读取企业编号:
+                原因 = f"企业编号与第 {已读取企业编号[enterprise_code]} 行重复，请修改后重新导入"
+                记录导入错误(batch, row_num, "企业编号", 原因, 上下文, "请确保导入文件内企业编号唯一。")
+                raise ValueError(原因)
+            已读取企业编号[enterprise_code] = row_num
+
+            if Enterprise.query.filter_by(enterprise_code=enterprise_code).first():
+                原因 = "企业编号已存在，请修改后重新导入"
+                记录导入错误(batch, row_num, "企业编号", 原因, 上下文, "请使用未入库的企业编号，或先在企业编辑页调整编号。")
+                raise ValueError(原因)
+
+            enterprise = Enterprise(enterprise_code=enterprise_code)
+            db.session.add(enterprise)
 
             ext = dict(enterprise.enterprise_extra_fields or {})
             province = city = None
@@ -4293,8 +4318,8 @@ def 导入企业Excel(file_storage, batch=None):
             ext["company_full_name"] = company_name
             enterprise.english_name = 读取行字段(row, idx, "英文名称") or enterprise.english_name
             enterprise.unified_social_credit_code = 读取行字段(row, idx, "统一社会信用代码") or None if "统一社会信用代码" in idx else enterprise.unified_social_credit_code
-            if "行业分类" in idx:
-                行业文本 = 读取行字段(row, idx, "行业分类")
+            if "行业大类" in idx:
+                行业文本 = 读取行字段(row, idx, "行业大类")
                 if 行业文本:
                     行业代码, 行业名称 = 解析导入行业(行业文本)
                     enterprise.industry_code = 行业代码 or enterprise.industry_code
@@ -4391,6 +4416,7 @@ def 导入产品Excel(file_storage, batch=None):
     enterprise_name_map = {e.company_name: e for e in enterprise_list if e.company_name}
     success = 0
     failed = []
+    已读取企业编号 = {}
     for row_num, row in enumerate(rows[1:], start=2):
         try:
             if not any(单元格文本(cell) for cell in row):
@@ -4518,6 +4544,7 @@ def 导入SKUExcel(product, file_storage):
 
     success = 0
     failed = []
+    已读取企业编号 = {}
     for row_num, row in enumerate(rows[1:], start=2):
         try:
             if not any(单元格文本(cell) for cell in row):
