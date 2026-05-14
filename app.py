@@ -1518,7 +1518,7 @@ def create_app():
             返回地址=返回地址,
             返回文案="返回企业库",
             字段提示=企业导入字段提示(),
-            必填字段=["企业全称", "联系方式"],
+            必填字段=["企业编号", "企业全称"],
             模板下载地址=url_for("download_enterprise_import_template"),
             模板下载文案="下载企业导入模板",
         )
@@ -4036,7 +4036,7 @@ def 读取导入表格(file_storage):
 
 def 企业导入字段提示():
     return [
-        ("企业编号", "对应基本信息-企业编号；留空则新增并自动生成"),
+        ("企业编号", "对应基本信息-企业编号（必填，用于更新匹配或新增）"),
         ("行业分类", "对应基本信息-行业分类"),
         ("企业全称", "对应基本信息-企业全称（必填）"),
         ("企业类型", "对应工商信息-企业类型"),
@@ -4046,8 +4046,8 @@ def 企业导入字段提示():
         ("成立日期", "对应工商信息-成立日期，格式建议为 YYYY-MM-DD"),
         ("营业期限", "对应工商信息-营业期限起始日期，格式建议为 YYYY-MM-DD"),
         ("注册地址", "对应工商信息-注册地址"),
-        ("联系人", "对应联系信息-主联系人姓名（联系方式必填项之一）"),
-        ("联系电话", "对应联系信息-电话/手机（联系方式必填项之一）"),
+        ("联系人", "对应联系信息-主联系人姓名，可为空"),
+        ("联系电话", "对应联系信息-电话/手机，可为空"),
     ]
 
 
@@ -4250,11 +4250,8 @@ def 导入企业Excel(file_storage, batch=None):
         return 0, [{"行号": 1, "原因": "文件为空", "数据": {}}]
     header = [单元格文本(c) for c in rows[0]]
     idx = 规范导入表头(header)
-    联系字段 = ["联系人", "联系人姓名", "联系电话", "手机", "电话", "邮箱", "联系方式"]
-    必填 = ["企业全称"]
+    必填 = ["企业编号", "企业全称"]
     缺失 = [f for f in 必填 if f not in idx]
-    if not any(f in idx for f in 联系字段):
-        缺失.append("联系方式")
     if 缺失:
         原因 = f"缺少必填列: {', '.join(缺失)}"
         for 字段 in 缺失:
@@ -4267,25 +4264,25 @@ def 导入企业Excel(file_storage, batch=None):
         try:
             if not any(单元格文本(cell) for cell in row):
                 continue
+            enterprise_code = 读取行字段(row, idx, "企业编号")
             company_name = 读取行字段(row, idx, "企业全称")
             core_products = 读取行字段(row, idx, "核心产品")
             contact_name = 取首个存在字段值(row, idx, "联系人", "联系人姓名")
             contact_phone = 取首个存在字段值(row, idx, "联系电话", "手机", "电话", "联系方式")
             contact_info = contact_phone or contact_name or 取首个存在字段值(row, idx, "邮箱")
             行错误 = []
+            if not enterprise_code:
+                行错误.append(("企业编号", "企业编号缺失"))
             if not company_name:
                 行错误.append(("企业全称", "企业名称缺失"))
-            if not contact_info:
-                行错误.append(("联系方式", "联系方式缺失"))
             if 行错误:
                 上下文 = 导入行上下文(row, idx, ["企业编号", "企业全称", "联系人", "联系电话", "手机", "电话", "邮箱", "联系方式"])
                 for 字段, 原因 in 行错误:
                     记录导入错误(batch, row_num, 字段, 原因, 上下文, 导入错误字段建议.get(字段))
                 raise ValueError("；".join(原因 for _, 原因 in 行错误))
-            enterprise_code = 读取行字段(row, idx, "企业编号")
-            enterprise = Enterprise.query.filter_by(enterprise_code=enterprise_code).first() if enterprise_code else None
+            enterprise = Enterprise.query.filter_by(enterprise_code=enterprise_code).first()
             if not enterprise:
-                enterprise = Enterprise(enterprise_code=enterprise_code or 生成企业编号())
+                enterprise = Enterprise(enterprise_code=enterprise_code)
                 db.session.add(enterprise)
 
             ext = dict(enterprise.enterprise_extra_fields or {})
