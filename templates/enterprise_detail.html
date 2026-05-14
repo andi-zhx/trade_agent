@@ -15,6 +15,12 @@
     {%- endif -%}
 {%- endmacro %}
 
+{% macro show_industry_classification(enterprise) -%}
+    {%- set code = enterprise.industry_code or '' -%}
+    {%- set name = enterprise.industry_display_name or enterprise.industry_category or '' -%}
+    {{ show_text((code ~ ' ' ~ name).strip()) }}
+{%- endmacro %}
+
 {% macro show_badges(values) -%}
     {%- if values is string -%}
         {%- set values = [values] if values.strip() else [] -%}
@@ -140,8 +146,7 @@
         <div class="row g-3 small">
             <div class="col-md-4"><strong>企业编号：</strong>{{ show_text(企业.enterprise_code) }}</div>
             <div class="col-md-4"><strong>企业全称：</strong>{{ show_text(ext.get('company_full_name') or 企业.company_name) }}</div>
-            <div class="col-md-4"><strong>行业分类：</strong>{{ show_text(企业.industry_code) }}</div>
-            <div class="col-md-4"><strong>行业名称：</strong>{{ show_text(企业.industry_display_name or 企业.industry_category) }}</div>
+            <div class="col-md-4"><strong>行业分类：</strong>{{ show_industry_classification(企业) }}</div>
             <div class="col-md-4"><strong>项目负责人：</strong>{{ show_text(企业.project_owner) }}</div>
             <div class="col-md-4"><strong>资料完整度：</strong><span class="badge bg-{% if completeness_score >= 80 %}success{% elif completeness_score >= 50 %}warning text-dark{% else %}danger{% endif %}">{{ 完整度信息.label if 完整度信息 else (completeness_score ~ '%') }}</span></div>
         </div>
@@ -165,8 +170,7 @@
                     <tbody>
                         <tr><th class="table-light" style="width: 220px;">企业编号</th><td>{{ show_text(企业.enterprise_code) }}</td></tr>
                         <tr><th class="table-light">项目负责人</th><td>{{ show_text(企业.project_owner) }}</td></tr>
-                        <tr><th class="table-light">行业代码</th><td>{{ show_text(企业.industry_code) }}</td></tr>
-                        <tr><th class="table-light">行业名称</th><td>{{ show_text(企业.industry_display_name or 企业.industry_category) }}</td></tr>
+                        <tr><th class="table-light">行业分类</th><td>{{ show_industry_classification(企业) }}</td></tr>
                         <tr><th class="table-light">省份</th><td>{{ show_text(企业.province) }}</td></tr>
                         <tr><th class="table-light">城市</th><td>{{ show_text(企业.city) }}</td></tr>
                         <tr><th class="table-light">区县</th><td>{{ show_text(企业.district) }}</td></tr>

@@ -13,7 +13,7 @@ COMMON_ENTERPRISE_FIELD_GROUPS = [
             {"key": "project_owner", "label": "项目负责人", "type": "text", "required": True, "col_class": "col-lg-6"},
             {"key": "company_full_name", "label": "企业全称", "type": "text", "required": True, "col_class": "col-lg-6"},
             {"key": "english_name", "label": "英文名称", "type": "text", "col_class": "col-lg-6"},
-            {"key": "industry_code", "label": "行业大类", "type": "industry_select", "required": True, "col_class": "col-lg-6"},
+            {"key": "industry_code", "label": "行业分类", "type": "industry_select", "required": True, "col_class": "col-lg-6"},
             {"key": "sub_industry", "label": "细分行业", "type": "text", "placeholder": "请选择或填写细分行业", "col_class": "col-lg-6"},
             {"key": "province", "label": "省份", "type": "text", "placeholder": "例如：广东省", "col_class": "col-lg-6"},
             {"key": "city", "label": "城市", "type": "text", "placeholder": "例如：深圳市", "col_class": "col-lg-6"},

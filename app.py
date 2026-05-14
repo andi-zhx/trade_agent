@@ -785,7 +785,12 @@ def create_app():
         if not ext.get("registration_authority"):
             ext["registration_authority"] = (ext.get("registration_organ") or ext.get("登记机关") or "").strip()
         if not ext.get("business_scope"):
-            ext["business_scope"] = (ext.get("business_range") or ext.get("经营范围") or "").strip()
+            ext["business_scope"] = (
+                getattr(企业, "business_scope", None)
+                or ext.get("business_range")
+                or ext.get("经营范围")
+                or ""
+            ).strip()
         if not ext.get("one_sentence_intro"):
             ext["one_sentence_intro"] = (ext.get("slogan") or ext.get("core_value") or "").strip()
         if not ext.get("enterprise_description"):
@@ -805,7 +810,7 @@ def create_app():
         基本信息字段 = [
             ("企业全称", ext.get("company_full_name") or 企业.company_name),
             ("企业简称", ext.get("company_short_name")),
-            ("行业大类", 企业.industry_code),
+            ("行业分类", 企业.industry_code),
             ("细分行业", 企业.sub_industry),
             ("核心产品", ext.get("core_products") or 企业.main_products),
             ("企业网址", ext.get("website")),
@@ -1668,6 +1673,7 @@ def create_app():
                 business_term_start=读取日期(扩展字段.get("business_term_start")),
                 business_term_end=读取日期(扩展字段.get("business_term_end")),
                 registered_address=扩展字段.get("registered_address") or None,
+                business_scope=扩展字段.get("business_scope") or None,
                 business_address=扩展字段.get("business_address") or None,
                 province=request.form.get("province", "").strip() or None,
                 city=request.form.get("city", "").strip() or None,
@@ -1894,6 +1900,7 @@ def create_app():
             企业.business_term_start = 读取日期(扩展字段.get("business_term_start"))
             企业.business_term_end = 读取日期(扩展字段.get("business_term_end"))
             企业.registered_address = 扩展字段.get("registered_address") or None
+            企业.business_scope = 扩展字段.get("business_scope") or None
             企业.business_address = 扩展字段.get("business_address") or None
             企业.province = request.form.get("province", "").strip() or None
             企业.city = request.form.get("city", "").strip() or None
@@ -4812,6 +4819,7 @@ def init_db(app):
         enterprise_columns = {col["name"] for col in inspector.get_columns("enterprises")}
         if "enterprise_extra_fields" not in enterprise_columns:
             db.session.execute(text("ALTER TABLE enterprises ADD COLUMN enterprise_extra_fields JSON"))
+            enterprise_columns.add("enterprise_extra_fields")
         if "main_products" not in enterprise_columns:
             db.session.execute(text("ALTER TABLE enterprises ADD COLUMN main_products TEXT"))
             enterprise_columns.add("main_products")
@@ -4822,10 +4830,24 @@ def init_db(app):
             db.session.execute(text("ALTER TABLE enterprises ADD COLUMN city VARCHAR(50)"))
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_enterprises_city ON enterprises (city)"))
         enterprise_schema_additions = {
+            "english_name": ("VARCHAR(255)", None),
+            "unified_social_credit_code": ("VARCHAR(64)", "ix_enterprises_unified_social_credit_code"),
             "registered_name": ("VARCHAR(255)", "ix_enterprises_registered_name"),
             "legal_representative": ("VARCHAR(100)", None),
+            "founded_date": ("DATE", None),
+            "registered_capital": ("VARCHAR(100)", None),
             "business_term_start": ("DATE", None),
             "business_term_end": ("DATE", None),
+            "registered_address": ("VARCHAR(255)", None),
+            "business_scope": ("TEXT", None),
+            "business_address": ("VARCHAR(255)", None),
+            "district": ("VARCHAR(50)", None),
+            "company_type": ("VARCHAR(100)", None),
+            "industry_code": ("VARCHAR(50)", "ix_enterprises_industry_code"),
+            "industry_category": ("VARCHAR(100)", "ix_enterprises_industry_category"),
+            "sub_industry": ("VARCHAR(100)", None),
+            "main_business": ("TEXT", None),
+            "project_owner": ("VARCHAR(100)", None),
         }
         for 列名, (字段类型, 索引名) in enterprise_schema_additions.items():
             if 列名 not in enterprise_columns:

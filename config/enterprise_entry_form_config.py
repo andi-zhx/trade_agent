@@ -112,7 +112,7 @@ ENTERPRISE_ENTRY_FORM_MODULES = [
             ),
             _field(
                 "industry_code",
-                "行业大类",
+                "行业分类",
                 "select",
                 True,
                 "0",
@@ -121,8 +121,8 @@ ENTERPRISE_ENTRY_FORM_MODULES = [
                     {"value": item["code"], "label": f"{item['code']} {item['name']}"}
                     for item in INDUSTRY_OPTIONS
                 ],
-                placeholder="请选择行业大类",
-                help_text="使用系统现有 20 个行业大类配置。",
+                placeholder="请选择行业分类",
+                help_text="使用系统现有 20 个行业分类配置。",
             ),
             _field(
                 "sub_industry",
@@ -133,7 +133,7 @@ ENTERPRISE_ENTRY_FORM_MODULES = [
                 storage="column",
                 options=[],
                 placeholder="可选择或手动输入",
-                help_text="根据行业大类联动；首期允许手动补充。",
+                help_text="根据行业分类联动；首期允许手动补充。",
                 show_when={"field": "industry_code", "operator": "not_empty"},
             ),
             _field(
