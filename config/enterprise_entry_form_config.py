@@ -118,11 +118,11 @@ ENTERPRISE_ENTRY_FORM_MODULES = [
                 "0",
                 storage="column",
                 options=[
-                    {"value": item["code"], "label": f"{item['code']} {item['name']}"}
+                    {"value": item["code"], "label": item["name"]}
                     for item in INDUSTRY_OPTIONS
                 ],
                 placeholder="请选择行业分类",
-                help_text="使用系统现有 20 个行业分类配置。",
+                help_text="使用系统现有行业分类配置。",
             ),
             _field(
                 "sub_industry",

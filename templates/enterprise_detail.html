@@ -16,9 +16,8 @@
 {%- endmacro %}
 
 {% macro show_industry_classification(enterprise) -%}
-    {%- set code = enterprise.industry_code or '' -%}
-    {%- set name = enterprise.industry_display_name or enterprise.industry_category or '' -%}
-    {{ show_text((code ~ ' ' ~ name).strip()) }}
+    {%- set name = enterprise.industry_display_name or enterprise.industry_category or enterprise.industry_code or '' -%}
+    {{ show_text(name) }}
 {%- endmacro %}
 
 {% macro show_badges(values) -%}

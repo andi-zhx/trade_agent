@@ -24,7 +24,7 @@
                 <select class="form-select" name="industry">
                     <option value="">全部</option>
                     {% for i in 行业列表 %}
-                    <option value="{{ i.code }}" {% if i.code == 筛选.industry %}selected{% endif %}>{{ i.code }} {{ i.name }}</option>
+                    <option value="{{ i.code }}" {% if i.code == 筛选.industry %}selected{% endif %}>{{ i.name }}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -58,7 +58,7 @@
             <tr>
                 <td>{{ 企业.enterprise_code }}</td>
                 <td class="text-truncate" style="max-width: 220px;">{{ 企业.company_name or ext.get('company_full_name') or '-' }}</td>
-                <td>{{ ((企业.industry_code ~ ' ' ~ (企业.industry_display_name or '')) if 企业.industry_code else (企业.industry_display_name or '-')) }}</td>
+                <td>{{ 企业.industry_display_name or 企业.industry_category or 企业.industry_code or '-' }}</td>
                 <td>{{ (企业.province or '-') ~ ' / ' ~ (企业.city or '-') }}</td>
                 <td>{{ ext.get('employee_count_range') or (企业.employee_count ~ '人' if 企业.employee_count else '-') }}</td>
                 <td><span class="badge bg-light text-dark border">{{ ext.get('company_type') or 企业.company_type or '-' }}</span></td>
