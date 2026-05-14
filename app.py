@@ -1449,7 +1449,7 @@ def create_app():
     def 企业导入模板数据():
         表头 = [字段 for 字段, _ in 企业导入字段提示()]
         样例映射 = {
-            "企业编号": "ENT-20260430-001",
+            "企业编号": "26001",
             "行业大类": "电子电器与智能硬件",
             "企业全称": "示例科技股份有限公司",
             "企业类型": "有限责任公司",
@@ -1468,7 +1468,7 @@ def create_app():
     def 产品导入模板数据():
         表头 = [字段 for 字段, _ in 产品导入字段提示()]
         样例映射 = {
-            "产品编号": "PRD-20260430-001",
+            "产品编号": "PROD-26001-A",
             "产品名称": "智能温湿度传感器",
             "所属企业名称": "示例科技股份有限公司",
             "产品品类": "工业传感器",
@@ -1531,7 +1531,7 @@ def create_app():
         return render_template(
             "import_form.html",
             标题="企业 Excel 导入",
-            提示="支持按企业编号更新或新增企业。",
+            提示="企业编号不限制编码格式，可填写数字、字母或混合编码；导入文件内及库内保持唯一即可。",
             返回地址=返回地址,
             返回文案="返回企业库",
             字段提示=企业导入字段提示(),
@@ -1563,11 +1563,11 @@ def create_app():
         return render_template(
             "import_form.html",
             标题="产品 Excel 导入",
-            提示="支持按产品编号更新或新增产品；上传时产品编号和所属企业名称为必填项，其余字段可为空。",
+            提示="产品编号不限制编码格式，可填写数字、字母或混合编码；上传时产品编号和所属企业名称/编号为必填项，其余字段可为空。",
             返回地址=返回地址,
             返回文案="返回产品库",
             字段提示=产品导入字段提示(),
-            必填字段=["产品编号", "所属企业名称"],
+            必填字段=["产品编号", "所属企业名称/编号"],
             模板下载地址=url_for("download_product_import_template"),
             模板下载文案="下载产品导入模板",
         )
@@ -4088,7 +4088,7 @@ def 读取导入表格(file_storage):
 
 def 企业导入字段提示():
     return [
-        ("企业编号", "对应基本信息-企业编号（必填，不可与库内或导入文件内其他企业重复）"),
+        ("企业编号", "对应基本信息-企业编号（必填；不限格式，数字/字母/混合编码均可；不可与库内或导入文件内其他企业重复）"),
         ("行业大类", "对应基本信息-行业大类"),
         ("企业全称", "对应基本信息-企业全称（必填）"),
         ("企业类型", "对应工商信息-企业类型"),
@@ -4105,9 +4105,9 @@ def 企业导入字段提示():
 
 def 产品导入字段提示():
     return [
-        ("产品编号", "必填；用于更新匹配或新增产品，不再自动生成"),
+        ("产品编号", "必填；不限格式，数字/字母/混合编码均可；用于更新匹配或新增产品，不再自动生成"),
         ("产品名称", "对应产品概览-基础信息-产品名称，兼容旧列名“产品中文名”；可为空"),
-        ("所属企业名称", "必填；按企业名称匹配"),
+        ("所属企业名称", "必填；按企业名称或企业编号匹配"),
         ("产品品类", "对应产品概览-基础信息-产品品类，兼容旧列名“产品类别”"),
         ("产品类型", "对应产品概览-基础信息-产品类型"),
         ("产能-周期（天）", "对应产品概览-基础信息-产能-周期（天）"),
@@ -4319,6 +4319,7 @@ def 导入企业Excel(file_storage, batch=None):
 
     success = 0
     failed = []
+    已读取企业编号 = {}
     for row_num, row in enumerate(rows[1:], start=2):
         try:
             if not any(单元格文本(cell) for cell in row):
@@ -4343,13 +4344,13 @@ def 导入企业Excel(file_storage, batch=None):
             上下文 = 导入行上下文(row, idx, ["企业编号", "企业全称", "统一社会信用代码"])
             if enterprise_code in 已读取企业编号:
                 原因 = f"企业编号与第 {已读取企业编号[enterprise_code]} 行重复，请修改后重新导入"
-                记录导入错误(batch, row_num, "企业编号", 原因, 上下文, "请确保导入文件内企业编号唯一。")
+                记录导入错误(batch, row_num, "企业编号", 原因, 上下文, "企业编号不限格式，但请确保导入文件内企业编号唯一。")
                 raise ValueError(原因)
             已读取企业编号[enterprise_code] = row_num
 
             if Enterprise.query.filter_by(enterprise_code=enterprise_code).first():
                 原因 = "企业编号已存在，请修改后重新导入"
-                记录导入错误(batch, row_num, "企业编号", 原因, 上下文, "请使用未入库的企业编号，或先在企业编辑页调整编号。")
+                记录导入错误(batch, row_num, "企业编号", 原因, 上下文, "企业编号不限格式，但请使用未入库的企业编号，或先在企业编辑页调整编号。")
                 raise ValueError(原因)
 
             enterprise = Enterprise(enterprise_code=enterprise_code)
@@ -4443,7 +4444,11 @@ def 导入产品Excel(file_storage, batch=None):
         return 0, [{"行号": 1, "原因": "文件为空", "数据": {}}]
     header = [单元格文本(c) for c in rows[0]]
     idx = 规范导入表头(header, 产品导入列名别名)
-    缺失表头 = [字段 for 字段 in ["产品编号", "所属企业名称"] if 字段 not in idx]
+    缺失表头 = []
+    if "产品编号" not in idx:
+        缺失表头.append("产品编号")
+    if "所属企业名称" not in idx and "所属企业编号" not in idx:
+        缺失表头.append("所属企业名称/所属企业编号")
     if 缺失表头:
         原因 = f"缺少必填列: {', '.join(缺失表头)}"
         记录导入错误(batch, 1, "、".join(缺失表头), 原因)
@@ -4451,31 +4456,45 @@ def 导入产品Excel(file_storage, batch=None):
 
     enterprise_list = Enterprise.query.all()
     enterprise_name_map = {e.company_name: e for e in enterprise_list if e.company_name}
+    enterprise_code_map = {e.enterprise_code: e for e in enterprise_list if e.enterprise_code}
     success = 0
     failed = []
+    已读取产品编号 = {}
     for row_num, row in enumerate(rows[1:], start=2):
         try:
             if not any(单元格文本(cell) for cell in row):
                 continue
-            enterprise_name = 读取行字段(row, idx, "所属企业名称")
+            enterprise_name = 取首个存在字段值(row, idx, "所属企业名称", "所属企业编号")
             product_code = 读取行字段(row, idx, "产品编号")
             行错误 = []
             if not product_code:
                 行错误.append(("产品编号", "产品编号缺失"))
             if not enterprise_name:
-                行错误.append(("所属企业名称", "所属企业名称缺失"))
+                行错误.append(("所属企业名称", "所属企业名称/编号缺失"))
             if 行错误:
-                上下文 = 导入行上下文(row, idx, ["产品编号", "所属企业名称", "产品名称", "产品中文名"])
+                上下文 = 导入行上下文(row, idx, ["产品编号", "所属企业名称", "所属企业编号", "产品名称", "产品中文名"])
                 for 字段, 原因 in 行错误:
                     记录导入错误(batch, row_num, 字段, 原因, 上下文, 导入错误字段建议.get(字段))
                 raise ValueError("；".join(原因 for _, 原因 in 行错误))
-            enterprise = enterprise_name_map.get(enterprise_name)
+            上下文 = 导入行上下文(row, idx, ["产品编号", "所属企业名称", "所属企业编号", "产品名称", "产品中文名"])
+            if product_code in 已读取产品编号:
+                原因 = f"产品编号与第 {已读取产品编号[product_code]} 行重复，请修改后重新导入"
+                记录导入错误(batch, row_num, "产品编号", 原因, 上下文, "产品编号不限格式，但请确保导入文件内产品编号唯一。")
+                raise ValueError(原因)
+            已读取产品编号[product_code] = row_num
+
+            enterprise = enterprise_name_map.get(enterprise_name) or enterprise_code_map.get(enterprise_name)
             if not enterprise:
-                记录导入错误(batch, row_num, "所属企业名称", f"未找到企业：{enterprise_name}", 导入行上下文(row, idx, ["产品编号", "所属企业名称", "产品名称"]))
+                记录导入错误(batch, row_num, "所属企业名称", f"未找到企业：{enterprise_name}", 上下文)
                 raise ValueError(f"未找到企业：{enterprise_name}")
             name_cn = 取首个存在字段值(row, idx, "产品名称", "产品中文名")
             hs_code_value = 读取行字段(row, idx, "HS编码")
-            product = Product.query.filter_by(product_code=product_code).first()
+            product_query = Product.query.filter_by(product_code=product_code)
+            if product_query.count() > 1:
+                原因 = "产品编号在库内存在重复记录，请先合并或修改后再导入"
+                记录导入错误(batch, row_num, "产品编号", 原因, 上下文, "产品编号不限格式，但库内需保持唯一，避免导入时无法判断更新目标。")
+                raise ValueError(原因)
+            product = product_query.first()
             if not product:
                 product = Product(
                     enterprise_id=enterprise.id,
