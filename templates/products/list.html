@@ -109,12 +109,10 @@
         <td class="text-nowrap">
             <a class="btn btn-sm btn-outline-primary" href="{{ url_for('product_detail', product_id=p.id) }}">查看</a>
             <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('product_edit', product_id=p.id) }}">编辑</a>
-            {% if 是管理员 %}
-            <form method="post" action="{{ url_for('product_delete', product_id=p.id) }}" class="d-inline" onsubmit="return confirm('确认删除该产品？');">
+            <form method="post" action="{{ url_for('product_delete', product_id=p.id) }}" class="d-inline" onsubmit="return confirmPrivilegedDelete(this, '确认删除该产品？');">
                 <input type="hidden" name="confirm_delete" value="YES">
                 <button class="btn btn-sm btn-outline-danger" type="submit">删除</button>
             </form>
-            {% endif %}
         </td>
     </tr>
     {% else %}
