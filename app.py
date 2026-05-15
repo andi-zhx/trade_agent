@@ -50,7 +50,6 @@ from models import (
 
 BASE_DIR = Path(__file__).resolve().parent
 PER_PAGE = 10
-BLOCKED_EXTENSIONS = {".exe", ".bat", ".js", ".sh", ".cmd", ".com", ".msi", ".ps1"}
 MAX_UPLOAD_SIZE = 100 * 1024 * 1024
 DEPRECATED_ENTERPRISE_EXTRA_FIELD_KEYS = {"recommendation_level", "recommended_for_pool"}
 IMPORT_EMPTY_TEXT_VALUES = {"none", "null", "nan", "n/a", "na"}
@@ -178,87 +177,6 @@ PRODUCT_MATERIAL_STATUS_FIELD_MAPPING = {
 ENTERPRISE_DOCUMENT_TYPE_OPTIONS = [(item, item) for item in ENTERPRISE_UPLOAD_TYPES]
 PRODUCT_DOCUMENT_TYPE_OPTIONS = [(item, item) for item in PRODUCT_UPLOAD_TYPES]
 DOCUMENT_TYPE_OPTIONS = [(item, item) for item in dict.fromkeys(ENTERPRISE_UPLOAD_TYPES + PRODUCT_UPLOAD_TYPES)]
-ENTERPRISE_SUB_FOLDERS = [
-    "01_企业基础资料",
-    "02_企业资质与合规文件",
-    "03_企业经营与外贸能力",
-    "04_产品目录与产品信息表",
-    "05_产品规格与技术资料",
-    "06_产品认证与检测报告",
-    "07_报价与交易条件",
-    "08_包装物流与交付资料",
-    "09_宣传展示资料",
-    "10_图片视频与样品资料",
-    "11_客户案例与项目案例",
-    "12_合作需求与撮合记录",
-    "13_风险审核与归档确认",
-]
-
-DOCUMENT_FOLDER_MAPPING = {
-    "企业介绍": "09_宣传展示资料",
-    "营业执照": "01_企业基础资料",
-    "BP/融资材料": "03_企业经营与外贸能力",
-    "工厂照片": "10_图片视频与样品资料",
-    "资质荣誉": "02_企业资质与合规文件",
-    "财务/经营资料": "03_企业经营与外贸能力",
-    "其他": "13_风险审核与归档确认",
-    # 历史分类兼容：仅用于已上传存量附件的目录解析，不再出现在上传下拉框。
-    "企业宣传册": "09_宣传展示资料",
-    "企业介绍PPT": "09_宣传展示资料",
-    "资质证书包": "02_企业资质与合规文件",
-    "工厂/办公照片": "10_图片视频与样品资料",
-    "企业名片": "01_企业基础资料",
-    "其他补充资料": "13_风险审核与归档确认",
-    "企业简介": "01_企业基础资料",
-    "企业资质": "02_企业资质与合规文件",
-    "合规文件": "02_企业资质与合规文件",
-    "经营资料": "03_企业经营与外贸能力",
-    "外贸资料": "03_企业经营与外贸能力",
-    "产品目录": "04_产品目录与产品信息表",
-    "产品信息表": "04_产品目录与产品信息表",
-    "产品规格书": "05_产品规格与技术资料",
-    "产品说明书": "05_产品规格与技术资料",
-    "说明书": "05_产品规格与技术资料",
-    "技术资料": "05_产品规格与技术资料",
-    "检测报告": "06_产品认证与检测报告",
-    "认证证书": "06_产品认证与检测报告",
-    "产品认证": "06_产品认证与检测报告",
-    "报价单": "07_报价与交易条件",
-    "交易条件": "07_报价与交易条件",
-    "包装图": "08_包装物流与交付资料",
-    "包装资料": "08_包装物流与交付资料",
-    "物流资料": "08_包装物流与交付资料",
-    "宣传PPT": "09_宣传展示资料",
-    "英文资料": "09_宣传展示资料",
-    "英文PPT": "09_宣传展示资料",
-    "宣传册": "09_宣传展示资料",
-    "尽调照片": "10_图片视频与样品资料",
-    "尽调视频": "10_图片视频与样品资料",
-    "产品图片": "10_图片视频与样品资料",
-    "宣传视频": "10_图片视频与样品资料",
-    "产品视频": "10_图片视频与样品资料",
-    "样品资料": "10_图片视频与样品资料",
-    "案例资料": "11_客户案例与项目案例",
-    "客户案例": "11_客户案例与项目案例",
-    "项目案例": "11_客户案例与项目案例",
-    "合作需求": "12_合作需求与撮合记录",
-    "撮合记录": "12_合作需求与撮合记录",
-    "合同协议": "13_风险审核与归档确认",
-    "风险审核": "13_风险审核与归档确认",
-    "归档确认": "13_风险审核与归档确认",
-    "其他文件": "13_风险审核与归档确认",
-}
-
-ENTERPRISE_TYPE_ALLOWED_EXTENSIONS = {
-    "企业介绍": {".pdf", ".ppt", ".pptx", ".doc", ".docx", ".jpg", ".jpeg", ".png", ".webp"},
-    "营业执照": {".pdf", ".jpg", ".jpeg", ".png"},
-    "BP/融资材料": {".pdf", ".ppt", ".pptx", ".doc", ".docx", ".xls", ".xlsx"},
-    "工厂照片": {".jpg", ".jpeg", ".png", ".webp", ".mp4", ".mov", ".avi", ".mkv", ".webm"},
-    "资质荣誉": {".pdf", ".jpg", ".jpeg", ".png", ".webp", ".zip"},
-    "财务/经营资料": {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".csv", ".zip"},
-    "其他": {".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".jpg", ".jpeg", ".png", ".webp", ".zip", ".rar", ".7z", ".txt", ".csv", ".mp4", ".mov"},
-}
-
 PROJECT_STAGE_OPTIONS = [
     "待补充资料",
     "已完成入库",
@@ -1103,13 +1021,7 @@ def create_app():
                 分组数据.append({"title": 分组["title"], "fields": 字段列表})
         return 分组数据
 
-    def 校验企业附件扩展名(document_type, extension):
-        允许集合 = ENTERPRISE_TYPE_ALLOWED_EXTENSIONS.get((document_type or "").strip())
-        if not 允许集合:
-            return
-        if extension.lower() not in 允许集合:
-            可用列表 = " / ".join(sorted(允许集合))
-            raise ValueError(f"{document_type} 仅支持：{可用列表}")
+
 
     def 生成企业附件文件名(enterprise, document_type, extension, 自定义名称, 上传序号):
         日期文本 = datetime.now().strftime("%Y%m%d")
@@ -1166,8 +1078,6 @@ def create_app():
             原始名称 = Path(上传文件.filename).stem
             文件名称 = 清洗路径片段(自定义名称 or 原始名称) or "未命名文件"
             扩展名 = Path(上传文件.filename).suffix.lower()
-            if use_enterprise_naming:
-                校验企业附件扩展名(文件类型, 扩展名)
             目标文件名 = 生成企业附件文件名(enterprise, 文件类型, 扩展名, 文件名称, 上传成功数 + 1) if use_enterprise_naming else None
             if use_product_naming:
                 if not product:
@@ -2915,14 +2825,6 @@ def create_app():
                     PRODUCT_DOCUMENT_TYPE_OPTIONS if product_id else ENTERPRISE_DOCUMENT_TYPE_OPTIONS,
                 )
 
-            扩展名 = Path(上传文件.filename).suffix.lower()
-            if 扩展名 in BLOCKED_EXTENSIONS:
-                flash("文件类型不允许上传。", "danger")
-                return 渲染上传页(
-                    Product.query.filter_by(enterprise_id=enterprise.id).order_by(Product.product_name_cn.asc()).all(),
-                    request.form,
-                    PRODUCT_DOCUMENT_TYPE_OPTIONS if product_id else ENTERPRISE_DOCUMENT_TYPE_OPTIONS,
-                )
             if request.content_length and request.content_length > MAX_UPLOAD_SIZE:
                 flash("单文件大小不能超过 100MB。", "danger")
                 return 渲染上传页(
@@ -4839,10 +4741,6 @@ def 清洗路径片段(名称):
     return re.sub(r'[\\/:*?"<>|]+', "_", (名称 or "").strip())
 
 
-def 获取文件分类目录(document_type):
-    return DOCUMENT_FOLDER_MAPPING.get((document_type or "").strip(), "13_风险审核与归档确认")
-
-
 def 构建企业归档目录(enterprise):
     行业编号 = 清洗路径片段(enterprise.industry_code or "I00")
     企业编号 = 清洗路径片段(enterprise.enterprise_code or "E000")
@@ -4857,8 +4755,6 @@ def 初始化企业归档目录(upload_root, enterprise):
     企业相对目录 = 构建企业归档目录(enterprise)
     企业绝对目录 = BASE_DIR / 企业相对目录
     企业绝对目录.mkdir(parents=True, exist_ok=True)
-    for 子目录 in ENTERPRISE_SUB_FOLDERS:
-        (企业绝对目录 / 子目录).mkdir(parents=True, exist_ok=True)
     return 企业绝对目录
 
 
@@ -4881,8 +4777,6 @@ def 生成不覆盖文件路径(目标路径):
 
 def 保存文件并登记记录(app, enterprise, product, 上传文件, document_type, document_name, uploaded_by, notes=None, related_project_id=None, filename_override=None):
     扩展名 = Path(上传文件.filename).suffix.lower()
-    if 扩展名 in BLOCKED_EXTENSIONS:
-        raise ValueError("文件类型不允许上传。")
     if request.content_length and request.content_length > MAX_UPLOAD_SIZE:
         raise ValueError("单文件大小不能超过 100MB。")
 
@@ -4890,9 +4784,7 @@ def 保存文件并登记记录(app, enterprise, product, 上传文件, document
     if not 安全原始文件名:
         raise ValueError("上传文件名无效，请重命名后重试。")
 
-    企业目录 = 初始化企业归档目录(app.config["UPLOAD_ROOT"], enterprise)
-    归档目录 = 企业目录 / 获取文件分类目录(document_type)
-    归档目录.mkdir(parents=True, exist_ok=True)
+    归档目录 = 初始化企业归档目录(app.config["UPLOAD_ROOT"], enterprise)
 
     日期文本 = datetime.now().strftime("%Y%m%d")
     标准文件名 = filename_override or 构建标准文件名(
