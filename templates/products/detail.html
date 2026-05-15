@@ -107,6 +107,8 @@
                             <div class="col-md-6"><strong>HS编码：</strong>{{ show_text(product.hs_code) }}</div>
                             <div class="col-md-6"><strong>产能-周期（天）：</strong>{{ product.capacity_cycle_days if product.capacity_cycle_days is not none else '未填写' }}</div>
                             <div class="col-md-6"><strong>产能-实际完工合格件数（件）：</strong>{{ product.capacity_qualified_pieces if product.capacity_qualified_pieces is not none else '未填写' }}</div>
+                            <div class="col-md-6"><strong>MOQ：</strong>{{ show_text(product.moq or extra.get('trade_moq')) }}</div>
+                            <div class="col-md-6"><strong>交期：</strong>{{ show_text(product.delivery_cycle or product.production_cycle or extra.get('trade_mass_cycle')) }}</div>
                             <div class="col-md-6"><strong>用途：</strong>{{ show_text(extra.get('desc_usage') or product.function_description)|truncate(42, True, '…') }}</div>
                             <div class="col-md-6"><strong>应用场景：</strong>{{ show_badges(extra.get('positioning_scenarios') or extra.get('desc_scenarios') or product.application_scenario) }}</div>
                             <div class="col-md-6"><strong>目标客户：</strong>{{ show_badges(extra.get('target_customer_tags') or extra.get('desc_target_customer')) }}</div>

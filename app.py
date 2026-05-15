@@ -3120,6 +3120,8 @@ def 兼容产品基础信息字段(product, 扩展字段):
     数据 = dict(扩展字段 or {})
     映射 = {
         "core_selling_points": ("desc_core_selling_points", product.product_selling_points),
+        "trade_moq": ("moq", product.moq),
+        "trade_mass_cycle": ("delivery_cycle", product.delivery_cycle or product.production_cycle),
         "trade_sample_policy": ("sample_policy", product.sample_policy),
         "support_customization": ("customization_supported", "是" if product.customization_supported else "否"),
         "cert_status": ("certification_status", product.certification_status),
@@ -3163,6 +3165,8 @@ def fill_product_from_form(product, form):
     product.hs_code = form.get("hs_code", "").strip() or None
     product.capacity_cycle_days = 读取整数(form.get("capacity_cycle_days"))
     product.capacity_qualified_pieces = 读取整数(form.get("capacity_qualified_pieces"))
+    product.moq = form.get("moq", "").strip() or None
+    product.delivery_cycle = form.get("delivery_cycle", "").strip() or None
     product.function_description = form.get("function_description", "").strip() or None
     if "application_scenario" in form:
         旧应用场景 = form.get("application_scenario", "").strip()
@@ -4232,8 +4236,8 @@ def 产品导入字段提示():
         ("产品类型", "对应产品概览-基础信息-产品类型"),
         ("产能-周期（天）", "对应产品概览-基础信息-产能-周期（天）"),
         ("产能-实际完工合格件数（件）", "对应产品概览-基础信息-产能-实际完工合格件数（件）"),
-        ("MOQ", "对应产品概览-交易摘要-MOQ"),
-        ("交期", "对应产品概览-交易摘要-交期，兼容旧列名“批量生产周期”"),
+        ("MOQ", "对应产品概览-基础信息-MOQ"),
+        ("交期", "对应产品概览-基础信息-交期，兼容旧列名“批量生产周期”"),
         ("均价", "对应产品概览-交易摘要-价格展示（兼容列名“价格展示”）"),
     ]
 
