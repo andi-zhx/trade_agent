@@ -61,8 +61,10 @@
     <tr>
         <td>{{ p.product_code }}</td>
         <td>
-            <div>{{ p.product_name_cn }}</div>
-            {% if p.product_name_en %}<div class="text-muted">{{ p.product_name_en }}</div>{% endif %}
+            {% set product_name_cn = p.product_name_cn|clean_text %}
+            {% set product_name_en = p.product_name_en|clean_text %}
+            <div>{{ product_name_cn or '-' }}</div>
+            {% if product_name_en %}<div class="text-muted">{{ product_name_en }}</div>{% endif %}
         </td>
         <td>{{ p.enterprise.company_name if p.enterprise else '-' }}</td>
         <td>

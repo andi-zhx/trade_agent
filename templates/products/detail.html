@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}产品详情 - {{ product.product_name_cn }}{% endblock %}
+{% block title %}产品详情 - {{ product.product_name_cn|clean_text }}{% endblock %}
 {% block content %}
 {% set extra = product.product_extra_fields or {} %}
 {% set active_tab = request.args.get('tab', 'overview') %}
@@ -55,7 +55,7 @@
 {%- endmacro %}
 
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-    <h1 class="h3 mb-0">产品详情：{{ product.product_name_cn }}</h1>
+    <h1 class="h3 mb-0">产品详情：{{ product.product_name_cn|clean_text }}</h1>
     <div class="d-flex flex-wrap gap-2">
         <a class="btn btn-primary" href="{{ url_for('product_edit', product_id=product.id) }}">编辑产品</a>
         <a class="btn btn-outline-primary" href="{{ url_for('export_product_card', product_id=product.id) }}">导出产品资料卡</a>
@@ -99,9 +99,9 @@
                     <div class="card-body">
                         <div class="row g-3 small">
                             <div class="col-md-6"><strong>产品编号：</strong>{{ show_text(product.product_code) }}</div>
-                            <div class="col-md-6"><strong>产品名称：</strong>{{ show_text(product.product_name_cn) }}</div>
+                            <div class="col-md-6"><strong>产品名称：</strong>{{ show_text(product.product_name_cn|clean_text) }}</div>
                             <div class="col-md-6"><strong>所属企业：</strong>{{ show_text(enterprise.company_name if enterprise else None) }}</div>
-                            <div class="col-md-6"><strong>产品英文名：</strong>{{ show_text(product.product_name_en) }}</div>
+                            <div class="col-md-6"><strong>产品英文名：</strong>{{ show_text(product.product_name_en|clean_text) }}</div>
                             <div class="col-md-6"><strong>产品品类：</strong>{{ show_text(product.product_category) }}</div>
                             <div class="col-md-6"><strong>产品类型：</strong>{{ show_text(product.product_type) }}</div>
                             <div class="col-md-6"><strong>HS编码：</strong>{{ show_text(product.hs_code) }}</div>
