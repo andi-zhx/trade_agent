@@ -69,6 +69,9 @@
                         <div class="col-md-4"><label class="form-label">HS编码</label><input name="hs_code" class="form-control" value="{{ request.form.get('hs_code') if request.method == 'POST' else (product.hs_code if product else '') }}"></div>
                         <div class="col-md-6"><label class="form-label">产能-周期（天）</label><input name="capacity_cycle_days" type="number" min="0" step="1" class="form-control" value="{{ request.form.get('capacity_cycle_days') if request.method == 'POST' else (product.capacity_cycle_days if product and product.capacity_cycle_days is not none else '') }}"></div>
                         <div class="col-md-6"><label class="form-label">产能-实际完工合格件数（件）</label><input name="capacity_qualified_pieces" type="number" min="0" step="1" class="form-control" value="{{ request.form.get('capacity_qualified_pieces') if request.method == 'POST' else (product.capacity_qualified_pieces if product and product.capacity_qualified_pieces is not none else '') }}"></div>
+                        <div class="col-md-6"><label class="form-label">MOQ</label><input name="moq" class="form-control" value="{{ request.form.get('moq') if request.method == 'POST' else (product.moq if product and product.moq else extra.get('trade_moq', '')) }}"></div>
+                        <div class="w-100"></div>
+                        <div class="col-md-6"><label class="form-label">交期</label><input name="delivery_cycle" class="form-control" value="{{ request.form.get('delivery_cycle') if request.method == 'POST' else (product.delivery_cycle if product and product.delivery_cycle else extra.get('trade_mass_cycle', '')) }}"></div>
                     </div></div>
                 </div>
 
