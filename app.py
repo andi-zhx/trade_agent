@@ -53,6 +53,18 @@ PER_PAGE = 10
 BLOCKED_EXTENSIONS = {".exe", ".bat", ".js", ".sh", ".cmd", ".com", ".msi", ".ps1"}
 MAX_UPLOAD_SIZE = 100 * 1024 * 1024
 DEPRECATED_ENTERPRISE_EXTRA_FIELD_KEYS = {"recommendation_level", "recommended_for_pool"}
+IMPORT_EMPTY_TEXT_VALUES = {"none", "null", "nan", "n/a", "na"}
+
+
+def 清理导入文本值(value):
+    """统一清理导入/展示文本中的空值占位符。"""
+
+    if value is None or isinstance(value, Undefined):
+        return ""
+    text = str(value).strip()
+    if text.lower() in IMPORT_EMPTY_TEXT_VALUES:
+        return ""
+    return re.sub(r"\s+(?:none|null|nan|n/a|na)\s*$", "", text, flags=re.IGNORECASE).strip()
 
 
 def 清理企业扩展字段(扩展字段):
@@ -608,6 +620,10 @@ def create_app():
         except (TypeError, ValueError):
             return "-"
         return f"{currency} {numeric_value:,.2f}"
+
+    @app.template_filter("clean_text")
+    def clean_text_filter(value):
+        return 清理导入文本值(value)
 
 
     def 企业详情字段值(企业, 扩展字段, 字段):
@@ -4173,7 +4189,7 @@ def 单元格文本(value):
         return ""
     if isinstance(value, datetime):
         return value.strftime("%Y-%m-%d")
-    return str(value).strip()
+    return 清理导入文本值(value)
 
 
 def 读取导入表格(file_storage):
