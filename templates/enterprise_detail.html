@@ -7,7 +7,7 @@
 
 {% macro show_text(value) -%}
     {%- if value is string -%}
-        {{ value.strip() if value and value.strip() else '未填写' }}
+        {{ value.strip() if value and value.strip() and value.strip()|lower not in ['none', 'null'] else '未填写' }}
     {%- elif value is not none and value != '' -%}
         {{ value }}
     {%- else -%}
@@ -47,39 +47,8 @@
     {%- endif -%}
 {%- endmacro %}
 
-{% macro resolve_field_value(field) -%}
-    {%- set key = field.key -%}
-    {%- set val = ext.get(key) -%}
-    {%- if key == 'company_full_name' and not val -%}{% set val = 企业.company_name %}{%- endif -%}
-    {%- if key == 'registered_name' and not val -%}{% set val = 企业.registered_name or ext.get('company_full_name') or 企业.company_name %}{%- endif -%}
-    {%- if key == 'company_short_name' and not val -%}{% set val = ext.get('short_name') %}{%- endif -%}
-    {%- if key == 'english_name' and not val -%}{% set val = 企业.english_name %}{%- endif -%}
-    {%- if key == 'unified_social_credit_code' and not val -%}{% set val = 企业.unified_social_credit_code %}{%- endif -%}
-    {%- if key == 'registered_address' and not val -%}{% set val = 企业.registered_address %}{%- endif -%}
-    {%- if key == 'business_address' and not val -%}{% set val = 企业.business_address %}{%- endif -%}
-    {%- if key == 'founded_date' and not val -%}{% set val = 企业.founded_date.strftime('%Y-%m-%d') if 企业.founded_date else '' %}{%- endif -%}
-    {%- if key == 'financing_stage' and not val -%}{% set val = ext.get('financing_round') %}{%- endif -%}
-    {%- if key == 'valuation' and not val -%}{% set val = ext.get('market_value') %}{%- endif -%}
-    {%- if key == 'primary_industry' and not val -%}{% set val = 企业.industry_category %}{%- endif -%}
-    {%- if key == 'operating_status' and not val -%}{% set val = ext.get('business_status') or '未知' %}{%- endif -%}
-    {%- if key == 'company_type' and not val -%}{% set val = 企业.company_type %}{%- endif -%}
-    {%- if key == 'one_sentence_intro' and not val -%}{% set val = ext.get('slogan') %}{%- endif -%}
-    {%- if key == 'enterprise_description' and not val -%}{% set val = ext.get('company_profile') or ext.get('main_business') or 企业.main_business %}{%- endif -%}
-    {%- if key == 'registered_capital' and not val -%}{% set val = 企业.registered_capital %}{%- endif -%}
-    {%- if key == 'legal_representative' and not val -%}{% set val = 企业.legal_representative %}{%- endif -%}
-    {%- if key == 'business_term_start' and not val -%}{% set val = 企业.business_term_start.strftime('%Y-%m-%d') if 企业.business_term_start else '' %}{%- endif -%}
-    {%- if key == 'business_term_end' and not val -%}{% set val = 企业.business_term_end.strftime('%Y-%m-%d') if 企业.business_term_end else '' %}{%- endif -%}
-    {%- if key == 'industry' and not val -%}{% set val = ext.get('primary_industry') or 企业.industry_category %}{%- endif -%}
-    {%- if key == 'export_experience' and not val -%}{% set val = '是' if 企业.has_foreign_trade_experience else '否' %}{%- endif -%}
-    {%- if key == 'factory_area_range' and not val -%}{% set val = 企业.factory_area %}{%- endif -%}
-    {%- if key == 'employee_count_range' and not val and 企业.employee_count -%}{% set val = 企业.employee_count ~ '人' %}{%- endif -%}
-    {%- if key == 'target_expansion_markets' and not val and 企业.target_markets -%}{% set val = 企业.target_markets.split('、') %}{%- endif -%}
-    {%- if key == 'is_listed_or_pre_ipo' and not val -%}{% set val = '是' if 企业.is_listed_or_pre_ipo else '否' %}{%- endif -%}
-    {{- val -}}
-{%- endmacro %}
-
 {% macro render_field_value(field) -%}
-    {% set val = resolve_field_value(field) %}
+    {% set val = enterprise_field_value(企业, ext, field) %}
     {% if field.type in ['checkbox_tags', 'checkbox_group'] %}
         {{ show_badges(val if val is iterable and val is not string else (val.split('、') if val is string and '、' in val else ([val] if val else []))) }}
     {% elif field.type == 'dynamic_contacts' %}

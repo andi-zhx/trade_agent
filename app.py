@@ -609,6 +609,101 @@ def create_app():
             return "-"
         return f"{currency} {numeric_value:,.2f}"
 
+
+    def 企业详情字段值(企业, 扩展字段, 字段):
+        """统一解析企业详情字段，优先展示扩展字段，缺失时回退到表字段。"""
+
+        if not 企业 or not 字段:
+            return None
+        ext = 扩展字段 or {}
+        key = 字段.get("key") if isinstance(字段, dict) else getattr(字段, "key", None)
+        if not key:
+            return None
+
+        def 已填(值):
+            if 值 is None or isinstance(值, Undefined):
+                return False
+            if isinstance(值, str):
+                return bool(值.strip()) and 值.strip().lower() not in {"none", "null"}
+            if isinstance(值, (list, tuple, set, dict)):
+                return len(值) > 0
+            return True
+
+        def 日期文本(值):
+            if not 已填(值):
+                return None
+            if hasattr(值, "strftime"):
+                return 值.strftime("%Y-%m-%d")
+            return 值
+
+        值 = ext.get(key)
+        if 已填(值):
+            return 值
+
+        字段回退 = {
+            "enterprise_code": lambda e: e.enterprise_code,
+            "project_owner": lambda e: e.project_owner,
+            "company_full_name": lambda e: e.company_name,
+            "english_name": lambda e: e.english_name,
+            "industry_code": lambda e: 行业显示名称(e.industry_code, e.industry_category),
+            "primary_industry": lambda e: 行业显示名称(e.industry_code, e.industry_category),
+            "industry": lambda e: 行业显示名称(e.industry_code, e.industry_category),
+            "sub_industry": lambda e: e.sub_industry,
+            "province": lambda e: e.province,
+            "city": lambda e: e.city,
+            "registered_name": lambda e: e.registered_name or e.company_name,
+            "company_type": lambda e: e.company_type,
+            "unified_social_credit_code": lambda e: e.unified_social_credit_code,
+            "legal_representative": lambda e: e.legal_representative,
+            "registered_capital": lambda e: e.registered_capital,
+            "founded_date": lambda e: 日期文本(e.founded_date),
+            "business_term_start": lambda e: 日期文本(e.business_term_start),
+            "business_term_end": lambda e: 日期文本(e.business_term_end),
+            "registered_address": lambda e: e.registered_address,
+            "business_scope": lambda e: e.business_scope,
+            "business_address": lambda e: e.business_address,
+            "core_products": lambda e: e.main_products,
+            "enterprise_description": lambda e: e.main_business,
+            "factory_area_range": lambda e: e.factory_area,
+            "employee_count_range": lambda e: 估算人员规模(e.employee_count),
+            "export_experience": lambda e: "是" if e.has_foreign_trade_experience else "否",
+            "major_export_regions": lambda e: [
+                item.strip()
+                for item in re.split(r"[、,，;/|]+", e.export_countries or "")
+                if item.strip()
+            ],
+            "target_expansion_markets": lambda e: [
+                item.strip()
+                for item in re.split(r"[、,，;/|]+", e.target_markets or "")
+                if item.strip()
+            ],
+            "is_listed_or_pre_ipo": lambda e: "是" if e.is_listed_or_pre_ipo else "否",
+        }
+        if key == "enterprise_natures":
+            natures = [
+                label
+                for label, enabled in [
+                    ("制造商", 企业.is_manufacturer),
+                    ("贸易商", 企业.is_trader),
+                    ("品牌商", 企业.is_brand_owner),
+                    ("OEM/ODM工厂", 企业.is_oem_odm),
+                    ("服务商", 企业.is_service_provider),
+                ]
+                if enabled
+            ]
+            if natures:
+                return natures
+            return [item.strip() for item in re.split(r"[、,，;/|]+", 企业.company_type or "") if item.strip()]
+        if key in 字段回退:
+            回退值 = 字段回退[key](企业)
+            if 已填(回退值):
+                return 回退值
+        if hasattr(企业, key):
+            回退值 = 日期文本(getattr(企业, key))
+            if 已填(回退值):
+                return 回退值
+        return None
+
     @app.context_processor
     def inject_user_context():
         return {
@@ -617,6 +712,7 @@ def create_app():
             "是管理员": session.get("角色") == "管理员",
             "ENTRY_SOURCE_OPTIONS": ENTRY_SOURCE_OPTIONS,
             "ENTRY_STAGE_OPTIONS": ENTRY_STAGE_OPTIONS,
+            "enterprise_field_value": 企业详情字段值,
         }
 
     @app.before_request
