@@ -217,7 +217,7 @@ CONTRACT_STATUS_OPTIONS = [
 ]
 
 
-def create_app():
+def create_app(config_overrides=None):
     app = Flask(__name__)
     app.config["SECRET_KEY"] = "replace-with-a-secure-secret-key"
     app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{BASE_DIR / 'trade_agent.db'}"
@@ -230,6 +230,8 @@ def create_app():
     app.config["FILES_BACKUP_ROOT"] = app.config["BACKUP_ROOT"] / "files"
     app.config["BACKUP_RETENTION_DAYS"] = 30
     app.config["BACKUP_RETENTION_COUNT"] = 30
+    if config_overrides:
+        app.config.update(config_overrides)
 
     db.init_app(app)
 
@@ -4137,7 +4139,7 @@ def 企业导入字段提示():
 
 def 产品导入字段提示():
     return [
-        ("产品编号", "必填；不限格式，数字/字母/混合编码均可；用于更新匹配或新增产品，不再自动生成"),
+        ("产品编号", "必填；不限格式，数字/字母/混合编码均可；不可与库内或导入文件内其他产品重复"),
         ("产品名称", "对应产品概览-基础信息-产品名称；可为空"),
         ("所属企业名称", "必填；按企业名称或企业编号匹配"),
         ("产品品类", "对应产品概览-基础信息-产品品类"),
@@ -4534,17 +4536,15 @@ def 导入产品Excel(file_storage, batch=None):
             name_cn = 读取行字段(row, idx, "产品名称")
             hs_code_value = 读取行字段(row, idx, "HS编码")
             product_query = Product.query.filter_by(product_code=product_code)
-            if product_query.count() > 1:
-                原因 = "产品编号在库内存在重复记录，请先合并或修改后再导入"
-                记录导入错误(batch, row_num, "产品编号", 原因, 上下文, "产品编号不限格式，但库内需保持唯一，避免导入时无法判断更新目标。")
+            if product_query.first():
+                原因 = "产品编号已存在，请修改后重新导入"
+                记录导入错误(batch, row_num, "产品编号", 原因, 上下文, "产品编号不限格式，但请使用未入库的产品编号，避免重复导入同一批产品。")
                 raise ValueError(原因)
-            product = product_query.first()
-            if not product:
-                product = Product(
-                    enterprise_id=enterprise.id,
-                    product_code=product_code,
-                )
-                db.session.add(product)
+            product = Product(
+                enterprise_id=enterprise.id,
+                product_code=product_code,
+            )
+            db.session.add(product)
 
             extra = dict(product.product_extra_fields or {})
             product.enterprise_id = enterprise.id
