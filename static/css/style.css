@@ -138,3 +138,17 @@ body {
 .export-keyword-suggestion.active {
     background-color: #f1f5f9;
 }
+
+.export-filter-bar .form-text {
+    white-space: normal;
+}
+
+.export-submit-wrap {
+    min-width: 8rem;
+}
+
+.export-submit-btn {
+    padding-left: .9rem;
+    padding-right: .9rem;
+    white-space: nowrap;
+}

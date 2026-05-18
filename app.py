@@ -3071,6 +3071,7 @@ def fill_product_from_form(product, form):
     product.capacity_qualified_pieces = 读取整数(form.get("capacity_qualified_pieces"))
     product.moq = form.get("moq", "").strip() or None
     product.delivery_cycle = form.get("delivery_cycle", "").strip() or None
+    product.average_price = form.get("average_price", "").strip() or None
     product.function_description = form.get("function_description", "").strip() or None
     if "application_scenario" in form:
         旧应用场景 = form.get("application_scenario", "").strip()
@@ -3403,7 +3404,7 @@ def 导出产品总表():
         "上架状态",
         "MOQ",
         "交期",
-        "价格展示",
+        "均价",
         "币种",
         "样品政策",
         "是否支持定制",
@@ -3443,7 +3444,7 @@ def 导出产品总表():
             item.status,
             item.moq or extra.get("trade_moq"),
             item.delivery_cycle or item.production_cycle or extra.get("trade_mass_cycle"),
-            item.price_display or 生成价格展示文案(item),
+            item.average_price or item.price_display or 生成价格展示文案(item),
             item.currency or "USD",
             item.sample_policy or extra.get("trade_sample_policy"),
             "是" if item.customization_supported else "否",
@@ -3665,7 +3666,7 @@ PRODUCT_EXPORT_BASE_COLUMNS = [
     ("cif_price", "CIF价"),
     ("ddp_price", "DDP参考价"),
     ("currency", "币种"),
-    ("price_display", "价格展示"),
+    ("average_price", "均价"),
     ("moq", "MOQ"),
     ("delivery_cycle", "交付周期"),
     ("production_cycle", "生产周期"),
@@ -3846,6 +3847,8 @@ def 构建产品查询(source, default_status="active"):
 def 产品价格区间(product):
     prices = [product.exw_price, product.fob_price, product.cif_price, product.ddp_price]
     numbers = [float(price) for price in prices if price is not None]
+    if product.average_price:
+        return product.average_price
     if product.price_display:
         return product.price_display
     if not numbers:
@@ -3885,6 +3888,7 @@ def 产品导出行(product, columns):
         "cif_price": product.cif_price or extra.get("price_cif"),
         "ddp_price": product.ddp_price or extra.get("price_ddp"),
         "currency": product.currency,
+        "average_price": product.average_price,
         "price_display": product.price_display,
         "moq": product.moq or extra.get("trade_moq"),
         "delivery_cycle": product.delivery_cycle or product.production_cycle or extra.get("trade_mass_cycle"),
@@ -4134,15 +4138,15 @@ def 企业导入字段提示():
 def 产品导入字段提示():
     return [
         ("产品编号", "必填；不限格式，数字/字母/混合编码均可；用于更新匹配或新增产品，不再自动生成"),
-        ("产品名称", "对应产品概览-基础信息-产品名称，兼容旧列名“产品中文名”；可为空"),
+        ("产品名称", "对应产品概览-基础信息-产品名称；可为空"),
         ("所属企业名称", "必填；按企业名称或企业编号匹配"),
-        ("产品品类", "对应产品概览-基础信息-产品品类，兼容旧列名“产品类别”"),
+        ("产品品类", "对应产品概览-基础信息-产品品类"),
         ("产品类型", "对应产品概览-基础信息-产品类型"),
         ("产能-周期（天）", "对应产品概览-基础信息-产能-周期（天）"),
         ("产能-实际完工合格件数（件）", "对应产品概览-基础信息-产能-实际完工合格件数（件）"),
         ("MOQ", "对应产品概览-基础信息-MOQ"),
-        ("交期", "对应产品概览-基础信息-交期，兼容旧列名“批量生产周期”"),
-        ("均价", "对应产品概览-交易摘要-价格展示（兼容列名“价格展示”）"),
+        ("交期", "对应产品概览-基础信息-交期"),
+        ("均价", "对应产品概览-基础信息-均价"),
     ]
 
 
@@ -4166,7 +4170,6 @@ def 产品导入字段提示():
     "industry_code": "行业编号",
     "industry_name": "行业名称",
     "product_category": "产品品类",
-    "category": "产品品类",
     "product_type": "产品类型",
     "hs_code": "HS编码",
     "brand": "品牌",
@@ -4178,10 +4181,9 @@ def 产品导入字段提示():
     "status": "上架状态",
     "moq": "MOQ",
     "delivery_cycle": "交期",
-    "production_cycle": "交期",
     "capacity_cycle_days": "产能-周期（天）",
     "capacity_qualified_pieces": "产能-实际完工合格件数（件）",
-    "price_display": "价格展示",
+    "average_price": "均价",
     "currency": "币种",
     "sample_policy": "样品政策",
     "customization_supported": "是否支持定制",
@@ -4514,11 +4516,11 @@ def 导入产品Excel(file_storage, batch=None):
             if not enterprise_name:
                 行错误.append(("所属企业名称", "所属企业名称/编号缺失"))
             if 行错误:
-                上下文 = 导入行上下文(row, idx, ["产品编号", "所属企业名称", "所属企业编号", "产品名称", "产品中文名"])
+                上下文 = 导入行上下文(row, idx, ["产品编号", "所属企业名称", "所属企业编号", "产品名称"])
                 for 字段, 原因 in 行错误:
                     记录导入错误(batch, row_num, 字段, 原因, 上下文, 导入错误字段建议.get(字段))
                 raise ValueError("；".join(原因 for _, 原因 in 行错误))
-            上下文 = 导入行上下文(row, idx, ["产品编号", "所属企业名称", "所属企业编号", "产品名称", "产品中文名"])
+            上下文 = 导入行上下文(row, idx, ["产品编号", "所属企业名称", "所属企业编号", "产品名称"])
             if product_code in 已读取产品编号:
                 原因 = f"产品编号与第 {已读取产品编号[product_code]} 行重复，请修改后重新导入"
                 记录导入错误(batch, row_num, "产品编号", 原因, 上下文, "产品编号不限格式，但请确保导入文件内产品编号唯一。")
@@ -4529,7 +4531,7 @@ def 导入产品Excel(file_storage, batch=None):
             if not enterprise:
                 记录导入错误(batch, row_num, "所属企业名称", f"未找到企业：{enterprise_name}", 上下文)
                 raise ValueError(f"未找到企业：{enterprise_name}")
-            name_cn = 取首个存在字段值(row, idx, "产品名称", "产品中文名")
+            name_cn = 读取行字段(row, idx, "产品名称")
             hs_code_value = 读取行字段(row, idx, "HS编码")
             product_query = Product.query.filter_by(product_code=product_code)
             if product_query.count() > 1:
@@ -4547,18 +4549,18 @@ def 导入产品Excel(file_storage, batch=None):
             extra = dict(product.product_extra_fields or {})
             product.enterprise_id = enterprise.id
             product.product_name_cn = name_cn or product.product_name_cn or product_code
-            if "产品英文名称" in idx or "产品英文名" in idx:
-                product.product_name_en = 取首个存在字段值(row, idx, "产品英文名称", "产品英文名") or None
+            if "产品英文名称" in idx:
+                product.product_name_en = 读取行字段(row, idx, "产品英文名称") or None
             if "行业编号" in idx:
                 product.industry_code = 读取行字段(row, idx, "行业编号") or None
-            行业名称 = 取首个存在字段值(row, idx, "行业名称", "行业分类")
+            行业名称 = 读取行字段(row, idx, "行业名称") if "行业名称" in idx else ""
             if 行业名称:
                 product.industry_name = 行业名称
             if not product.industry_name:
                 product.industry_name = enterprise.industry_category
             if not product.industry_code:
                 product.industry_code = enterprise.industry_code
-            product.product_category = 取首个存在字段值(row, idx, "产品品类", "产品类别") or None
+            product.product_category = 读取行字段(row, idx, "产品品类") or None if "产品品类" in idx else None
             product.product_type = 读取行字段(row, idx, "产品类型") or None if "产品类型" in idx else None
             if "HS编码" in idx:
                 product.hs_code = hs_code_value or None
@@ -4585,8 +4587,8 @@ def 导入产品Excel(file_storage, batch=None):
                     product.status = "inactive"
             product.product_selling_points = 读取行字段(row, idx, "核心卖点") or None if "核心卖点" in idx else None
             product.moq = 读取行字段(row, idx, "MOQ") or None if "MOQ" in idx else None
-            product.delivery_cycle = 取首个存在字段值(row, idx, "交期", "批量生产周期") or product.delivery_cycle
-            product.price_display = 取首个存在字段值(row, idx, "均价", "价格展示") or None
+            product.delivery_cycle = 读取行字段(row, idx, "交期") or product.delivery_cycle if "交期" in idx else product.delivery_cycle
+            product.average_price = 读取行字段(row, idx, "均价") or None if "均价" in idx else product.average_price
             product.currency = 读取行字段(row, idx, "币种") or (product.currency or "USD") if "币种" in idx else (product.currency or "USD")
             product.sample_policy = 读取行字段(row, idx, "样品政策") or None if "样品政策" in idx else None
             product.certification_status = 读取行字段(row, idx, "认证情况") or None if "认证情况" in idx else None
@@ -4623,7 +4625,7 @@ def 导入产品Excel(file_storage, batch=None):
         except Exception as exc:
             if batch and not batch.errors.filter_by(row_number=row_num).first():
                 记录导入错误(batch, row_num, "整行", str(exc), 导入行上下文(row, idx, ["产品编号", "所属企业名称", "产品名称"]))
-            failed.append({"行号": row_num, "原因": str(exc), "数据": {"产品编号": 读取行字段(row, idx, "产品编号"), "所属企业名称": 读取行字段(row, idx, "所属企业名称"), "产品名称": 取首个存在字段值(row, idx, "产品名称", "产品中文名")}})
+            failed.append({"行号": row_num, "原因": str(exc), "数据": {"产品编号": 读取行字段(row, idx, "产品编号"), "所属企业名称": 读取行字段(row, idx, "所属企业名称"), "产品名称": 读取行字段(row, idx, "产品名称")}})
     db.session.commit()
     return success, failed
 
@@ -5087,6 +5089,10 @@ def init_db(app):
         if "price_display" not in product_columns:
             db.session.execute(text("ALTER TABLE products ADD COLUMN price_display VARCHAR(255)"))
             product_columns.add("price_display")
+        if "average_price" not in product_columns:
+            db.session.execute(text("ALTER TABLE products ADD COLUMN average_price VARCHAR(255)"))
+            product_columns.add("average_price")
+        db.session.execute(text("UPDATE products SET average_price = price_display WHERE (average_price IS NULL OR average_price = '') AND price_display IS NOT NULL AND price_display != ''"))
         if "status" not in product_columns:
             db.session.execute(text("ALTER TABLE products ADD COLUMN status VARCHAR(20) DEFAULT 'active'"))
             db.session.execute(text("CREATE INDEX IF NOT EXISTS ix_products_status ON products (status)"))

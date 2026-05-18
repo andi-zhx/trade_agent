@@ -79,7 +79,9 @@
         <td>{{ p.delivery_cycle or p.production_cycle or extra.get('trade_mass_cycle') or '-' }}</td>
         <td>{{ p.target_market or '-' }}</td>
         <td>
-            {% if p.price_display %}
+            {% if p.average_price %}
+                {{ p.average_price }}
+            {% elif p.price_display %}
                 {{ p.price_display }}
             {% elif p.fob_price is not none %}
                 FOB {{ p.fob_price|currency(p.currency) }}
