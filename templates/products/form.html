@@ -72,6 +72,7 @@
                         <div class="col-md-6"><label class="form-label">MOQ</label><input name="moq" class="form-control" value="{{ request.form.get('moq') if request.method == 'POST' else (product.moq if product and product.moq else extra.get('trade_moq', '')) }}"></div>
                         <div class="w-100"></div>
                         <div class="col-md-6"><label class="form-label">交期</label><input name="delivery_cycle" class="form-control" value="{{ request.form.get('delivery_cycle') if request.method == 'POST' else (product.delivery_cycle if product and product.delivery_cycle else extra.get('trade_mass_cycle', '')) }}"></div>
+                        <div class="col-md-6"><label class="form-label">均价</label><input name="average_price" class="form-control" placeholder="例如：USD 18-22" value="{{ request.form.get('average_price') if request.method == 'POST' else (product.average_price if product and product.average_price else '') }}"></div>
                     </div></div>
                 </div>
 

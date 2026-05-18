@@ -178,6 +178,7 @@ class Product(AuditSoftDeleteMixin, db.Model):
     ddp_price = db.Column(db.Numeric(18, 2))
     currency = db.Column(db.String(10), default="USD")
     price_display = db.Column(db.String(255))
+    average_price = db.Column(db.String(255))
     sample_policy = db.Column(db.String(255))
     customization_supported = db.Column(db.Boolean, default=False, nullable=False)
     notes = db.Column(db.Text)
