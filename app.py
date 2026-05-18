@@ -2261,8 +2261,10 @@ def create_app():
     def product_detail(product_id):
         product = Product.query.get_or_404(product_id)
         enterprise = Enterprise.query.get(product.enterprise_id)
-        sku_filters = 读取SKU筛选条件(request.args)
-        skus = 查询SKU列表(product.id, request.args).all()
+        sku_query_args = request.args.copy()
+        sku_query_args.pop("sku_stock_status", None)
+        sku_filters = 读取SKU筛选条件(sku_query_args)
+        skus = 查询SKU列表(product.id, sku_query_args).all()
         sku_filter_options = SKU筛选选项(product.id)
         certificates = []
         product_files = 附加文件元信息(Document.query.filter_by(product_id=product.id).order_by(Document.uploaded_at.desc()).all())
