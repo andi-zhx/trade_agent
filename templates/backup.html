@@ -68,7 +68,7 @@
 <div class="card shadow-sm mb-3">
     <div class="card-header">导出管理</div>
     <div class="card-body">
-        <form class="row g-2 align-items-end mb-3 export-filter-bar" method="get" onsubmit="const routes={enterprise_table:'{{ url_for('export_enterprises_backup_selected') }}',product_table:'{{ url_for('export_products_backup_selected') }}',enterprise_package:'{{ url_for('export_enterprise_packages_selected') }}',product_card:'{{ url_for('export_product_cards_selected') }}'}; this.action=routes[this.export_type.value];">
+        <form class="row g-2 align-items-start mb-3 export-filter-bar" method="get" onsubmit="const routes={enterprise_table:'{{ url_for('export_enterprises_backup_selected') }}',product_table:'{{ url_for('export_products_backup_selected') }}',enterprise_package:'{{ url_for('export_enterprise_packages_selected') }}',product_card:'{{ url_for('export_product_cards_selected') }}'}; this.action=routes[this.export_type.value];">
             <div class="col-lg-3 col-md-4">
                 <label class="form-label small text-muted" for="export_type">导出功能</label>
                 <select class="form-select" id="export_type" name="export_type">
@@ -85,6 +85,7 @@
                 <div id="keywordHelp" class="form-text">支持模糊查询，输入部分企业或产品信息后可从建议中点选。</div>
             </div>
             <div class="col-lg-auto col-md-3 d-grid export-submit-wrap">
+                <label class="form-label small text-muted invisible d-none d-md-block" aria-hidden="true">导出操作</label>
                 <button class="btn btn-primary export-submit-btn" type="submit">按条件导出</button>
             </div>
             <div class="col-12 small text-muted">企业资料包和产品资料卡会按筛选结果生成多个 Excel 文件并打包为 ZIP。</div>
