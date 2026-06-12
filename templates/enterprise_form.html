@@ -199,6 +199,7 @@
     <ul class="nav nav-tabs flex-nowrap overflow-auto" id="enterpriseTabs" role="tablist">
         {% for tab in tab_groups %}
         {% set tab_key = tab.key %}
+        {% if tab.title != '汽车及零部件专项' %}
         <li class="nav-item" role="presentation">
             <button
                 class="nav-link {% if loop.first %}active{% endif %}"
@@ -213,6 +214,7 @@
                 {{ tab_title_map.get(tab_key, tab.title) }}
             </button>
         </li>
+        {% endif %}
         {% endfor %}
     </ul>
 
@@ -228,6 +230,7 @@
         {% endfor %}
 
         {% for industry_group in industry_tabs %}
+        {% if industry_group.title != '汽车及零部件专项' %}
         <div class="tab-pane fade" id="tab-pane-{{ industry_group.key }}" role="tabpanel" aria-labelledby="tab-btn-{{ industry_group.key }}" tabindex="0" data-module-pane data-module-key="{{ industry_group.key }}">
             <div class="row g-3">
                 {% for field in industry_group.fields %}
@@ -235,6 +238,7 @@
                 {% endfor %}
             </div>
         </div>
+        {% endif %}
         {% endfor %}
 
         <div class="tab-pane fade" id="tab-pane-J" role="tabpanel" aria-labelledby="tab-btn-J" tabindex="0" data-module-pane data-module-key="J">
