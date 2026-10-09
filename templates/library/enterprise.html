@@ -1,0 +1,47 @@
+{% extends 'base.html' %}{% block title %}{{ item.company_name }}
+{% endblock %}{% block content %}
+<a class="back-link" href="{{ url_for('entry.home') }}">← 企业资料</a>
+<div class="library-intro">
+<div>
+<span class="eyebrow">{{ item.industry_category or '企业资料' }}</span>
+<h2>{{ item.company_name }}</h2>
+<p>资料已保存{% if item.updated_at %} · 更新于 {{ item.updated_at|localtime }}{% endif %}</p>
+</div>
+<a class="btn btn-outline-primary" href="{{ url_for('entry.enterprise_edit', id=item.id) }}">编辑企业</a>
+</div>
+{% set extra = item.enterprise_extra_fields or {} %}<section class="record-card mb-4">
+<div class="info-grid">{% for label, value in [('联系人', extra.get('primary_contact_name')), ('联系电话', extra.get('primary_contact_mobile')), ('邮箱', extra.get('contact_email')), ('地址', item.business_address), ('主营产品', item.main_products)] %}<div>
+<dt>{{ label }}</dt>
+<dd>{{ value or '未填写' }}</dd>
+</div>{% endfor %}</div>{% if documents %}<hr>
+<h3 class="h6">企业附件</h3>{% for doc in documents %}<a class="attachment-link" href="{{ url_for('document_download', document_id=doc.id) }}">↓ {{ doc.original_filename or doc.document_name }}</a>{% endfor %}{% endif %}</section>
+<div class="section-heading">
+<h3 class="h5 mb-0">这家企业的产品 <span class="count-badge">{{ products|length }}</span>
+</h3>
+<a class="btn btn-primary" href="{{ url_for('entry.product_new', enterprise_id=item.id) }}">＋ 添加产品</a>
+</div>
+<div class="record-grid">{% for product in products %}<article class="record-card" id="product-{{ product.id }}">
+<div class="record-kicker">{{ product.product_category or '产品' }}</div>
+<h3>{{ product.product_name_cn }}</h3>
+<p class="record-description">{{ product.model or product.function_description or '暂未补充产品说明' }}</p>
+<div class="record-actions">
+<a class="btn btn-outline-primary" href="{{ url_for('entry.product_edit', id=product.id) }}">查看 / 编辑</a>{% if 是管理员 %}<form method="post" action="{{ url_for('entry.archive', kind='products', id=product.id) }}" onsubmit="return confirm('将产品移入回收站？之后可以恢复。')">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="version_id" value="{{ product.version_id }}">
+<button class="btn btn-link text-muted">移入回收站</button>
+</form>{% endif %}</div>
+</article>{% else %}<div class="empty-state">
+<h3>企业已保存，接下来添加产品</h3>
+<p>填写产品名称即可，型号、价格与附件可稍后补充。</p>
+<a class="btn btn-primary" href="{{ url_for('entry.product_new', enterprise_id=item.id) }}">添加第一个产品</a>
+</div>{% endfor %}</div>
+<details class="secondary-tools mt-4">
+<summary>更多操作</summary>
+<a href="{{ url_for('enterprise_detail', id=item.id) }}">查看原有完整资料</a>
+<a href="{{ url_for('export_enterprise_package', enterprise_id=item.id) }}">导出企业资料</a>{% if 是管理员 %}<form method="post" action="{{ url_for('entry.archive', kind='enterprises', id=item.id) }}" onsubmit="return confirm('将企业移入回收站？所属产品将一同隐藏，恢复企业后重新显示。')">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="version_id" value="{{ item.version_id }}">
+<button class="btn btn-link text-danger px-0">将企业移入回收站</button>
+</form>{% endif %}</details>
+
+{% endblock %}

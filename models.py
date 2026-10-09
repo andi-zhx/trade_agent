@@ -41,6 +41,10 @@ class Enterprise(AuditSoftDeleteMixin, db.Model):
 
     __tablename__ = "enterprises"
 
+    submission_key = db.Column(db.String(32), unique=True, nullable=True)
+    version_id = db.Column(db.Integer, nullable=False, default=1)
+    __mapper_args__ = {"version_id_col": version_id}
+
     id = db.Column(db.Integer, primary_key=True)
     enterprise_code = db.Column(db.String(32), unique=True, nullable=False, index=True)
     company_name = db.Column(db.String(255), nullable=False, index=True)
@@ -136,6 +140,10 @@ class Product(AuditSoftDeleteMixin, db.Model):
     """产品信息表。"""
 
     __tablename__ = "products"
+
+    submission_key = db.Column(db.String(32), unique=True, nullable=True)
+    version_id = db.Column(db.Integer, nullable=False, default=1)
+    __mapper_args__ = {"version_id_col": version_id}
 
     PRODUCT_TYPE_OPTIONS = ["标准品", "定制品", "OEM", "ODM", "工程项目型", "服务型", "数字产品", "其他"]
     EXPORT_SUITABILITY_OPTIONS = ["适合", "基本适合", "待补充资料", "暂不适合", "待判断"]

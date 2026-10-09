@@ -1,0 +1,37 @@
+{% extends 'base.html' %}{% block title %}产品资料
+{% endblock %}{% block content %}
+<div class="library-intro">
+<div>
+<span class="eyebrow">产品资料</span>
+<h2>每个产品都有所属企业</h2>
+<p>集中查找名称、型号与企业，随时补充资料。</p>
+</div>
+<a class="btn btn-primary btn-lg" href="{{ url_for('entry.product_new') }}">＋ 新增产品</a>
+</div>
+<form class="search-bar" method="get" role="search">
+<label class="visually-hidden" for="q">搜索产品</label>
+<input class="form-control" name="q" id="q" value="{{ keyword }}" placeholder="搜索产品名称、型号或所属企业">
+<button class="btn btn-primary">搜索</button>{% if keyword %}<a class="btn btn-outline-secondary" href="{{ url_for('entry.products') }}">清除</a>{% endif %}</form>
+<div class="section-heading">
+<span>{{ page.total }} 个产品</span>
+<details class="tools-menu">
+<summary>导入 / 导出</summary>
+<a href="{{ url_for('import_products', next=url_for('entry.products')) }}">导入产品</a>
+<a href="{{ url_for('export_products_all') }}">导出全部产品</a>
+</details>
+</div>
+<div class="record-grid">{% for item in page.items %}<article class="record-card">
+<div class="record-kicker">{{ item.enterprise.company_name }}</div>
+<h3>{{ item.product_name_cn }}</h3>
+<p class="record-description">{{ item.model or item.function_description or '暂未补充产品说明' }}</p>
+<div class="record-actions">
+<a class="btn btn-outline-primary" href="{{ url_for('entry.product_edit', id=item.id) }}">查看 / 编辑</a>
+<a class="btn btn-light" href="{{ url_for('entry.enterprise', id=item.enterprise_id) }}">所属企业</a>
+</div>
+</article>{% else %}<div class="empty-state">
+<h3>{{ '没有匹配的产品' if keyword else '还没有产品资料' }}</h3>
+<p>先保存企业，再添加产品。</p>
+<a class="btn btn-outline-primary" href="{{ url_for('entry.home') }}">前往企业资料</a>
+</div>{% endfor %}</div>
+{% include 'library/pagination.html' %}
+{% endblock %}

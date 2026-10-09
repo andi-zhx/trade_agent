@@ -72,7 +72,8 @@
                     <div class="table-action-buttons">
                         <a class="btn btn-sm btn-outline-primary" href="{{ url_for('enterprise_detail', id=企业.id) }}">查看</a>
                         <a class="btn btn-sm btn-outline-warning" href="{{ url_for('enterprise_edit', id=企业.id) }}">编辑</a>
-                        <form method="post" action="{{ url_for('enterprise_delete', id=企业.id) }}" onsubmit="return confirmPrivilegedDelete(this, '确认删除企业【{{ 企业.company_name }}】？');" class="d-inline">
+                        <form method="post" action="{{ url_for('enterprise_delete', id=企业.id) }}" onsubmit="return confirmPrivilegedDelete(this, '确认删除该企业及关联资料？');" class="d-inline">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="confirm_delete" value="YES">
                             <button type="submit" class="btn btn-sm btn-outline-danger">删除</button>
                         </form>

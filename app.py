@@ -7,12 +7,13 @@ import threading
 import time
 import json
 import shutil
+import uuid
 from pathlib import Path
 import re
 from functools import wraps
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from flask import Flask, abort, flash, has_request_context, jsonify, redirect, render_template, request, send_file, send_from_directory, session, url_for
+from flask import current_app, Flask, abort, flash, has_request_context, jsonify, redirect, render_template, request, send_file, send_from_directory, session, url_for
 from jinja2.runtime import Undefined
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font
@@ -20,6 +21,8 @@ from sqlalchemy import event, func, inspect, or_, text
 from sqlalchemy.orm import Session, with_loader_criteria
 from werkzeug.security import check_password_hash, generate_password_hash
 from werkzeug.utils import secure_filename
+from web_security import configure as configure_web, install as install_web_security, password_stamp
+from backup_service import sqlite_snapshot, create_bundle
 
 from config.enterprise_form_config import (
     COMMON_ENTERPRISE_FIELD_GROUPS,
@@ -219,19 +222,7 @@ CONTRACT_STATUS_OPTIONS = [
 
 def create_app(config_overrides=None):
     app = Flask(__name__)
-    app.config["SECRET_KEY"] = "replace-with-a-secure-secret-key"
-    app.config["SQLALCHEMY_DATABASE_URI"] = f"sqlite:///{BASE_DIR / 'trade_agent.db'}"
-    app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-    app.config["UPLOAD_ROOT"] = BASE_DIR / "uploads" / "企业库"
-    app.config["UPLOAD_ENTERPRISE_ROOT"] = BASE_DIR / "uploads" / "企业库"
-    app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_SIZE
-    app.config["BACKUP_ROOT"] = BASE_DIR / "backups"
-    app.config["DATABASE_BACKUP_ROOT"] = app.config["BACKUP_ROOT"] / "database"
-    app.config["FILES_BACKUP_ROOT"] = app.config["BACKUP_ROOT"] / "files"
-    app.config["BACKUP_RETENTION_DAYS"] = 30
-    app.config["BACKUP_RETENTION_COUNT"] = 30
-    if config_overrides:
-        app.config.update(config_overrides)
+    configure_web(app, BASE_DIR, config_overrides)
 
     db.init_app(app)
 
@@ -265,6 +256,8 @@ def create_app(config_overrides=None):
         db._soft_delete_filter_registered = True
 
     def 当前用户():
+        if not has_request_context():
+            return None
         用户名 = session.get("用户")
         if not 用户名:
             return None
@@ -316,7 +309,7 @@ def create_app(config_overrides=None):
             if not 用户:
                 flash("请先登录后再访问。", "warning")
                 return redirect(url_for("登录"))
-            if 用户.role not in {"管理员", "普通用户"}:
+            if 用户.role != "管理员":
                 flash("无备份管理权限。", "danger")
                 return redirect(url_for("dashboard"))
             return view_func(*args, **kwargs)
@@ -331,7 +324,7 @@ def create_app(config_overrides=None):
         if 用户.role != "管理员":
             flash("无权限", "danger")
             return redirect(返回地址 or request.referrer or url_for("dashboard"))
-        if request.form.get("admin_password", "").strip() != "admin123":
+        if not check_password_hash(用户.password, request.form.get("admin_password", "")):
             flash("管理员密码确认失败，未执行删除操作。", "danger")
             return redirect(返回地址 or request.referrer or url_for("dashboard"))
         return None
@@ -351,7 +344,7 @@ def create_app(config_overrides=None):
 
     def 登记备份记录(备份类型, 文件路径, status="成功", error_message=None, created_by=None):
         文件路径 = Path(文件路径)
-        相对路径 = str(文件路径.relative_to(BASE_DIR)) if 文件路径.is_absolute() and 文件路径.is_relative_to(BASE_DIR) else str(文件路径)
+        相对路径 = str(文件路径.relative_to(app.config["DATA_ROOT"])) if 文件路径.is_absolute() and 文件路径.is_relative_to(app.config["DATA_ROOT"]) else str(文件路径)
         记录 = BackupRecord(
             backup_type=备份类型,
             file_path=相对路径,
@@ -375,7 +368,7 @@ def create_app(config_overrides=None):
         记录列表 = 查询.order_by(BackupRecord.created_at.desc()).all()
         for 序号, 记录 in enumerate(记录列表):
             if (记录.created_at and 记录.created_at < 截止时间) or 序号 >= 保留数量:
-                文件路径 = BASE_DIR / 记录.file_path
+                文件路径 = app.config["DATA_ROOT"] / 记录.file_path
                 if 文件路径.exists() and 文件路径.is_file():
                     文件路径.unlink()
                 记录.soft_delete("system")
@@ -383,10 +376,10 @@ def create_app(config_overrides=None):
     def 构建数据库备份(created_by=None):
         备份目录 = app.config["DATABASE_BACKUP_ROOT"]
         备份目录.mkdir(parents=True, exist_ok=True)
-        时间戳 = datetime.now().strftime("%Y%m%d_%H%M%S")
-        源数据库 = BASE_DIR / "trade_agent.db"
+        时间戳 = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+        源数据库 = Path(db.engine.url.database)
         备份路径 = 备份目录 / f"database_backup_{时间戳}.sqlite"
-        shutil.copy2(源数据库, 备份路径)
+        sqlite_snapshot(源数据库, 备份路径)
         登记备份记录("database", 备份路径, created_by=created_by)
         清理备份保留策略("database")
         return 备份路径
@@ -394,9 +387,9 @@ def create_app(config_overrides=None):
     def 构建上传目录备份(created_by=None):
         备份目录 = app.config["FILES_BACKUP_ROOT"]
         备份目录.mkdir(parents=True, exist_ok=True)
-        时间戳 = datetime.now().strftime("%Y%m%d_%H%M%S")
+        时间戳 = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         备份路径 = 备份目录 / f"uploads_backup_{时间戳}.zip"
-        上传根目录 = BASE_DIR / "uploads"
+        上传根目录 = app.config["DATA_ROOT"] / "uploads"
         with ZipFile(备份路径, "w", compression=ZIP_DEFLATED) as zipf:
             if 上传根目录.exists():
                 for 文件路径 in 上传根目录.rglob("*"):
@@ -406,17 +399,22 @@ def create_app(config_overrides=None):
         清理备份保留策略("uploads")
         return 备份路径
 
+    def 构建完整备份(created_by=None):
+        目录 = app.config["BACKUP_ROOT"] / "complete"
+        目录.mkdir(parents=True, exist_ok=True)
+        路径 = 目录 / f"complete_backup_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.zip"
+        create_bundle(app, 路径)
+        登记备份记录("complete", 路径, created_by=created_by)
+        清理备份保留策略("complete")
+        return 路径
+
     def 执行每日自动备份(created_by="system"):
-        数据库文件 = None
-        上传文件 = None
-        if not 今日是否已有备份("database"):
-            数据库文件 = 构建数据库备份(created_by=created_by)
-            记录审计日志("自动备份", "backup", detail=f"type=database,filename={数据库文件.name}")
-        if not 今日是否已有备份("uploads"):
-            上传文件 = 构建上传目录备份(created_by=created_by)
-            记录审计日志("自动备份", "backup", detail=f"type=uploads,filename={上传文件.name}")
+        备份文件 = None
+        if not 今日是否已有备份("complete"):
+            备份文件 = 构建完整备份(created_by=created_by)
+            记录审计日志("自动备份", "backup", detail=f"type=complete,filename={备份文件.name}")
         db.session.commit()
-        return 数据库文件, 上传文件
+        return 备份文件
 
     def 今日是否已有备份(备份类型):
         今日零点 = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -443,24 +441,30 @@ def create_app(config_overrides=None):
         def 任务循环():
             time.sleep(10)
             while True:
+                retry_delay = app.config["BACKUP_INTERVAL_SECONDS"]
                 try:
                     with app.app_context():
                         执行每日自动备份(created_by="system")
                 except Exception as exc:
-                    with app.app_context():
-                        db.session.rollback()
-                        db.session.add(BackupRecord(
-                            backup_type="scheduled",
-                            file_path="",
-                            file_size=0,
-                            file_hash="",
-                            status="失败",
-                            error_message=str(exc),
-                            created_by="system",
-                            updated_by="system",
-                        ))
-                        db.session.commit()
-                time.sleep(24 * 60 * 60)
+                    app.logger.exception("自动备份失败；五分钟后重试")
+                    retry_delay = 300
+                    try:
+                        with app.app_context():
+                            db.session.rollback()
+                            db.session.add(BackupRecord(
+                                backup_type="scheduled",
+                                file_path="",
+                                file_size=0,
+                                file_hash="",
+                                status="失败",
+                                error_message=str(exc),
+                                created_by="system",
+                                updated_by="system",
+                            ))
+                            db.session.commit()
+                    except Exception:
+                        app.logger.exception("无法登记备份失败记录；仍将重试")
+                time.sleep(retry_delay)
 
         threading.Thread(target=任务循环, name="daily-backup", daemon=True).start()
 
@@ -527,7 +531,7 @@ def create_app(config_overrides=None):
 
     def 附加文件元信息(文档列表):
         for 文档 in 文档列表 or []:
-            文件路径 = BASE_DIR / (文档.file_path or "")
+            文件路径 = app.config["DATA_ROOT"] / (文档.file_path or "")
             文档.file_size_bytes = 文件路径.stat().st_size if 文件路径.exists() and 文件路径.is_file() else None
         return 文档列表
 
@@ -651,20 +655,9 @@ def create_app(config_overrides=None):
             "enterprise_field_value": 企业详情字段值,
         }
 
-    @app.before_request
-    def enforce_login():
-        if request.endpoint in {"登录", "static"}:
-            return None
-        if request.endpoint and request.endpoint.startswith("static"):
-            return None
-        if not session.get("用户"):
-            return redirect(url_for("登录"))
-        return None
-
     @app.errorhandler(413)
     def request_entity_too_large(_error):
-        flash("上传文件过大，单文件限制为 100MB。", "danger")
-        return redirect(url_for("document_upload"))
+        return render_template("request_error.html", message="本次上传总量超过 100 MB。请返回原页面保留填写内容，减少附件后再次提交。"), 413
 
     def 行业下拉选项():
         return INDUSTRY_OPTIONS
@@ -1100,21 +1093,7 @@ def create_app(config_overrides=None):
 
     @app.route("/")
     def dashboard():
-        企业数量 = Enterprise.query.count()
-        产品数量 = Product.query.count()
-        已上传文件数量 = Document.query.count()
-        最近新增企业 = Enterprise.query.order_by(Enterprise.created_at.desc()).limit(5).all()
-        最近新增产品 = Product.query.order_by(Product.created_at.desc()).limit(5).all()
-
-        return render_template(
-            "dashboard.html",
-            企业数量=企业数量,
-            产品数量=产品数量,
-            已上传文件数量=已上传文件数量,
-            最近新增企业=最近新增企业,
-            最近新增产品=最近新增产品,
-        )
-
+        return redirect(url_for("entry.home"))
     @app.route("/companies")
     def enterprise_library():
         return redirect(url_for("enterprise_list"))
@@ -1145,12 +1124,10 @@ def create_app(config_overrides=None):
                 db.session.commit()
                 flash(f"企业文件资料备份成功：{文件路径.name}", "success")
             elif action == "backup_all":
-                数据库文件 = 构建数据库备份()
-                文件资料文件 = 构建上传目录备份()
-                记录审计日志("备份", "backup", detail=f"type=database,filename={数据库文件.name}")
-                记录审计日志("备份", "backup", detail=f"type=uploads,filename={文件资料文件.name}")
+                完整文件 = 构建完整备份()
+                记录审计日志("备份", "backup", detail=f"type=complete,filename={完整文件.name}")
                 db.session.commit()
-                flash(f"完整备份成功：{数据库文件.name}，{文件资料文件.name}", "success")
+                flash(f"完整备份成功：{完整文件.name}", "success")
             else:
                 flash("未知备份动作。", "danger")
             return redirect(url_for("backup_tools"))
@@ -1174,10 +1151,10 @@ def create_app(config_overrides=None):
         return render_template(
             "backup.html",
             files=文件列表,
-            db_path=BASE_DIR / "trade_agent.db",
+            db_path=Path(db.engine.url.database),
             upload_path=app.config["UPLOAD_ENTERPRISE_ROOT"],
-            latest_db_backup_time=查询最新备份时间("database"),
-            latest_files_backup_time=查询最新备份时间("uploads"),
+            latest_db_backup_time=查询最新备份时间("complete") or 查询最新备份时间("database"),
+            latest_files_backup_time=查询最新备份时间("complete") or 查询最新备份时间("uploads"),
             logs=操作日志,
             export_logs=导出日志,
         )
@@ -1260,6 +1237,8 @@ def create_app(config_overrides=None):
             目录 = app.config["DATABASE_BACKUP_ROOT"]
         elif backup_type in {"files", "uploads"} and filename.startswith("uploads_backup_") and filename.endswith(".zip"):
             目录 = app.config["FILES_BACKUP_ROOT"]
+        elif backup_type == "complete" and filename.startswith("complete_backup_") and filename.endswith(".zip"):
+            目录 = app.config["BACKUP_ROOT"] / "complete"
         else:
             flash("非法备份文件请求。", "danger")
             return redirect(url_for("backup_tools"))
@@ -1296,7 +1275,7 @@ def create_app(config_overrides=None):
         )
 
     def 发送导出Excel(export_type, export_scope, sheets, filters=None, related_enterprise_id=None, related_product_id=None):
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         file_name = f"{export_type}_{export_scope}_{timestamp}.xlsx"
         record_count = sum(len(rows) for _, _, rows in sheets)
         try:
@@ -1345,7 +1324,7 @@ def create_app(config_overrides=None):
         ]
 
     def 发送资料包Zip(export_type, export_scope, items, sheet_builder, filename_builder, filters=None):
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
         file_name = f"{export_type}_{export_scope}_{timestamp}.zip"
         try:
             buffer = BytesIO()
@@ -1888,7 +1867,7 @@ def create_app(config_overrides=None):
     @app.get("/enterprises/<int:id>/folder")
     def enterprise_folder_download(id):
         企业 = Enterprise.query.get_or_404(id)
-        企业目录 = BASE_DIR / 构建企业归档目录(企业)
+        企业目录 = app.config["DATA_ROOT"] / 构建企业归档目录(企业)
         if not 企业目录.exists():
             flash("企业文件夹尚未创建，请先上传企业文件。", "warning")
             return redirect(url_for("enterprise_detail", id=企业.id))
@@ -1908,6 +1887,9 @@ def create_app(config_overrides=None):
     @app.route("/enterprises/<int:id>/edit", methods=["GET", "POST"])
     def enterprise_edit(id):
         企业 = Enterprise.query.get_or_404(id)
+        if request.method == "POST":
+            from simple_entry import check_version
+            check_version(企业)
         外贸联系人 = Contact.query.filter_by(enterprise_id=id, contact_type="外贸负责人").first()
 
         if request.method == "POST":
@@ -2063,6 +2045,9 @@ def create_app(config_overrides=None):
 
             用户 = User.query.filter_by(username=用户名).first()
             if 用户 and check_password_hash(用户.password, 密码):
+                session.clear()
+                session.permanent = True
+                session["auth_stamp"] = password_stamp(用户)
                 session["用户"] = 用户.username
                 session["角色"] = 用户.role
                 flash("登录成功", "success")
@@ -2072,10 +2057,9 @@ def create_app(config_overrides=None):
 
         return render_template("login.html")
 
-    @app.route("/退出")
+    @app.post("/退出")
     def 退出():
-        session.pop("用户", None)
-        session.pop("角色", None)
+        session.clear()
         flash("已退出登录", "info")
         return redirect(url_for("登录"))
 
@@ -2522,6 +2506,9 @@ def create_app(config_overrides=None):
     @app.route("/products/<int:product_id>/edit", methods=["GET", "POST"])
     def product_edit(product_id):
         product = Product.query.get_or_404(product_id)
+        if request.method == "POST":
+            from simple_entry import check_version
+            check_version(product)
         enterprises = Enterprise.query.order_by(Enterprise.company_name.asc()).all()
         product_files = 附加文件元信息(Document.query.filter_by(product_id=product.id).order_by(Document.uploaded_at.desc()).all())
         sku_list = 查询SKU列表(product.id, request.args).all()
@@ -2879,7 +2866,7 @@ def create_app(config_overrides=None):
     @app.route("/documents/<int:document_id>/download")
     def document_download(document_id):
         document = Document.query.get_or_404(document_id)
-        文件路径 = BASE_DIR / document.file_path
+        文件路径 = app.config["DATA_ROOT"] / document.file_path
         if not 文件路径.exists():
             flash("文件不存在，可能已被移动或删除。", "danger")
             return redirect(url_for("document_list"))
@@ -2914,7 +2901,13 @@ def create_app(config_overrides=None):
 
         init_db(app)
 
-    启动定时备份任务()
+    app.extensions["start_backups"] = 启动定时备份任务
+    app.extensions["run_daily_backup"] = 执行每日自动备份
+    from simple_entry import entry
+    from member_management import members
+    app.register_blueprint(entry)
+    app.register_blueprint(members)
+    install_web_security(app)
     return app
 
 
@@ -3158,7 +3151,7 @@ def 处理产品主图上传(product, enterprise):
         return None
     当前上传人 = (session.get("用户") or "未署名").strip() or "未署名"
     文档 = 保存文件并登记记录(
-        app=app,
+        app=current_app,
         enterprise=enterprise,
         product=product,
         上传文件=主图文件,
@@ -3958,7 +3951,7 @@ def 附件清单行(document):
     enterprise = Enterprise.query.get(document.enterprise_id) if document.enterprise_id else None
     product = Product.query.get(document.product_id) if document.product_id else None
     relative_path = document.file_path or ""
-    file_path = BASE_DIR / relative_path if relative_path else None
+    file_path = current_app.config["DATA_ROOT"] / relative_path if relative_path else None
     exists = file_path.exists() if file_path else False
     size = file_path.stat().st_size if exists else ""
     link = f"/documents/{document.id}/download" if document.id else ""
@@ -4757,7 +4750,7 @@ def 构建企业归档目录(enterprise):
 
 def 初始化企业归档目录(upload_root, enterprise):
     企业相对目录 = 构建企业归档目录(enterprise)
-    企业绝对目录 = BASE_DIR / 企业相对目录
+    企业绝对目录 = current_app.config["DATA_ROOT"] / 企业相对目录
     企业绝对目录.mkdir(parents=True, exist_ok=True)
     return 企业绝对目录
 
@@ -4773,9 +4766,7 @@ def 构建标准文件名(industry_code, enterprise_code, product_code, document
 
 
 def 生成不覆盖文件路径(目标路径):
-    if not 目标路径.exists():
-        return 目标路径
-    时间戳 = datetime.now().strftime("%H%M%S")
+    时间戳 = uuid.uuid4().hex
     return 目标路径.with_name(f"{目标路径.stem}_{时间戳}{目标路径.suffix}")
 
 
@@ -4784,7 +4775,7 @@ def 保存文件并登记记录(app, enterprise, product, 上传文件, document
     if request.content_length and request.content_length > MAX_UPLOAD_SIZE:
         raise ValueError("单文件大小不能超过 100MB。")
 
-    安全原始文件名 = secure_filename(上传文件.filename)
+    安全原始文件名 = Path(上传文件.filename.replace("\\", "/")).name.strip()
     if not 安全原始文件名:
         raise ValueError("上传文件名无效，请重命名后重试。")
 
@@ -4811,7 +4802,7 @@ def 保存文件并登记记录(app, enterprise, product, 上传文件, document
         document_type=document_type,
         document_name=document_name,
         version="V01",
-        file_path=str(存储路径.relative_to(BASE_DIR)),
+        file_path=str(存储路径.relative_to(app.config["DATA_ROOT"])),
         original_filename=安全原始文件名,
         uploaded_by=uploaded_by,
         notes=notes,
@@ -4936,6 +4927,14 @@ def init_db(app):
     """初始化数据库与基础账号。"""
 
     with app.app_context():
+        if db.engine.dialect.name == "sqlite":
+            with db.engine.connect() as conn:
+                conn.exec_driver_sql("PRAGMA journal_mode=WAL")
+                conn.exec_driver_sql("PRAGMA synchronous=FULL")
+            old_schema = inspect(db.engine)
+            if any(old_schema.has_table(name) and "version_id" not in {c["name"] for c in old_schema.get_columns(name)} for name in ("enterprises", "products")):
+                snapshot_path = app.config["DATABASE_BACKUP_ROOT"] / f"pre_upgrade_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.sqlite"
+                sqlite_snapshot(db.engine.url.database, snapshot_path)
         db.create_all()
         inspector = inspect(db.engine)
         existing_tables = set(inspector.get_table_names())
@@ -4960,6 +4959,14 @@ def init_db(app):
             db.session.execute(text(f"UPDATE {表名} SET is_deleted = COALESCE(is_deleted, 0)"))
             db.session.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{表名}_deleted_at ON {表名} (deleted_at)"))
             db.session.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{表名}_is_deleted ON {表名} (is_deleted)"))
+
+        for 表名 in ("enterprises", "products"):
+            if "submission_key" not in {col["name"] for col in inspector.get_columns(表名)}:
+                db.session.execute(text(f"ALTER TABLE {表名} ADD COLUMN submission_key VARCHAR(32)"))
+            db.session.execute(text(f"CREATE UNIQUE INDEX IF NOT EXISTS ux_{表名}_submission_key ON {表名} (submission_key)"))
+            if "version_id" not in {col["name"] for col in inspector.get_columns(表名)}:
+                db.session.execute(text(f"ALTER TABLE {表名} ADD COLUMN version_id INTEGER NOT NULL DEFAULT 1"))
+        db.session.commit()
 
         for 表名 in existing_tables:
             补充审计软删除字段(表名)
@@ -5216,15 +5223,8 @@ def init_db(app):
         )
         db.session.commit()
 
-        管理员 = User.query.filter_by(username="admin").first()
-        if not 管理员:
-            db.session.add(User(username="admin", password=generate_password_hash("admin123"), role="管理员"))
-        elif not 管理员.password.startswith("pbkdf2:") and not 管理员.password.startswith("scrypt:"):
-            管理员.password = generate_password_hash("admin123")
-            管理员.role = "管理员"
-        if not User.query.filter_by(username="user").first():
-            db.session.add(User(username="user", password=generate_password_hash("user123"), role="普通用户"))
-        db.session.commit()
+        from member_management import bootstrap_users
+        bootstrap_users(app)
 
         app.config["DATABASE_BACKUP_ROOT"].mkdir(parents=True, exist_ok=True)
         app.config["FILES_BACKUP_ROOT"].mkdir(parents=True, exist_ok=True)
@@ -5234,4 +5234,5 @@ app = create_app()
 
 if __name__ == "__main__":
     init_db(app)
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.extensions["start_backups"]()
+    app.run(host="127.0.0.1", port=5000, debug=False)

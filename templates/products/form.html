@@ -20,6 +20,8 @@
 {% endif %}
 
 <form method="post" action="{{ form_action }}" enctype="multipart/form-data">
+{% if product %}<input type="hidden" name="version_id" value="{{ product.version_id }}">{% endif %}
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="_active_tab" id="activeTabInput" value="{{ initial_tab or 'overview' }}">
     <div class="alert alert-info py-2 small">新增产品仅“所属企业、产品编号、产品名称”为必填项，其余字段均可后续补充。</div>
 
@@ -289,9 +291,7 @@
                                 <td>{{ doc.uploaded_at.strftime('%Y-%m-%d %H:%M') if doc.uploaded_at else '-' }}</td>
                                 <td><a class="btn btn-sm btn-outline-primary" href="{{ url_for('document_download', document_id=doc.id) }}">下载</a></td>
                                 <td>
-                                    <form method="post" action="{{ url_for('product_attachment_delete', product_id=product.id, document_id=doc.id) }}" onsubmit="return confirmPrivilegedDelete(this, '确认删除该附件？');">
-                                        <button class="btn btn-sm btn-outline-danger" type="submit">删除</button>
-                                    </form>
+                                    <button class="btn btn-sm btn-outline-danger" type="submit" form="deleteAttachment{{ doc.id }}">删除</button>
                                 </td>
                             </tr>
                             {% else %}
@@ -309,7 +309,11 @@
     </div>
 </form>
 {% if not is_new_product %}
+{% for doc in product_files %}
+<form id="deleteAttachment{{ doc.id }}" method="post" action="{{ url_for('product_attachment_delete', product_id=product.id, document_id=doc.id) }}" onsubmit="return confirmPrivilegedDelete(this, '确认删除该附件？');"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"></form>
+{% endfor %}
 <form id="skuDeleteForm" method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="next" value="{{ url_for('product_edit', product_id=product.id, tab='sku') }}">
     <input type="hidden" name="admin_password" value="">
 </form>
@@ -317,6 +321,7 @@
 <div class="modal fade" id="skuCreateModal" tabindex="-1">
   <div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">新增 SKU</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
     <form method="post" action="{{ url_for('product_sku_create', product_id=product.id) }}" class="row g-2">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="next" value="{{ url_for('product_edit', product_id=product.id, tab='sku') }}">
       <div class="col-md-4"><input class="form-control" name="sku_code" placeholder="SKU编号（留空自动生成）"></div>
       <div class="col-md-4"><input class="form-control" name="sku_name" placeholder="SKU名称*" required></div>
@@ -333,6 +338,7 @@
 <div class="modal fade" id="skuImportModal" tabindex="-1">
   <div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">导入 SKU Excel</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
     <form method="post" action="{{ url_for('product_sku_import', product_id=product.id) }}" enctype="multipart/form-data">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input class="form-control mb-3" type="file" name="file" accept=".xlsx,.csv" required>
       <div class="text-end"><button class="btn btn-primary">导入</button></div>
     </form>
@@ -342,6 +348,7 @@
 <div class="modal fade" id="skuBatchModal" tabindex="-1">
   <div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">批量修改</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
     <form method="post" action="{{ url_for('product_sku_batch_update', product_id=product.id) }}">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="next" value="{{ url_for('product_edit', product_id=product.id, tab='sku') }}">
       <div id="skuBatchSelectedIds"></div>
       <input class="form-control mb-2" name="moq" placeholder="MOQ">
@@ -359,6 +366,7 @@
 <div class="modal fade" id="skuEditModal-{{ sku.id }}" tabindex="-1">
   <div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">编辑 SKU</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body">
     <form method="post" action="{{ url_for('product_sku_update', product_id=product.id, sku_id=sku.id) }}" class="row g-2">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="hidden" name="next" value="{{ url_for('product_edit', product_id=product.id, tab='sku') }}">
       <div class="col-md-4"><input class="form-control" name="sku_code" value="{{ sku.sku_code }}" required></div><div class="col-md-4"><input class="form-control" name="sku_name" value="{{ sku.sku_name }}" required></div><div class="col-md-4"><input class="form-control" name="model" value="{{ sku.model or '' }}"></div>
       <div class="col-md-3"><input class="form-control" name="specification" value="{{ sku.specification or '' }}"></div><div class="col-md-3"><input class="form-control" name="color" value="{{ sku.color or '' }}"></div><div class="col-md-3"><input class="form-control" name="size" value="{{ sku.size or '' }}"></div><div class="col-md-3"><input class="form-control" name="material" value="{{ sku.material or '' }}"></div>

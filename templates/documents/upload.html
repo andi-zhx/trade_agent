@@ -8,6 +8,7 @@
 </div>
 
 <form method="post" enctype="multipart/form-data" class="card shadow-sm">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <div class="card-body row g-3">
         <div class="col-md-4 position-relative">
             <label class="form-label">所属企业 <span class="text-danger">*</span></label>

@@ -146,6 +146,8 @@
 </div>
 
 <form method="post" enctype="multipart/form-data" class="vstack gap-3" id="enterpriseForm">
+{% if 企业 %}<input type="hidden" name="version_id" value="{{ 企业.version_id }}">{% endif %}
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="action" id="formAction" value="save">
     <input type="hidden" name="duplicate_confirmed" id="duplicateConfirmed" value="{{ '1' if request.form.get('duplicate_confirmed') == '1' else '0' }}">
 
@@ -306,6 +308,7 @@
     id="deleteEnterpriseDocumentForm{{ item.id }}"
     class="d-none"
 >
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="confirm_delete" value="YES">
     <input type="hidden" name="next" value="{{ request.path }}">
     <input type="hidden" name="admin_password" value="">

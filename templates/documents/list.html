@@ -91,6 +91,7 @@
                 <td>
                     <a class="btn btn-sm btn-outline-success" href="{{ url_for('document_download', document_id=d.id) }}">下载</a>
                     <form method="post" action="{{ url_for('document_delete', document_id=d.id) }}" class="d-inline" onsubmit="return confirmPrivilegedDelete(this, '确认删除该文件？');">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="confirm_delete" value="YES">
                         <button class="btn btn-sm btn-outline-danger" type="submit">删除</button>
                     </form>

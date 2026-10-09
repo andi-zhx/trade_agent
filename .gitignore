@@ -1,0 +1,17 @@
+__pycache__/
+*.py[cod]
+.venv/
+.env
+.env.*
+!.env.example
+*.db
+*.db-*
+*.sqlite
+*.sqlite-*
+uploads/
+backups/
+data/
+.secret_key
+.pytest_cache/
+test-results/
+*.log

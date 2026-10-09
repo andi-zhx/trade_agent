@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: trade-agent
+    runtime: python
+    plan: starter
+    region: singapore
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -c gunicorn.conf.py wsgi:app
+    healthCheckPath: /healthz
+    autoDeployTrigger: "off"
+    disk:
+      name: trade-data
+      mountPath: /var/data
+      sizeGB: 10
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.14
+      - key: TRADE_ENV
+        value: production
+      - key: TRADE_DATA_DIR
+        value: /var/data
+      - key: TRADE_TRUST_PROXY
+        value: "1"
+      - key: TRADE_SECRET_KEY
+        generateValue: true
+      - key: TRADE_ADMIN_USERNAME
+        value: admin
+      - key: TRADE_ADMIN_PASSWORD
+        sync: false

@@ -1,0 +1,40 @@
+{% extends 'base.html' %}{% block title %}成员管理
+{% endblock %}{% block content %}
+<p class="text-muted">成员共用同一个资料库，可新增和编辑企业、产品。备份、回收站与成员管理由管理员负责。</p>
+<form method="post" class="record-card row g-3 mb-4">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="action" value="create">
+<h2 class="h5">添加成员</h2>
+<div class="col-md-5">
+<label for="username" class="form-label">用户名</label>
+<input id="username" name="username" class="form-control" required minlength="2" maxlength="50" autocomplete="off">
+</div>
+<div class="col-md-5">
+<label for="password" class="form-label">初始密码（至少 12 字符）</label>
+<input id="password" name="password" type="password" class="form-control" required minlength="12" maxlength="128" autocomplete="new-password">
+</div>
+<div class="col-md-2 d-flex align-items-end">
+<button class="btn btn-primary">添加成员</button>
+</div>
+</form>
+{% for user in users %}<article class="record-card mb-3">
+<div class="d-flex flex-wrap gap-3 align-items-center justify-content-between">
+<div>
+<strong>{{ user.username }}</strong>
+<span class="badge bg-light text-dark ms-2">{{ '已停用' if user.is_deleted else user.role }}</span>
+</div>{% if user.role != '管理员' %}<form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="action" value="toggle">
+<input type="hidden" name="user_id" value="{{ user.id }}">
+<button class="btn btn-outline-secondary">{{ '启用' if user.is_deleted else '停用' }}</button>
+</form>{% endif %}</div>{% if user.role != '管理员' %}<details class="mt-3">
+<summary>重设密码</summary>
+<form method="post" class="d-flex gap-2 mt-2">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="action" value="reset">
+<input type="hidden" name="user_id" value="{{ user.id }}">
+<input name="password" type="password" class="form-control" placeholder="新密码，至少 12 字符" aria-label="{{ user.username }} 的新密码" required minlength="12" maxlength="128" autocomplete="new-password">
+<button class="btn btn-outline-primary text-nowrap">保存</button>
+</form>
+</details>{% endif %}</article>{% endfor %}
+{% endblock %}

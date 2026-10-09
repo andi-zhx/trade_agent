@@ -1,0 +1,45 @@
+{% extends 'base.html' %}{% block title %}{{ '编辑' if item else '新增' }}{{ '企业' if is_enterprise else '产品' }}
+{% endblock %}{% block content %}
+<div class="entry-container">
+<a class="back-link" href="{{ url_for('entry.enterprise', id=item.id if is_enterprise else item.enterprise_id) if item else url_for('entry.home') }}">← 返回资料库</a>
+<div class="entry-heading">
+<span class="eyebrow">{{ '第一步 · 企业信息' if is_enterprise else '第二步 · 产品信息' }}</span>
+<h2>{{ self.title() }}</h2>
+<p>只需填写{{ '企业名称' if is_enterprise else '所属企业和产品名称' }}。其余内容可稍后补充。</p>
+</div>
+{% if error %}<div class="alert alert-danger" role="alert">{{ error }}{% if request.files %}<br>附件需要重新选择。{% endif %}</div>{% endif %}
+<form method="post" enctype="multipart/form-data" class="entry-form" data-guard-unsaved>
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="submission_key" value="{{ submission_key }}">{% if item %}<input type="hidden" name="version_id" value="{{ request.form.get('version_id') if conflict else item.version_id }}">{% endif %}
+<section class="record-card">
+{% if not is_enterprise %}<div class="mb-4">
+<label class="form-label" for="enterprise_id">所属企业 <span class="required-mark">必填</span>
+</label>
+<select class="form-select" id="enterprise_id" name="enterprise_id" required>
+<option value="">请选择企业</option>{% for enterprise in enterprises %}{% if not item or enterprise.id == item.enterprise_id %}<option value="{{ enterprise.id }}" {% if enterprise.id == parent_id %}selected{% endif %}>{{ enterprise.company_name }}</option>{% endif %}{% endfor %}</select>{% if not enterprises %}<p class="form-text">还没有企业，请先<a href="{{ url_for('entry.enterprise_new') }}">录入企业</a>。</p>{% endif %}</div>{% endif %}
+<div class="row g-4">{% for key, label, limit in fields %}<div class="{{ 'col-12' if loop.first or limit > 1000 else 'col-md-6' }}">
+<label class="form-label" for="{{ key }}">{{ label }}{% if loop.first %} <span class="required-mark">必填</span>{% endif %}</label>{% if limit > 1000 %}<textarea class="form-control" name="{{ key }}" id="{{ key }}" rows="3" maxlength="{{ limit }}">{{ values.get(key, '') }}</textarea>{% else %}<input class="form-control" name="{{ key }}" id="{{ key }}" value="{{ values.get(key, '') }}" maxlength="{{ limit }}" {% if loop.first %}required autofocus{% endif %}>{% endif %}</div>{% endfor %}
+{% if is_enterprise %}{% for key, label, limit in contact_fields %}<div class="col-md-6">
+<label class="form-label" for="{{ key }}">{{ label }}</label>
+<input class="form-control" id="{{ key }}" name="{{ key }}" value="{{ values.get(key, '') }}" maxlength="{{ limit }}" type="{{ 'email' if key == 'contact_email' else 'tel' if key == 'primary_contact_mobile' else 'text' }}">
+</div>{% endfor %}{% endif %}</div>
+</section>
+<section class="record-card mt-3">
+<h3 class="h6">附件 <span class="text-muted fw-normal">· 选填</span>
+</h3>
+<label class="form-label" for="attachments">图片、介绍或产品文件</label>
+<input class="form-control" id="attachments" name="attachments" type="file" multiple>
+<div class="form-text">本次上传总计不超过 100 MB。保存成功后可下载。</div>{% for doc in documents %}<a class="attachment-link" href="{{ url_for('document_download', document_id=doc.id) }}">↓ {{ doc.original_filename or doc.document_name }}</a>{% endfor %}</section>
+<div class="save-bar">
+<span class="save-hint" role="status" data-save-status>{{ '资料已保存；修改后请再次保存。' if item else '填写后点击保存。' }}</span>
+<div class="d-flex gap-2 flex-wrap">
+<button class="btn btn-primary" type="submit" name="next_step" value="done" {% if conflict %}disabled{% endif %}>保存{{ '企业' if is_enterprise else '产品' }}</button>{% if is_enterprise %}<button class="btn btn-outline-primary" type="submit" name="next_step" value="product" {% if conflict %}disabled{% endif %}>保存并添加产品</button>{% endif %}</div>
+</div>
+</form>{% if conflict %}<a class="btn btn-outline-primary my-3" target="_blank" rel="noopener" href="{{ request.path }}">另开页面查看最新资料</a>
+<p class="text-muted">请将本次输入复制到最新页面后再保存。此页不会覆盖其他人的修改。</p>{% endif %}
+{% if item %}<details class="secondary-tools">
+<summary>更多资料</summary>
+<p class="small text-muted">编号：{{ item.enterprise_code if is_enterprise else item.product_code }}。原有详细字段仍保留。</p>
+<a href="{{ url_for('enterprise_edit', id=item.id) if is_enterprise else url_for('product_edit', product_id=item.id) }}">打开原有详细表单</a>
+</details>{% endif %}</div>
+{% endblock %}

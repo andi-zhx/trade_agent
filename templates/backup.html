@@ -10,35 +10,30 @@
     <div class="card-body">
         <div class="row g-3 mb-3">
             <div class="col-md-6">
-                <div class="small text-muted">当前数据库文件位置</div>
-                <div><code>{{ db_path }}</code></div>
-            </div>
-            <div class="col-md-6">
-                <div class="small text-muted">当前上传文件目录位置</div>
-                <div><code>{{ upload_path }}</code></div>
-            </div>
-            <div class="col-md-6">
                 <div class="small text-muted">最近一次数据库备份时间</div>
-                <div>{{ latest_db_backup_time.strftime('%Y-%m-%d %H:%M:%S') if latest_db_backup_time else '暂无' }}</div>
+                <div>{{ latest_db_backup_time|localtime if latest_db_backup_time else '暂无' }}</div>
             </div>
             <div class="col-md-6">
                 <div class="small text-muted">最近一次文件资料备份时间</div>
-                <div>{{ latest_files_backup_time.strftime('%Y-%m-%d %H:%M:%S') if latest_files_backup_time else '暂无' }}</div>
+                <div>{{ latest_files_backup_time|localtime if latest_files_backup_time else '暂无' }}</div>
             </div>
         </div>
-        <div class="alert alert-info small mb-3">管理员和普通用户均可查看备份管理、执行系统文件备份，并导出导入失败记录。</div>
+        <div class="alert alert-info small mb-3">系统每天自动备份一次。请定期下载“完整资料包”保存到另一台设备；同一块磁盘上的备份无法防止磁盘损坏。</div>
         <div class="d-flex gap-2 flex-wrap">
             <form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="action" value="backup_db">
                 <button class="btn btn-primary" type="submit">一键备份数据库</button>
             </form>
             <form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="action" value="backup_uploads">
                 <button class="btn btn-outline-primary" type="submit">一键备份企业文件资料</button>
             </form>
             <form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="action" value="backup_all">
-                <button class="btn btn-success" type="submit">一键完整备份</button>
+                <button class="btn btn-success" type="submit">生成完整资料包（推荐）</button>
             </form>
         </div>
     </div>
@@ -53,10 +48,10 @@
                 <div>{{ file.name }}</div>
                     <div class="small text-muted text-break">SHA256：{{ file.hash or '-' }}</div>
                 <small class="text-muted">
-                    {{ '数据库备份' if file.type == 'database' else 'uploads目录备份' }} · {{ file.mtime.strftime('%Y-%m-%d %H:%M:%S') if file.mtime else '-' }} · {{ file.status }} · {{ (file.size / 1024 / 1024)|round(2) }} MB
+                    {{ '完整资料包' if file.type == 'complete' else '数据库备份' if file.type == 'database' else '附件备份' if file.type == 'uploads' else '自动备份' }} · {{ file.mtime|localtime if file.mtime else '-' }} · {{ file.status }} · {{ (file.size / 1024 / 1024)|round(2) }} MB
                 </small>
             </div>
-            <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('download_backup', backup_type=file.type, filename=file.name) }}">下载</a>
+            {% if file.status == "成功" %}<a class="btn btn-sm btn-outline-secondary" href="{{ url_for('download_backup', backup_type=file.type, filename=file.name) }}">下载</a>{% else %}<span class="text-danger">请检查备份服务</span>{% endif %}
         </li>
         {% else %}
         <li class="list-group-item text-muted">暂无备份文件。</li>

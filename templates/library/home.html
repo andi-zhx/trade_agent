@@ -1,0 +1,40 @@
+{% extends 'base.html' %}{% block title %}企业资料
+{% endblock %}{% block content %}
+<div class="library-intro">
+<div>
+<span class="eyebrow">企业 → 产品 → 保存</span>
+<h2>从一家企业开始</h2>
+<p>先记录企业，再添加它的产品。其他资料可以以后补充。</p>
+</div>
+<a class="btn btn-primary btn-lg" href="{{ url_for('entry.enterprise_new') }}">＋ 新增企业</a>
+</div>
+<form method="get" class="search-bar" role="search">
+<label class="visually-hidden" for="q">搜索企业</label>
+<input class="form-control" id="q" name="q" value="{{ keyword }}" placeholder="搜索企业名称、编号或主营产品">
+<button class="btn btn-primary">搜索</button>{% if keyword %}<a class="btn btn-outline-secondary" href="{{ url_for('entry.home') }}">清除</a>{% endif %}</form>
+<div class="section-heading">
+<span>{{ page.total }} 家企业{% if keyword %}符合搜索{% endif %}</span>
+<details class="tools-menu">
+<summary>导入 / 导出</summary>
+<a href="{{ url_for('import_enterprises', next=url_for('entry.home')) }}">导入企业</a>
+<a href="{{ url_for('export_enterprises_all') }}">导出全部企业</a>
+</details>
+</div>
+<div class="record-grid">{% for item in page.items %}<article class="record-card">
+<div class="record-kicker">{{ item.industry_category or '企业资料' }}</div>
+<h3>
+<a href="{{ url_for('entry.enterprise', id=item.id) }}">{{ item.company_name }}</a>
+</h3>
+<p class="record-description">{{ item.main_products or '暂未填写主营产品' }}</p>
+<div class="record-meta">{{ (item.province or '') ~ ' ' ~ (item.city or '') }}{% if item.updated_at %}<span>更新于 {{ item.updated_at|localtime('%Y-%m-%d') }}</span>{% endif %}</div>
+<div class="record-actions">
+<a class="btn btn-outline-primary" href="{{ url_for('entry.enterprise', id=item.id) }}">查看企业</a>
+<a class="btn btn-light" href="{{ url_for('entry.product_new', enterprise_id=item.id) }}">＋ 添加产品</a>
+</div>
+</article>
+{% else %}<div class="empty-state">
+<span class="empty-icon">企</span>
+<h3>{{ '没有找到匹配的企业' if keyword else '还没有企业资料' }}</h3>
+<p>{{ '换个关键词试试。' if keyword else '只填写企业名称就能保存，再逐步补充联系人和产品。' }}</p>{% if not keyword %}<a class="btn btn-primary" href="{{ url_for('entry.enterprise_new') }}">录入第一家企业</a>{% endif %}</div>{% endfor %}</div>
+{% include 'library/pagination.html' %}
+{% endblock %}

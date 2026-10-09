@@ -1,0 +1,25 @@
+{% extends 'base.html' %}{% block title %}回收站
+{% endblock %}{% block content %}
+<div class="library-intro">
+<div>
+<h2>误删资料可以恢复</h2>
+<p>这里不提供永久删除。企业恢复后，其下未单独删除的产品会重新显示。</p>
+</div>
+</div>
+{% for kind, items in [('enterprise', enterprises), ('product', products)] %}{% for item in items %}<div class="record-card mb-3 d-flex justify-content-between align-items-center">
+<div>
+<h3>{{ item.company_name if kind == 'enterprise' else item.product_name_cn }}</h3>
+<span class="text-muted">{{ '企业' if kind == 'enterprise' else '产品' }}</span>
+</div>
+<form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+<input type="hidden" name="kind" value="{{ kind }}">
+<input type="hidden" name="id" value="{{ item.id }}">
+<button class="btn btn-outline-primary">恢复</button>
+</form>
+</div>{% endfor %}{% endfor %}
+{% if not enterprises and not products %}<div class="empty-state">
+<h3>回收站是空的</h3>
+<p>移入回收站的企业和产品会显示在这里。</p>
+</div>{% endif %}
+{% endblock %}

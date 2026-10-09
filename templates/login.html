@@ -8,16 +8,17 @@
         <div class="card shadow-sm">
             <div class="card-body p-4">
                 <h1 class="h4 mb-3 text-center">系统登录</h1>
-                <p class="text-muted text-center small">默认账号：user/user123（普通用户）</p>
+                <p class="text-muted text-center small">请使用管理员为你开通的账号登录。</p>
 
                 <form method="post">
+<input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label for="用户名" class="form-label">用户名</label>
-                        <input id="用户名" name="用户名" class="form-control" required>
+                        <input id="用户名" name="用户名" autocomplete="username" class="form-control" required>
                     </div>
                     <div class="mb-3">
                         <label for="密码" class="form-label">密码</label>
-                        <input id="密码" name="密码" type="password" class="form-control" required>
+                        <input id="密码" name="密码" autocomplete="current-password" type="password" class="form-control" required>
                     </div>
                     <button class="btn btn-primary w-100" type="submit">登录</button>
                 </form>
