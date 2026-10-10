@@ -34,6 +34,7 @@ class ProductImportDuplicateTest(unittest.TestCase):
 
     def tearDown(self):
         db.session.remove()
+        db.engine.dispose()
         self.ctx.pop()
         self.tmpdir.cleanup()
 

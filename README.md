@@ -11,7 +11,13 @@
 
 ## 先在本地运行
 
-需要 Python 3.12。Windows 用户也可继续使用原有启动脚本。
+**Windows：下载并完整解压项目，双击 `启动企业库系统.bat`（或 `start.bat`）即可。** 首次启动保持联网，脚本自动安装完整依赖，服务就绪后自动打开浏览器；后续依赖未变化时无需重复下载。运行期间保留命令行窗口。
+
+支持 Python **3.9–3.13**，兼容常见 Anaconda / Miniconda 安装，不要求单独安装 Python 3.12。脚本在项目的 `.venv` 中安装依赖，不修改 Conda `base`。电脑尚无兼容 Python 时，安装 Python 3.13 并勾选「Add python.exe to PATH」即可。
+
+**更新已有项目时先备份，再将新版源代码覆盖到原项目目录；保留 `trade_agent.db`、`uploads/`、`backups/` 和 `.secret_key`。** 不要只下载 BAT：它还需要新版 `launch_local.py` 和 `requirements.txt`。详见 [Windows 双击启动与故障处理](docs/windows-local.md)。
+
+macOS / Linux，或需要手动运行时：
 
 ```bash
 python -m venv .venv
@@ -58,7 +64,7 @@ python -m unittest discover -s tests -v
 python -m pip check
 ```
 
-测试覆盖实际录入、附件、重启保留、旧库兼容迁移、重复提交、编辑冲突、账号权限、CSRF、密码变更、自动备份与恢复。GitHub Actions 在推送和 PR 时运行测试。
+测试覆盖实际录入、附件、重启保留、旧库兼容迁移、重复提交、编辑冲突、账号权限、CSRF、密码变更、自动备份与恢复。GitHub Actions 在推送和 PR 时运行 Linux / Windows 测试；双击启动集成测试使用独立临时目录，检查安装依赖、录入、离线重启和端口冲突。
 
 生产入口是 `gunicorn -c gunicorn.conf.py wsgi:app`，固定一个进程、四个线程。SQLite 和进程内备份任务目前面向小团队；不要横向扩容或启动多个 worker。
 

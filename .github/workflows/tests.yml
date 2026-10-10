@@ -6,12 +6,37 @@ permissions:
   contents: read
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python: ['3.9', '3.12']
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: '3.12'
+          python-version: ${{ matrix.python }}
           cache: pip
       - run: python -m pip install -r requirements.txt
       - run: python -m unittest discover -s tests -v
+      - name: Test the local launcher and offline persistence
+        if: matrix.python == '3.12'
+        run: python tests/launcher_smoke.py
+      - name: Test Windows launcher with an unactivated Conda Python
+        if: runner.os == 'Windows' && matrix.python == '3.12'
+        shell: pwsh
+        run: |
+          $condaExe = 'C:\Miniconda\Scripts\conda.exe'
+          if ($env:CONDA) {
+            $condaExe = Join-Path $env:CONDA 'Scripts\conda.exe'
+          }
+          if (-not (Test-Path $condaExe)) {
+            $condaExe = 'C:\Miniconda\Scripts\conda.exe'
+          }
+          $condaPrefix = Join-Path $env:RUNNER_TEMP 'unactivated-launcher-conda'
+          & $condaExe create --yes --prefix $condaPrefix --override-channels --channel conda-forge python=3.12 pip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:SMOKE_BOOTSTRAP_PYTHON = Join-Path $condaPrefix 'python.exe'
+          python tests/launcher_smoke.py
