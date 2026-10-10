@@ -1,3 +1,4 @@
-*.bat text eol=crlf
+# Store CRLF in Git too: GitHub ZIP downloads use the stored bytes.
+*.bat -text whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol
 *.py text eol=lf
 *.yml text eol=lf
