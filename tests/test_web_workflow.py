@@ -84,6 +84,7 @@ class SharedLibraryTests(unittest.TestCase):
             self.assertEqual(Enterprise.query.filter_by(id=enterprise_id).one().company_name, '稳定保存测试企业')
             self.assertEqual(Product.query.filter_by(id=product_id).one().model, '规格 A')
             self.assertEqual(Document.query.count(), 2)
+            db.session.remove()
             db.engine.dispose()
 
     def test_duplicate_submit_does_not_create_second_record(self):
@@ -285,6 +286,7 @@ class SharedLibraryTests(unittest.TestCase):
             self.assertTrue(check_password_hash(User.query.filter_by(username='admin').one().password, 'long-production-test-password'))
             self.assertIsNone(User.query.filter_by(username='user').first())
             self.assertEqual(Enterprise.query.count(), 1)
+            db.session.remove()
             db.engine.dispose()
 
     def test_auxiliary_anonymous_request_does_not_invalidate_login_csrf(self):
@@ -302,6 +304,7 @@ class SharedLibraryTests(unittest.TestCase):
             self.assertEqual(result.status_code, 200)
         self.assertEqual(client.post('/登录', data={'csrf_token': token, '用户名': 'admin', '密码': 'invalid'}).status_code, 429)
         with limited.app_context():
+            db.session.remove()
             db.engine.dispose()
 
     def test_legacy_schema_migration_preserves_data_and_makes_snapshot(self):
@@ -324,6 +327,7 @@ class SharedLibraryTests(unittest.TestCase):
             self.assertEqual(item.company_name, '原有企业')
             self.assertEqual(item.version_id, 1)
             self.assertIn('submission_key', {c['name'] for c in inspect(db.engine).get_columns('enterprises')})
+            db.session.remove()
             db.engine.dispose()
         self.assertEqual(len(list((legacy_root / 'backups/database').glob('pre_upgrade_*.sqlite'))), 1)
 

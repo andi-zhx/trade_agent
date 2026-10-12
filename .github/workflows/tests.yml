@@ -22,10 +22,10 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - run: python tests/ci_run.py -m unittest discover -s tests -v
       - name: Test the local launcher and offline persistence
-        if: success() && matrix.python == '3.12'
+        if: ${{ !cancelled() && matrix.python == '3.12' }}
         run: python tests/ci_run.py tests/launcher_smoke.py
       - name: Test Windows launcher with an unactivated Conda Python
-        if: runner.os == 'Windows' && matrix.python == '3.12'
+        if: ${{ !cancelled() && runner.os == 'Windows' && matrix.python == '3.12' }}
         shell: pwsh
         run: |
           $condaExe = 'C:\Miniconda\Scripts\conda.exe'
