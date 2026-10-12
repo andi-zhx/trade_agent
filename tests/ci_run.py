@@ -15,6 +15,10 @@ def main():
         encoding="utf-8", errors="replace",
     )
     print(result.stdout, flush=True)
+    if result.returncode:
+        # Failure annotations are visible without opening authenticated log views.
+        diagnostic = result.stdout[-18000:].replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+        print("::error title=Test failure::" + diagnostic, flush=True)
     summary = os.getenv("GITHUB_STEP_SUMMARY")
     if summary:
         with Path(summary).open("a", encoding="utf-8") as output:
